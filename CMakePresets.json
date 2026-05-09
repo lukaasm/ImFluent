@@ -1,0 +1,40 @@
+{
+    "version": 9,
+    "configurePresets": [
+        {
+            "name": "configure-win64",
+            "displayName": "Windows x64",
+            "binaryDir": "${sourceDir}/.build/${presetName}",
+            "installDir": "${sourceDir}/bin/",
+            "generator": "Visual Studio 18 2026",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "VCPKG_INSTALLED_DIR": "${sourceDir}/.build/vcpkg_installed",
+                "VCPKG_TARGET_TRIPLET": "x64-windows",
+                "VCPKG_HOST_TRIPLET": "x64-windows",
+                "VCPKG_MANIFEST_FEATURES": "examples",
+                "CMAKE_TOOLCHAIN_FILE": {
+                    "type": "FILEPATH",
+                    "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+                },
+                "CMAKE_CONFIGURATION_TYPES": "Debug",
+                "CMAKE_CXX_STANDARD": "17",
+                "CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG": {
+                    "type": "FILEPATH",
+                    "value": "${sourceDir}/bin/Debug"
+                }
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "win64-debug",
+            "displayName": "Debug",
+            "configurePreset": "configure-win64",
+            "configuration": "Debug"
+        }
+    ]
+}

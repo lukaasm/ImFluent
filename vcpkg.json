@@ -1,0 +1,23 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "imfluent",
+    "version": "0.0.0",
+    "builtin-baseline": "77df67cfff9c12ccfdb52284e07c87c75092f723",
+    "dependencies": [
+        "imgui"
+    ],
+    "features": {
+        "examples": {
+            "description": "Build with examples",
+            "dependencies": [
+                {
+                    "name": "imgui",
+                    "features": [
+                        "sdl3-binding",
+                        "sdlgpu3-binding"
+                    ]
+                }
+            ]
+        }
+    }
+}
