@@ -3425,9 +3425,9 @@ int ImFluent::EndContentDialog( const char * primary, const char * secondary, co
     return result;
 }
 
-void ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char * msg, bool * is_open, const char * glyph_override )
+bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char * msg, bool * is_open, const char * glyph_override, bool show_icon, const char * action_label )
 {
-    if ( is_open && !*is_open ) return;
+    if ( is_open && !*is_open ) return false;
     const ImFluentStyle & style = ImFluent::GetStyle();
 
     ImU32 sevCol; const char * glyph;
@@ -3446,17 +3446,21 @@ void ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         : ((sevCol & ~IM_COL32_A_MASK) | (36u << IM_COL32_A_SHIFT));
 
     ImGuiWindow * w = ImGui::GetCurrentWindow();
-    if ( w->SkipItems ) return;
+    if ( w->SkipItems ) return false;
 
-    const float W = ImGui::GetContentRegionAvail().x;
-    const float pad_x = FluentDpx( style.SpacingXLarge );
-    const float pad_y = FluentDpx( style.SpacingLarge );
-    const float icon_w = FluentDpx( style.SpinButtonWidth );
-    const float close_w = is_open ? FluentDpx( style.ControlHeight ) : 0.f;
-    const float text_x = pad_x + icon_w;
-    const float text_avail = ImMax( 1.f, W - text_x - close_w - pad_x );
+    const bool   has_action  = (action_label && *action_label);
+    const float  font_h      = ImGui::GetFontSize();
+    const float  W           = ImGui::GetContentRegionAvail().x;
+    const float  pad_x       = FluentDpx( style.SpacingXLarge );
+    const float  pad_y       = FluentDpx( style.SpacingLarge );
+    const float  icon_col    = show_icon ? FluentDpx( style.SpinButtonWidth ) : 0.f;
+    const float  close_w     = is_open ? FluentDpx( style.ControlHeight ) : 0.f;
+    const float  action_pad  = has_action ? FluentDpx( style.SpacingMedium ) : 0.f;
+    const ImVec2 action_text_sz = has_action ? ImGui::CalcTextSize( action_label ) : ImVec2( 0, 0 );
+    const float  action_w    = has_action ? ( action_text_sz.x + FluentDpx( style.SpacingLarge ) * 2.f ) : 0.f;
+    const float  text_x      = pad_x + icon_col;
+    const float  text_avail  = ImMax( 1.f, W - text_x - close_w - action_w - action_pad - pad_x );
 
-    const float font_h = ImGui::GetFontSize();
     const ImVec2 title_sz = title && *title ? ImGui::CalcTextSize( title, NULL, false, text_avail ) : ImVec2( 0, 0 );
     const ImVec2 msg_sz = msg && *msg ? ImGui::CalcTextSize( msg, NULL, false, text_avail ) : ImVec2( 0, 0 );
     const float gap = (title_sz.y > 0 && msg_sz.y > 0) ? FluentDpx( style.SpacingXSmall ) : 0.f;
@@ -3467,7 +3471,7 @@ void ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
     const ImVec2 pos = w->DC.CursorPos;
     const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
     ImGui::ItemSize( bb );
-    if ( !ImGui::ItemAdd( bb, 0 ) ) return;
+    if ( !ImGui::ItemAdd( bb, 0 ) ) return false;
 
     ImDrawList * dl = w->DrawList;
     const float r = FluentDpx( style.OverlayCornerRadius );
@@ -3478,7 +3482,8 @@ void ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
 
     dl->AddRectFilled( bb.Min, ImVec2( bb.Min.x + FluentDpx( style.SeverityBarThickness ), bb.Max.y ), sevCol, r );
 
-    dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingXLarge ), bb.Min.y + pad_y ), sevCol, glyph );
+    if ( show_icon )
+        dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingXLarge ), bb.Min.y + pad_y ), sevCol, glyph );
 
     const float text_left = bb.Min.x + text_x;
     float       text_y = bb.Min.y + pad_y;
@@ -3497,6 +3502,34 @@ void ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
                      ImVec2( text_left, text_y ),
                      ImFluent::GetColorU32( ImFluentCol_TextSecondary ),
                      msg, NULL, text_avail );
+    }
+
+    bool action_clicked = false;
+    if ( has_action )
+    {
+        const float btn_h = FluentDpx( style.ControlHeight );
+        const float by    = bb.Min.y + ( h - btn_h ) * 0.5f;
+        const float bx_max = bb.Max.x - close_w - ( close_w > 0.f ? FluentDpx( style.SpacingXSmall ) : pad_x );
+        const ImRect btn_bb( ImVec2( bx_max - action_w, by ),
+                             ImVec2( bx_max, by + btn_h ) );
+        const ImGuiID aid = w->GetID( ( const void * )action_label );
+        bool ahov = false, aheld = false;
+        if ( ImGui::ItemAdd( btn_bb, aid ) )
+        {
+            action_clicked = ImGui::ButtonBehavior( btn_bb, aid, &ahov, &aheld );
+        }
+        ImU32 fill_target;
+        if ( aheld )      fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary );
+        else if ( ahov )  fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary );
+        else              fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDefault );
+        const float r_btn = FluentDpx( style.ControlCornerRadius );
+        dl->AddRectFilled( btn_bb.Min, btn_bb.Max, fill_target, r_btn );
+        DrawElevationBorder( dl, btn_bb, r_btn,
+                             ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ),
+                             ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
+        const float ax = btn_bb.Min.x + ( btn_bb.GetWidth() - action_text_sz.x ) * 0.5f;
+        const float ay = btn_bb.Min.y + ( btn_bb.GetHeight() - action_text_sz.y ) * 0.5f;
+        dl->AddText( ImVec2( ax, ay ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), action_label );
     }
 
     if ( is_open )
@@ -3519,6 +3552,7 @@ void ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         dl->AddLine( ImVec2( cc.x - L, cc.y - L ), ImVec2( cc.x + L, cc.y + L ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
         dl->AddLine( ImVec2( cc.x - L, cc.y + L ), ImVec2( cc.x + L, cc.y - L ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
     }
+    return action_clicked;
 }
 
 namespace

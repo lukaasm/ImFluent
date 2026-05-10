@@ -1067,6 +1067,26 @@ static void Page_Item_InfoBar()
     InfoBar(ImFluentInfoSeverity_Critical,      "Error",         "Could not save file.", &open[3]);
     }
     EndControlExample();
+
+    if (BeginControlExample("Action button + close"))
+    {
+    static bool open = true;
+    static int  install_clicks = 0;
+    if (InfoBar(ImFluentInfoSeverity_Informational, "Update available",
+                "A new version is ready to install. Restart to apply.",
+                &open, NULL, true, "Install"))
+        install_clicks++;
+    ControlExampleOutput("Install clicks: %d   open: %s", install_clicks, open ? "yes" : "no");
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Icon hidden"))
+    {
+    static bool open = true;
+    InfoBar(ImFluentInfoSeverity_Success, "Saved", "Changes have been written to disk.",
+            &open, NULL, false);
+    }
+    EndControlExample();
 }
 
 static void Page_Item_InfoBadge()

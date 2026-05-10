@@ -441,7 +441,7 @@ namespace ImFluent
     IMGUI_API bool      BeginContentDialog( const char * id, const char * title );
     IMGUI_API int       EndContentDialog( const char * primary = "OK", const char * secondary = NULL, const char * close_text = "Cancel", ImFluentContentDialogButton default_button = ImFluentContentDialogButton_Primary );
 
-    IMGUI_API void      InfoBar( ImFluentInfoSeverity severity, const char * title, const char * message, bool * is_open = NULL, const char * glyph_override = NULL );
+    IMGUI_API bool      InfoBar( ImFluentInfoSeverity severity, const char * title, const char * message, bool * is_open = NULL, const char * glyph_override = NULL, bool show_icon = true, const char * action_label = NULL );
     IMGUI_API void      InfoBadge( int count = -1, const char * glyph = NULL );
 
     IMGUI_API void      PersonPicture( const char * display_name, float diameter_dpx = 32.f, const char * glyph_override = NULL );
