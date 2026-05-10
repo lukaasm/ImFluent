@@ -1515,12 +1515,18 @@ namespace ImFluent
         if ( thumb_cx > track_min.x )
             dl->AddRectFilled( track_min, ImVec2( thumb_cx, track_max.y ), GetColorU32( ImFluentCol_AccentFillDefault ), track_h * 0.5f );
 
-        const float thumb_r_target = active ? FluentDpx( style.SliderThumbRadius - 2.f ) : (hovered ? FluentDpx( style.SliderThumbRadius + 1.f ) : FluentDpx( style.SliderThumbRadius ));
-        const float thumb_r = AnimateFloat( id ^ 0xC110, thumb_r_target, 0.083f );
-        const float inner_r = thumb_r * 0.5f;
+        // Fluent thumb: white outer puck with an accent-colored inner dot.
+        // The dot expands on hover and contracts when pressed/dragged.
+        const float thumb_r       = FluentDpx( style.SliderThumbRadius );
+        const float inner_rest    = FluentDpx( style.SliderThumbInnerRadius );
+        const float inner_target  = active  ? inner_rest - FluentDpx( style.SpacingXSmall )
+                                  : hovered ? inner_rest + FluentDpx( style.SpacingXSmall )
+                                            : inner_rest;
+        const float inner_r = AnimateFloat( id ^ 0xC110, inner_target, 0.083f );
         const ImVec2 c( thumb_cx, (track_min.y + track_max.y) * 0.5f );
-        dl->AddCircleFilled( c, thumb_r, GetColorU32( ImFluentCol_AccentFillDefault ), 32 );
-        dl->AddCircleFilled( c, inner_r, GetColorU32( ImFluentCol_TextOnAccentPrimary ), 24 );
+        dl->AddCircleFilled( c, thumb_r, GetColorU32( ImFluentCol_ControlSolidFillDefault ), 32 );
+        dl->AddCircle      ( c, thumb_r, GetColorU32( ImFluentCol_ControlStrokeDefault    ), 32, FluentDpx( style.StrokeThin ) );
+        dl->AddCircleFilled( c, inner_r, GetColorU32( ImFluentCol_AccentFillDefault       ), 24 );
 
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, frame_bb, FluentDpx( style.ControlCornerRadius ) );
         DrawAndConsumePendingDescription();
@@ -1601,12 +1607,19 @@ namespace ImFluent
                            ImVec2( hi_x, track_y + track_h * 0.5f ),
                            GetColorU32( ImFluentCol_AccentFillDefault ), track_h * 0.5f );
 
-        const float inner_r = thumb_r * 0.5f;
+        const float inner_rest = FluentDpx( style.SliderThumbInnerRadius );
         for ( int side = 0; side < 2; ++side )
         {
-            const ImVec2 c = ( side == 0 ) ? ImVec2( lo_x, track_y ) : ImVec2( hi_x, track_y );
-            dl->AddCircleFilled( c, thumb_r, GetColorU32( ImFluentCol_AccentFillDefault ), 32 );
-            dl->AddCircleFilled( c, inner_r, GetColorU32( ImFluentCol_TextOnAccentPrimary ), 24 );
+            const ImVec2 c   = ( side == 0 ) ? ImVec2( lo_x, track_y ) : ImVec2( hi_x, track_y );
+            const bool   hov = ( side == 0 ) ? lo_hov  : hi_hov;
+            const bool   act = ( side == 0 ) ? lo_held : hi_held;
+            const float inner_target = act ? inner_rest - FluentDpx( style.SpacingXSmall )
+                                     : hov ? inner_rest + FluentDpx( style.SpacingXSmall )
+                                           : inner_rest;
+            const float inner_r = AnimateFloat( ( side == 0 ? id_lo : id_hi ) ^ 0xC110, inner_target, 0.083f );
+            dl->AddCircleFilled( c, thumb_r, GetColorU32( ImFluentCol_ControlSolidFillDefault ), 32 );
+            dl->AddCircle      ( c, thumb_r, GetColorU32( ImFluentCol_ControlStrokeDefault    ), 32, FluentDpx( style.StrokeThin ) );
+            dl->AddCircleFilled( c, inner_r, GetColorU32( ImFluentCol_AccentFillDefault       ), 24 );
         }
 
         if ( format && *format )
