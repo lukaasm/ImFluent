@@ -2123,8 +2123,12 @@ void ImFluent::EndCard()
 bool ImFluent::BeginSettingsCard( const char * id, const char * header, const char * description, const char * glyph )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
-    if ( !BeginCard( id, ImVec2( -FLT_MIN, 0 ), ImFluentCardStyle_Filled ) )
+    const bool card_open = BeginCard( id, ImVec2( -FLT_MIN, 0 ), ImFluentCardStyle_Filled );
+    if ( !card_open )
+    {
+        EndCard();
         return false;
+    }
     ImGui::PushID( id );
 
     const float font_h = ImGui::GetFontSize();
