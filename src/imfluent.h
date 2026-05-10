@@ -142,6 +142,23 @@ enum ImFluentTeachingTipPlacement_
 };
 typedef int ImFluentTeachingTipPlacement;
 
+enum ImFluentAppBarLabelPosition_
+{
+    ImFluentAppBarLabelPosition_Bottom = 0,
+    ImFluentAppBarLabelPosition_Right,
+    ImFluentAppBarLabelPosition_Collapsed,
+};
+typedef int ImFluentAppBarLabelPosition;
+
+enum ImFluentContentDialogButton_
+{
+    ImFluentContentDialogButton_None = 0,
+    ImFluentContentDialogButton_Primary,
+    ImFluentContentDialogButton_Secondary,
+    ImFluentContentDialogButton_Close,
+};
+typedef int ImFluentContentDialogButton;
+
 enum ImFluentProgressBarState_
 {
     ImFluentProgressBarState_Running = 0,
@@ -366,14 +383,19 @@ namespace ImFluent
     IMGUI_API void      EndTabView();
     IMGUI_API bool      BeginTabItem( const char * label, bool * p_open = NULL, ImGuiTabItemFlags flags = 0 );
     IMGUI_API void      EndTabItem();
+    IMGUI_API bool      TabAddButton();
 
     IMGUI_API bool      BeginSelectorBar( const char * id );
     IMGUI_API bool      SelectorBarItem( const char * label, bool selected, const char * glyph = NULL );
     IMGUI_API void      EndSelectorBar();
 
     IMGUI_API bool      BeginNavigationView( const char * id, ImFluentNavViewMode * mode );
+    IMGUI_API bool      NavBackButton( bool can_go_back = true );
     IMGUI_API bool      NavItem( const char * label, bool selected, const char * glyph = NULL );
     IMGUI_API void      NavSubHeader( const char * text );
+    IMGUI_API void      NavPaneFooterBegin();
+    IMGUI_API void      NavPaneFooterEnd();
+    IMGUI_API bool      NavSettingsItem( bool selected );
     IMGUI_API void      EndNavigationView();
     IMGUI_API void      NavigationViewBeginContent();
     IMGUI_API void      NavigationViewEndContent();
@@ -408,10 +430,12 @@ namespace ImFluent
 
     IMGUI_API void      OpenContentDialog( const char * id );
     IMGUI_API bool      BeginContentDialog( const char * id, const char * title );
-    IMGUI_API int       EndContentDialog( const char * primary = "OK", const char * secondary = NULL, const char * close_text = "Cancel" );
+    IMGUI_API int       EndContentDialog( const char * primary = "OK", const char * secondary = NULL, const char * close_text = "Cancel", ImFluentContentDialogButton default_button = ImFluentContentDialogButton_Primary );
 
     IMGUI_API void      InfoBar( ImFluentInfoSeverity severity, const char * title, const char * message, bool * is_open = NULL, const char * glyph_override = NULL );
     IMGUI_API void      InfoBadge( int count = -1, const char * glyph = NULL );
+
+    IMGUI_API void      PersonPicture( const char * display_name, float diameter_dpx = 32.f, const char * glyph_override = NULL );
 
     IMGUI_API void      OpenTeachingTip( const char * id );
     IMGUI_API bool      BeginTeachingTip( const char * id, const char * title, ImFluentTeachingTipPlacement placement = ImFluentTeachingTipPlacement_Bottom );
@@ -422,9 +446,15 @@ namespace ImFluent
 
     IMGUI_API bool      BeginMenuBar();
     IMGUI_API void      EndMenuBar();
+
+    IMGUI_API bool      BeginCommandBar( const char * id, float height = 0.f );
+    IMGUI_API bool      BeginCommandBarOverflow();   // returns true while the "..." flyout is open
+    IMGUI_API void      EndCommandBarOverflow();
+    IMGUI_API void      EndCommandBar();
     IMGUI_API bool      AppBarButton( const char * label, const char * glyph, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API bool      AppBarToggleButton( const char * label, const char * glyph, bool * v, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API void      AppBarSeparator();
+    IMGUI_API void      SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition pos );
 
     struct ImFluentDate { int Year; int Month; int Day; };
     struct ImFluentTime { int Hour; int Minute; };

@@ -2257,9 +2257,26 @@ namespace ImFluent
 
     bool BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlags flags )
     {
-        return ImGui::BeginTabItem( label, p_open, flags );
+        const bool open = ImGui::BeginTabItem( label, p_open, flags );
+        // Middle-click on the tab strip closes the tab (matches WinUI TabView).
+        if ( p_open && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenBlockedByPopup ) &&
+             ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
+            *p_open = false;
+        return open;
     }
     void EndTabItem() { ImGui::EndTabItem(); }
+
+    bool TabAddButton()
+    {
+        const ImFluentStyle & style = GetStyle();
+        const float h = ImGui::GetFrameHeight();
+        if ( ImGui::TabItemButton( ImFluentIcon_Add,
+                                   ImGuiTabItemFlags_Trailing |
+                                   ImGuiTabItemFlags_NoTooltip ) )
+            return true;
+        ( void )h; ( void )style;
+        return false;
+    }
 
     void EndTabView()
     {
@@ -2427,6 +2444,59 @@ namespace ImFluent
         ImGui::SetCursorPosX( FluentDpx( style.StandardIconSize - 2.f ) );
         ImGui::TextUnformatted( text );
         ImGui::PopStyleColor();
+    }
+
+    bool NavBackButton( bool can_go_back )
+    {
+        ImGuiWindow * w = ImGui::GetCurrentWindow();
+        if ( w->SkipItems ) return false;
+        const ImFluentStyle & style = GetStyle();
+        const float h = FluentDpx( style.NavItemHeight );
+        const float W = ImMax( h, g_NavView.CurrentWidth - FluentDpx( style.SpacingMedium ) );
+        const ImGuiID id = w->GetID( "##nav-back" );
+        const ImVec2 pos = w->DC.CursorPos;
+        const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
+        ImGui::ItemSize( bb );
+        if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+        bool hovered = false, held = false;
+        bool pressed = false;
+        if ( can_go_back )
+            pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+
+        ImDrawList * dl = w->DrawList;
+        const float r = FluentDpx( style.ControlCornerRadius );
+        if ( can_go_back && ( hovered || held ) )
+        {
+            const ImU32 fill = held ? GetColorU32( ImFluentCol_SubtleFillTertiary )
+                                    : GetColorU32( ImFluentCol_SubtleFillSecondary );
+            dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+        }
+
+        const ImU32 textCol = can_go_back ? GetColorU32( ImFluentCol_TextPrimary )
+                                          : GetColorU32( ImFluentCol_TextDisabled );
+        const float cy = ( bb.Min.y + bb.Max.y - ImGui::GetFontSize() ) * 0.5f;
+        dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.StandardIconSize - 2.f ), cy ),
+                     textCol, ImFluentIcon_BackArrow );
+
+        if ( can_go_back && IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+        return pressed;
+    }
+
+    void NavPaneFooterBegin()
+    {
+        ImGui::Dummy( ImVec2( 0.f, ImGui::GetContentRegionAvail().y - GetStyle().NavItemHeight * ImGui::GetStyle().FontScaleDpi - GetStyle().SpacingMedium * ImGui::GetStyle().FontScaleDpi ) );
+    }
+
+    void NavPaneFooterEnd()
+    {
+        // Pure marker for symmetry; nothing to pop.
+    }
+
+    bool NavSettingsItem( bool selected )
+    {
+        SetNextItemGlyph( ImFluentIcon_Settings );
+        return NavItem( "Settings", selected );
     }
 
     void EndNavigationView()
@@ -3017,7 +3087,7 @@ namespace ImFluent
         return true;
     }
 
-    int EndContentDialog( const char * primary, const char * secondary, const char * close_text )
+    int EndContentDialog( const char * primary, const char * secondary, const char * close_text, ImFluentContentDialogButton default_button )
     {
         const ImFluentStyle & style = GetStyle();
         int result = 0;
@@ -3027,32 +3097,30 @@ namespace ImFluent
         int btn_count = (primary ? 1 : 0) + (secondary ? 1 : 0) + (close_text ? 1 : 0);
         if ( btn_count == 0 ) btn_count = 1;
         const float btn_w = (w - gap * (btn_count - 1)) / ( float )btn_count;
+        const ImVec2 btn_sz( btn_w, FluentDpx( style.ControlHeight ) );
+
+        auto run = [ & ]( const char * label, ImFluentContentDialogButton kind, int code )
+        {
+            const bool use_accent = ( default_button == kind );
+            const bool clicked = use_accent ? ImFluent::AccentButton( label, btn_sz )
+                                            : ImFluent::Button( label, btn_sz );
+            if ( clicked ) { result = code; ImGui::CloseCurrentPopup(); }
+        };
+
         int placed = 0;
         if ( primary )
         {
-            if ( ImFluent::AccentButton( primary, ImVec2( btn_w, FluentDpx( style.ControlHeight ) ) ) )
-            {
-                result = 1;
-                ImGui::CloseCurrentPopup();
-            }
+            run( primary, ImFluentContentDialogButton_Primary, 1 );
             if ( ++placed < btn_count ) ImGui::SameLine( 0.f, gap );
         }
         if ( secondary )
         {
-            if ( ImFluent::Button( secondary, ImVec2( btn_w, FluentDpx( style.ControlHeight ) ) ) )
-            {
-                result = 2;
-                ImGui::CloseCurrentPopup();
-            }
+            run( secondary, ImFluentContentDialogButton_Secondary, 2 );
             if ( ++placed < btn_count ) ImGui::SameLine( 0.f, gap );
         }
         if ( close_text )
         {
-            if ( ImFluent::Button( close_text, ImVec2( btn_w, FluentDpx( style.ControlHeight ) ) ) )
-            {
-                result = 3;
-                ImGui::CloseCurrentPopup();
-            }
+            run( close_text, ImFluentContentDialogButton_Close, 3 );
         }
         ImGui::EndPopup();
         ImGui::PopStyleVar( 2 );
@@ -3153,6 +3221,90 @@ namespace ImFluent
             const float L = FluentDpx( style.ChevronGlyphSize + 1.f );
             dl->AddLine( ImVec2( cc.x - L, cc.y - L ), ImVec2( cc.x + L, cc.y + L ), GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
             dl->AddLine( ImVec2( cc.x - L, cc.y + L ), ImVec2( cc.x + L, cc.y - L ), GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
+        }
+    }
+
+    namespace
+    {
+        // Fixed accent palette for avatar backgrounds (deterministic by name).
+        static const ImU32 kAvatarTints[] = {
+            IM_COL32( 99, 102, 241, 255 ),   // indigo
+            IM_COL32( 16, 185, 129, 255 ),   // emerald
+            IM_COL32( 244, 114, 182, 255 ),  // pink
+            IM_COL32( 245, 158, 11, 255 ),   // amber
+            IM_COL32( 6, 182, 212, 255 ),    // cyan
+            IM_COL32( 168, 85, 247, 255 ),   // purple
+            IM_COL32( 239, 68, 68, 255 ),    // red
+            IM_COL32( 14, 165, 233, 255 ),   // sky
+        };
+        static int InitialsFromName( const char * name, char out[5] )
+        {
+            int n = 0;
+            const char * p = name;
+            bool at_word = true;
+            while ( *p && n < 4 )
+            {
+                if ( ( unsigned char )*p > ' ' )
+                {
+                    if ( at_word )
+                    {
+                        char c = *p;
+                        if ( c >= 'a' && c <= 'z' ) c = ( char )( c - 'a' + 'A' );
+                        out[n++] = c;
+                        at_word = false;
+                        if ( n >= 2 ) break;
+                    }
+                }
+                else
+                {
+                    at_word = true;
+                }
+                ++p;
+            }
+            out[n] = 0;
+            return n;
+        }
+        static ImU32 TintFromName( const char * name )
+        {
+            unsigned int h = 5381u;
+            for ( const char * p = name; p && *p; ++p ) h = ( h * 33u ) ^ ( unsigned char )*p;
+            return kAvatarTints[h % ( unsigned int )( sizeof( kAvatarTints ) / sizeof( kAvatarTints[0] ) )];
+        }
+    }
+
+    void PersonPicture( const char * display_name, float diameter_dpx, const char * glyph_override )
+    {
+        ImGuiWindow * w = ImGui::GetCurrentWindow();
+        if ( w->SkipItems ) return;
+        const float D = FluentDpx( diameter_dpx );
+        const ImVec2 pos = w->DC.CursorPos;
+        const ImRect bb( pos, ImVec2( pos.x + D, pos.y + D ) );
+        ImGui::ItemSize( bb );
+        if ( !ImGui::ItemAdd( bb, 0 ) ) return;
+        const ImVec2 c( pos.x + D * 0.5f, pos.y + D * 0.5f );
+        const ImU32 tint = ( display_name && *display_name ) ? TintFromName( display_name )
+                                                             : GetColorU32( ImFluentCol_AccentFillDefault );
+        ImDrawList * dl = w->DrawList;
+        dl->AddCircleFilled( c, D * 0.5f, tint, 32 );
+        if ( glyph_override )
+        {
+            const ImVec2 gs = ImGui::CalcTextSize( glyph_override );
+            dl->AddText( ImVec2( c.x - gs.x * 0.5f, c.y - gs.y * 0.5f ),
+                         GetColorU32( ImFluentCol_TextOnAccentPrimary ), glyph_override );
+        }
+        else if ( display_name && *display_name )
+        {
+            char initials[5];
+            InitialsFromName( display_name, initials );
+            const ImVec2 ts = ImGui::CalcTextSize( initials );
+            dl->AddText( ImVec2( c.x - ts.x * 0.5f, c.y - ts.y * 0.5f ),
+                         GetColorU32( ImFluentCol_TextOnAccentPrimary ), initials );
+        }
+        else
+        {
+            dl->AddText( ImVec2( c.x - ImGui::CalcTextSize( ImFluentIcon_Contact ).x * 0.5f,
+                                 c.y - ImGui::GetFontSize() * 0.5f ),
+                         GetColorU32( ImFluentCol_TextOnAccentPrimary ), ImFluentIcon_Contact );
         }
     }
 
@@ -3309,17 +3461,165 @@ namespace ImFluent
         ImGui::PopStyleColor();
     }
 
+    namespace
+    {
+        struct CommandBarState
+        {
+            char  Id[64];
+            char  PopupId[80];
+            float Height;
+        };
+        static ImVector<CommandBarState> g_CommandBarStack;
+    }
+
+    bool BeginCommandBar( const char * id, float height )
+    {
+        const ImFluentStyle & style = GetStyle();
+        const float h = ( height > 0.f ) ? height : FluentDpx( style.AppBarButtonHeight );
+
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_LayerFillDefault ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding,
+                             ImVec2( FluentDpx( style.SpacingMedium ), 0.f ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing,
+                             ImVec2( FluentDpx( style.SpacingXSmall ), 0.f ) );
+
+        const bool open = ImGui::BeginChild( id, ImVec2( 0, h ),
+                                             ImGuiChildFlags_AlwaysUseWindowPadding,
+                                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        if ( !open )
+        {
+            ImGui::EndChild();
+            ImGui::PopStyleVar( 2 );
+            ImGui::PopStyleColor();
+            return false;
+        }
+
+        CommandBarState s;
+        ImStrncpy( s.Id, id, sizeof( s.Id ) );
+        ImFormatString( s.PopupId, sizeof( s.PopupId ), "##cb-overflow-%s", id );
+        s.Height = h;
+        g_CommandBarStack.push_back( s );
+        return true;
+    }
+
+    bool BeginCommandBarOverflow()
+    {
+        if ( g_CommandBarStack.empty() ) return false;
+        const CommandBarState & s = g_CommandBarStack.back();
+        const ImFluentStyle & style = GetStyle();
+        const float chev_w = FluentDpx( style.AppBarButtonHeight );
+        const float right  = ImGui::GetWindowContentRegionMax().x;
+        const float curX   = ImGui::GetCursorPosX();
+        if ( curX < right - chev_w )
+            ImGui::SameLine( right - chev_w );
+        SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition_Collapsed );
+        if ( AppBarButton( "##cb-more", ImFluentIcon_More, ImVec2( chev_w, s.Height ) ) )
+            OpenMenuFlyout( s.PopupId );
+        return BeginMenuFlyout( s.PopupId );
+    }
+
+    void EndCommandBarOverflow()
+    {
+        EndMenuFlyout();
+    }
+
+    void EndCommandBar()
+    {
+        if ( !g_CommandBarStack.empty() ) g_CommandBarStack.pop_back();
+        ImGui::EndChild();
+        ImGui::PopStyleVar( 2 );
+        ImGui::PopStyleColor();
+    }
+
+    namespace
+    {
+        static ImFluentAppBarLabelPosition g_NextAppBarLabelPos = ImFluentAppBarLabelPosition_Bottom;
+        static bool                        g_NextAppBarLabelPosSet = false;
+
+        static ImFluentAppBarLabelPosition ConsumeAppBarLabelPos()
+        {
+            if ( !g_NextAppBarLabelPosSet ) return ImFluentAppBarLabelPosition_Bottom;
+            const ImFluentAppBarLabelPosition v = g_NextAppBarLabelPos;
+            g_NextAppBarLabelPosSet = false;
+            return v;
+        }
+
+        static void DrawAppBarContent( ImDrawList * dl, const ImRect & bb,
+                                       const char * label, const char * glyph, ImU32 textCol,
+                                       ImFluentAppBarLabelPosition pos, const ImFluentStyle & style )
+        {
+            const float W = bb.GetWidth();
+            const float H = bb.GetHeight();
+            const ImVec2 ts = ( pos != ImFluentAppBarLabelPosition_Collapsed && label ) ? ImGui::CalcTextSize( label ) : ImVec2( 0, 0 );
+            const ImVec2 gs = glyph ? ImGui::CalcTextSize( glyph ) : ImVec2( 0, 0 );
+
+            if ( pos == ImFluentAppBarLabelPosition_Right )
+            {
+                const float pad   = FluentDpx( style.SpacingMedium );
+                const float gap   = ( glyph && label ) ? FluentDpx( style.SpacingMedium ) : 0.f;
+                const float run_w = gs.x + gap + ts.x;
+                float x = bb.Min.x + ( W - run_w ) * 0.5f;
+                if ( glyph )
+                {
+                    dl->AddText( ImVec2( x, bb.Min.y + ( H - gs.y ) * 0.5f ), textCol, glyph );
+                    x += gs.x + gap;
+                }
+                if ( label && pos != ImFluentAppBarLabelPosition_Collapsed )
+                    dl->AddText( ImVec2( x, bb.Min.y + ( H - ts.y ) * 0.5f ), textCol, label );
+                ( void )pad;
+            }
+            else if ( pos == ImFluentAppBarLabelPosition_Collapsed )
+            {
+                if ( glyph )
+                    dl->AddText( ImVec2( bb.Min.x + ( W - gs.x ) * 0.5f,
+                                         bb.Min.y + ( H - gs.y ) * 0.5f ), textCol, glyph );
+            }
+            else // Bottom
+            {
+                if ( glyph )
+                    dl->AddText( ImVec2( bb.Min.x + ( W - gs.x ) * 0.5f,
+                                         bb.Min.y + FluentDpx( style.SpacingMedium ) ), textCol, glyph );
+                if ( label )
+                    dl->AddText( ImVec2( bb.Min.x + ( W - ts.x ) * 0.5f,
+                                         bb.Max.y - ts.y - FluentDpx( style.SpacingMedium - 2.f ) ), textCol, label );
+            }
+        }
+    }
+
+    void SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition pos )
+    {
+        g_NextAppBarLabelPos    = pos;
+        g_NextAppBarLabelPosSet = true;
+    }
+
     bool AppBarButton( const char * label, const char * glyph, const ImVec2 & size_arg )
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
+        const ImFluentAppBarLabelPosition pos = ConsumeAppBarLabelPos();
         const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float W = (size_arg.x > 0 ? size_arg.x : FluentDpx( style.AppBarButtonWidth ));
-        const float H = (size_arg.y > 0 ? size_arg.y : FluentDpx( style.AppBarButtonHeight ));
-        const ImVec2 pos = w->DC.CursorPos;
-        const ImRect bb( pos, ImVec2( pos.x + W, pos.y + H ) );
+
+        float defW = FluentDpx( style.AppBarButtonWidth );
+        float defH = FluentDpx( style.AppBarButtonHeight );
+        if ( pos == ImFluentAppBarLabelPosition_Right )
+        {
+            const float ts_x = label ? ImGui::CalcTextSize( label ).x : 0.f;
+            const float gs_x = glyph ? ImGui::CalcTextSize( glyph ).x : 0.f;
+            defW = gs_x + ( glyph && label ? FluentDpx( style.SpacingMedium ) : 0.f ) + ts_x + FluentDpx( style.SpacingXLarge ) * 2.f;
+            defH = FluentDpx( style.ControlHeight );
+        }
+        else if ( pos == ImFluentAppBarLabelPosition_Collapsed )
+        {
+            defW = FluentDpx( style.AppBarButtonHeight );
+            defH = FluentDpx( style.AppBarButtonHeight );
+        }
+        const float W = ( size_arg.x > 0 ? size_arg.x : defW );
+        const float H = ( size_arg.y > 0 ? size_arg.y : defH );
+
+        const ImVec2 p = w->DC.CursorPos;
+        const ImRect bb( p, ImVec2( p.x + W, p.y + H ) );
         ImGui::ItemSize( bb );
         if ( !ImGui::ItemAdd( bb, id ) ) return false;
         bool hov = false, held = false;
@@ -3328,13 +3628,7 @@ namespace ImFluent
         const float r = FluentDpx( style.ControlCornerRadius );
         ImU32 fill = ResolveSubtleFillState( false , held, hov );
         dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
-        if ( glyph )
-        {
-            const ImVec2 gs = ImGui::CalcTextSize( glyph );
-            dl->AddText( ImVec2( bb.Min.x + (W - gs.x) * 0.5f, bb.Min.y + FluentDpx( style.SpacingMedium ) ), GetColorU32( ImFluentCol_TextPrimary ), glyph );
-        }
-        const ImVec2 ts = ImGui::CalcTextSize( label );
-        dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f, bb.Max.y - ts.y - FluentDpx( style.SpacingMedium - 2.f ) ), GetColorU32( ImFluentCol_TextPrimary ), label );
+        DrawAppBarContent( dl, bb, label, glyph, GetColorU32( ImFluentCol_TextPrimary ), pos, style );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
         return pressed;
     }
@@ -3344,12 +3638,29 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
+        const ImFluentAppBarLabelPosition pos = ConsumeAppBarLabelPos();
         const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float W = (size_arg.x > 0 ? size_arg.x : FluentDpx( style.AppBarButtonWidth ));
-        const float H = (size_arg.y > 0 ? size_arg.y : FluentDpx( style.AppBarButtonHeight ));
-        const ImVec2 pos = w->DC.CursorPos;
-        const ImRect bb( pos, ImVec2( pos.x + W, pos.y + H ) );
+
+        float defW = FluentDpx( style.AppBarButtonWidth );
+        float defH = FluentDpx( style.AppBarButtonHeight );
+        if ( pos == ImFluentAppBarLabelPosition_Right )
+        {
+            const float ts_x = label ? ImGui::CalcTextSize( label ).x : 0.f;
+            const float gs_x = glyph ? ImGui::CalcTextSize( glyph ).x : 0.f;
+            defW = gs_x + ( glyph && label ? FluentDpx( style.SpacingMedium ) : 0.f ) + ts_x + FluentDpx( style.SpacingXLarge ) * 2.f;
+            defH = FluentDpx( style.ControlHeight );
+        }
+        else if ( pos == ImFluentAppBarLabelPosition_Collapsed )
+        {
+            defW = FluentDpx( style.AppBarButtonHeight );
+            defH = FluentDpx( style.AppBarButtonHeight );
+        }
+        const float W = ( size_arg.x > 0 ? size_arg.x : defW );
+        const float H = ( size_arg.y > 0 ? size_arg.y : defH );
+
+        const ImVec2 p = w->DC.CursorPos;
+        const ImRect bb( p, ImVec2( p.x + W, p.y + H ) );
         ImGui::ItemSize( bb );
         if ( !ImGui::ItemAdd( bb, id ) ) return false;
         bool hov = false, held = false;
@@ -3367,18 +3678,9 @@ namespace ImFluent
         else
             fill = ResolveSubtleFillState( false , held, hov );
         dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
-
         const ImU32 textCol = on ? GetColorU32( ImFluentCol_TextOnAccentPrimary )
                                  : GetColorU32( ImFluentCol_TextPrimary );
-        if ( glyph )
-        {
-            const ImVec2 gs = ImGui::CalcTextSize( glyph );
-            dl->AddText( ImVec2( bb.Min.x + (W - gs.x) * 0.5f,
-                                 bb.Min.y + FluentDpx( style.SpacingMedium ) ), textCol, glyph );
-        }
-        const ImVec2 ts = ImGui::CalcTextSize( label );
-        dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f,
-                             bb.Max.y - ts.y - FluentDpx( style.SpacingMedium - 2.f ) ), textCol, label );
+        DrawAppBarContent( dl, bb, label, glyph, textCol, pos, style );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
         return pressed;
     }

@@ -95,6 +95,8 @@ static void Page_Item_WrapPanel      ();
 static void Page_Item_TeachingTip    ();
 static void Page_Item_TitleBar       ();
 static void Page_Item_StyleStack     ();
+static void Page_Item_PersonPicture  ();
+static void Page_Item_CommandBar     ();
 
 static const ControlInfo g_Controls[] = {
     // ---- Basic Input -------------------------------------------------------
@@ -115,6 +117,7 @@ static const ControlInfo g_Controls[] = {
     { "ProgressRing",    "StatusAndInfo", "ProgressRing",    "Shows the progress of a long-running operation as a ring.",        ImFluentIcon_Refresh,       &Page_Item_ProgressRing },
     { "InfoBar",         "StatusAndInfo", "InfoBar",         "Inline notification for app-wide status messages.",                 ImFluentIcon_Info,          &Page_Item_InfoBar },
     { "InfoBadge",       "StatusAndInfo", "InfoBadge",       "Small contextual indicator for new content or notifications.",     ImFluentIcon_Important,     &Page_Item_InfoBadge },
+    { "PersonPicture",   "StatusAndInfo", "PersonPicture",   "Circular avatar with deterministic tint and initials.",             ImFluentIcon_Contact,       &Page_Item_PersonPicture },
     { "ToolTip",         "StatusAndInfo", "ToolTip",         "Pops up additional info about an element on hover.",                ImFluentIcon_Info,          &Page_Item_ToolTip },
 
     // ---- Text --------------------------------------------------------------
@@ -155,6 +158,7 @@ static const ControlInfo g_Controls[] = {
 
     // ---- Menus & toolbars --------------------------------------------------
     { "AppBarButton",    "MenusAndToolbars", "AppBarButton", "A toolbar button with an icon glyph above its label.",              ImFluentIcon_Add,           &Page_Item_AppBarButton },
+    { "CommandBar",      "MenusAndToolbars", "CommandBar",   "Toolbar with primary commands + overflow flyout for secondary.",   ImFluentIcon_More,          &Page_Item_CommandBar },
 
     // ---- Date & Time -------------------------------------------------------
     { "DatePicker",         "DateTime", "DatePicker",         "Lets a user pick a date.",                                          ImFluentIcon_Calendar,    &Page_Item_DatePicker },
@@ -840,22 +844,61 @@ static void Page_Item_TabView()
         EndTabView();
     }
     EndControlExample();
+
+    BeginControlExample("Closeable tabs + Add button (middle-click also closes)");
+    static struct Tab { char title[32]; bool open; } tabs[8] = {
+        {"Document 1", true}, {"Document 2", true}, {"Document 3", true}
+    };
+    static int next_doc = 4;
+    if (BeginTabView("##tv-add"))
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            if (!tabs[i].open || tabs[i].title[0] == 0) continue;
+            if (BeginTabItem(tabs[i].title, &tabs[i].open))
+            {
+                TextBlock(tabs[i].title, ImFluentTextStyle_BodyStrong);
+                EndTabItem();
+            }
+        }
+        if (TabAddButton())
+        {
+            for (int i = 0; i < 8; ++i)
+            {
+                if (tabs[i].title[0] == 0 || !tabs[i].open)
+                {
+                    std::snprintf(tabs[i].title, sizeof(tabs[i].title), "Document %d", next_doc++);
+                    tabs[i].open = true;
+                    break;
+                }
+            }
+        }
+        EndTabView();
+    }
+    EndControlExample();
 }
 
 static void Page_Item_NavigationView()
 {
     PageHeader("NavigationView", "Side-pane navigation.");
-    BeginControlExample("Side pane");
+    BeginControlExample("Side pane with back button + Settings");
     static ImFluentNavViewMode mode = ImFluentNavViewMode_LeftCompact;
     static int sel = 0;
+    static int back_clicks = 0;
     BeginNavigationView("##demoNav", &mode);
-    if (NavItem("Home",     sel == 0, ImFluentIcon_Home))       sel = 0;
-    if (NavItem("Inbox",    sel == 1, ImFluentIcon_Mail))       sel = 1;
-    if (NavItem("Settings", sel == 2, ImFluentIcon_Settings))   sel = 2;
+    if (NavBackButton(sel != 0)) { back_clicks++; sel = 0; }
+    if (NavItem("Home",     sel == 0, ImFluentIcon_Home)) sel = 0;
+    if (NavItem("Inbox",    sel == 1, ImFluentIcon_Mail)) sel = 1;
+    NavSubHeader("More");
+    if (NavItem("Folders",  sel == 2, ImFluentIcon_Folder)) sel = 2;
+    if (NavItem("Contacts", sel == 3, ImFluentIcon_Contact)) sel = 3;
+    if (NavSettingsItem(sel == 4)) sel = 4;
     EndNavigationView();
     ImGui::SameLine();
     ImGui::BeginGroup();
     TextBlock("(toggle the pane with the menu icon)", ImFluentTextStyle_Caption);
+    char line[64]; std::snprintf(line, sizeof(line), "Back clicks: %d", back_clicks);
+    TextBlock(line, ImFluentTextStyle_Caption);
     ImGui::EndGroup();
     EndControlExample();
 }
@@ -921,10 +964,24 @@ static void Page_Item_ContentDialog()
     {
         TextBlock("Your changes have not been saved. Do you want to save them now?",
                   ImFluentTextStyle_Body);
-        const int r = EndContentDialog("Save", "Don't save", "Cancel");
+        const int r = EndContentDialog("Save", "Don't save", "Cancel",
+                                       ImFluentContentDialogButton_Primary);
         if (r == 1)      ControlExampleOutput("Result: Save");
         else if (r == 2) ControlExampleOutput("Result: Don't save");
         else if (r == 3) ControlExampleOutput("Result: Cancel");
+    }
+    EndControlExample();
+
+    BeginControlExample("DefaultButton = Close (destructive close highlighted)");
+    if (Button("Show destructive dialog")) OpenContentDialog("##cd-destructive");
+    if (BeginContentDialog("##cd-destructive", "Delete file?"))
+    {
+        TextBlock("This file will be permanently deleted from your device.",
+                  ImFluentTextStyle_Body);
+        const int r = EndContentDialog("Delete", NULL, "Keep",
+                                       ImFluentContentDialogButton_Close);
+        if (r == 1)      ControlExampleOutput("Result: Delete");
+        else if (r == 3) ControlExampleOutput("Result: Keep");
     }
     EndControlExample();
 }
@@ -1024,6 +1081,15 @@ static void Page_Item_AppBarButton()
     AppBarToggleButton("Underline", "U", &under);
     ControlExampleOutput("B=%d I=%d U=%d", bold ? 1 : 0, italic ? 1 : 0, under ? 1 : 0);
     EndControlExample();
+
+    BeginControlExample("LabelPosition: Bottom (default), Right, Collapsed");
+    SetNextAppBarLabelPosition(ImFluentAppBarLabelPosition_Bottom);
+    AppBarButton("Add",     ImFluentIcon_Add);     ImGui::SameLine();
+    SetNextAppBarLabelPosition(ImFluentAppBarLabelPosition_Right);
+    AppBarButton("Refresh", ImFluentIcon_Refresh); ImGui::SameLine();
+    SetNextAppBarLabelPosition(ImFluentAppBarLabelPosition_Collapsed);
+    AppBarButton("Share",   ImFluentIcon_Share);
+    EndControlExample();
 }
 
 // ---- Date & time -----------------------------------------------------------
@@ -1057,6 +1123,63 @@ static void Page_Item_CalendarDatePicker()
     CalendarDatePicker("##cdp", &d);
     ImGui::PopItemWidth();
     ControlExampleOutput("Date: %04d-%02d-%02d", d.Year, d.Month, d.Day);
+    EndControlExample();
+}
+
+// ---- Status & info (additions) ---------------------------------------------
+
+static void Page_Item_PersonPicture()
+{
+    PageHeader("PersonPicture", "Circular avatar with deterministic tint and initials, optional glyph override.");
+
+    BeginControlExample("Initials");
+    PersonPicture("Alex Johnson", 48.f);   ImGui::SameLine();
+    PersonPicture("Maria Lopez",  48.f);   ImGui::SameLine();
+    PersonPicture("Kenji Tanaka", 48.f);   ImGui::SameLine();
+    PersonPicture("Sasha Patel",  48.f);
+    EndControlExample();
+
+    BeginControlExample("Sizes");
+    PersonPicture("Alex Johnson", 24.f); ImGui::SameLine();
+    PersonPicture("Alex Johnson", 32.f); ImGui::SameLine();
+    PersonPicture("Alex Johnson", 48.f); ImGui::SameLine();
+    PersonPicture("Alex Johnson", 64.f);
+    EndControlExample();
+
+    BeginControlExample("Glyph override / fallback");
+    PersonPicture("Group",        48.f, ImFluentIcon_People);  ImGui::SameLine();
+    PersonPicture(NULL,           48.f);
+    EndControlExample();
+}
+
+// ---- Menus & toolbars (additions) ------------------------------------------
+
+static void Page_Item_CommandBar()
+{
+    PageHeader("CommandBar", "Toolbar with primary commands on the left and secondary commands collapsed into an overflow flyout on the right.");
+
+    BeginControlExample("Primary + overflow");
+    static int format_clicks = 0;
+    if (BeginCommandBar("##cmdbar"))
+    {
+        if (AppBarButton("Save",   ImFluentIcon_Save))   format_clicks++;
+        if (AppBarButton("Copy",   ImFluentIcon_Copy))   format_clicks++;
+        if (AppBarButton("Cut",    ImFluentIcon_Cut))    format_clicks++;
+        if (AppBarButton("Paste",  ImFluentIcon_Paste))  format_clicks++;
+        AppBarSeparator();
+        if (AppBarButton("Share",  ImFluentIcon_Share))  format_clicks++;
+
+        if (BeginCommandBarOverflow())
+        {
+            MenuFlyoutItem("Settings",  NULL, ImFluentIcon_Settings);
+            MenuFlyoutItem("Help",      NULL, ImFluentIcon_Info);
+            MenuFlyoutSeparator();
+            MenuFlyoutItem("About",     NULL, ImFluentIcon_Important);
+            EndCommandBarOverflow();
+        }
+        EndCommandBar();
+    }
+    ControlExampleOutput("Primary clicks: %d", format_clicks);
     EndControlExample();
 }
 
