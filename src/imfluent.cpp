@@ -2052,6 +2052,7 @@ namespace ImFluent
         const float control_h  = FluentDpx( style.ControlHeight );
         const float row_h      = ImMax( text_h, control_h );
         const float glyph_w    = glyph ? FluentDpx( style.SpinButtonWidth ) : 0.f;
+        const float glyph_gap  = glyph ? FluentDpx( style.SpacingLarge ) : 0.f;
         const float trail_w    = FluentDpx( style.ControlMinWidth );
 
         const ImVec2 pos      = ImGui::GetCursorScreenPos();
@@ -2065,7 +2066,7 @@ namespace ImFluent
                                  pos.y + ( row_h - gs.y ) * 0.5f ),
                          GetColorU32( ImFluentCol_TextPrimary ), glyph );
         }
-        const float text_x = pos.x + glyph_w;
+        const float text_x = pos.x + glyph_w + glyph_gap;
         const float text_y = pos.y + ( row_h - text_h ) * 0.5f;
         if ( header )
             dl->AddText( ImVec2( text_x, text_y ), GetColorU32( ImFluentCol_TextPrimary ), header );
