@@ -621,6 +621,7 @@ void ImFluent::LoadFluentFonts()
     {
         ImFontConfig cfg;
         cfg.SizePixels = i.dp;
+        cfg.RasterizerMultiply = 1.2f;
 
         const char * fontPath = nullptr;
         ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/Fonts/%s", fontsDirectory, i.fontFile );
