@@ -973,13 +973,20 @@ static void Page_Item_TabView()
 static void Page_Item_NavigationView()
 {
     PageHeader("NavigationView", "Side-pane navigation.");
-    if (BeginControlExample("Side pane with back button + Settings"))
+    const float pane_demo_h = FluentDpx(360.f);
+    if (BeginControlExample("Side pane with title, back button, search and settings"))
     {
     static ImFluentNavViewMode mode = ImFluentNavViewMode_LeftCompact;
     static int sel = 0;
     static int back_clicks = 0;
+    static char search_buf[64] = "";
+    static const char* search_items[] = { "Home", "Inbox", "Folders", "Contacts", "Settings" };
+    ImGui::BeginChild("##nav-host-1", ImVec2(0, pane_demo_h), ImGuiChildFlags_None);
     BeginNavigationView("##demoNav", &mode);
-    if (NavBackButton(sel != 0)) { back_clicks++; sel = 0; }
+    NavPaneTitle("My App");
+    NavPaneAutoSuggestBox("##nav-search", search_buf, sizeof(search_buf),
+                          search_items, IM_ARRAYSIZE(search_items), NULL, "Search");
+    if (NavBackButton(sel != 0, true)) { back_clicks++; sel = 0; }
     if (NavItem("Home",     sel == 0, ImFluentIcon_Home)) sel = 0;
     if (NavItem("Inbox",    sel == 1, ImFluentIcon_Mail)) sel = 1;
     NavSubHeader("More");
@@ -995,6 +1002,34 @@ static void Page_Item_NavigationView()
     (void)line_end;
     TextBlock(line, ImFluentTextStyle_Caption);
     ImGui::EndGroup();
+    ImGui::EndChild();
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Top pane mode"))
+    {
+    static ImFluentNavViewMode mode = ImFluentNavViewMode_Top;
+    static int sel = 0;
+    BeginNavigationView("##demoNavTop", &mode);
+    if (NavItem("Home",     sel == 0, ImFluentIcon_Home))    sel = 0;
+    if (NavItem("Inbox",    sel == 1, ImFluentIcon_Mail))    sel = 1;
+    if (NavItem("Folders",  sel == 2, ImFluentIcon_Folder))  sel = 2;
+    if (NavItem("Contacts", sel == 3, ImFluentIcon_Contact)) sel = 3;
+    EndNavigationView();
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Pane toggle hidden"))
+    {
+    static ImFluentNavViewMode mode = ImFluentNavViewMode_LeftCompact;
+    static int sel = 0;
+    ImGui::BeginChild("##nav-host-3", ImVec2(0, pane_demo_h), ImGuiChildFlags_None);
+    SetNextNavPaneToggleButtonVisible(false);
+    BeginNavigationView("##demoNavNoToggle", &mode);
+    if (NavItem("Home",     sel == 0, ImFluentIcon_Home))    sel = 0;
+    if (NavItem("Inbox",    sel == 1, ImFluentIcon_Mail))    sel = 1;
+    EndNavigationView();
+    ImGui::EndChild();
     }
     EndControlExample();
 }

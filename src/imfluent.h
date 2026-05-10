@@ -121,6 +121,7 @@ enum ImFluentNavViewMode_
     ImFluentNavViewMode_LeftCompact = 0,
     ImFluentNavViewMode_LeftOpen,
     ImFluentNavViewMode_LeftAuto,
+    ImFluentNavViewMode_Top,
 };
 typedef int ImFluentNavViewMode;
 
@@ -392,15 +393,21 @@ namespace ImFluent
     IMGUI_API void      EndSelectorBar();
 
     IMGUI_API bool      BeginNavigationView( const char * id, ImFluentNavViewMode * mode );
-    IMGUI_API bool      NavBackButton( bool can_go_back = true );
+    IMGUI_API void      SetNextNavPaneToggleButtonVisible( bool visible );
+    IMGUI_API bool      NavBackButton( bool enabled = true, bool visible = true );
     IMGUI_API bool      NavItem( const char * label, bool selected, const char * glyph = NULL );
     IMGUI_API void      NavSubHeader( const char * text );
+    IMGUI_API void      NavPaneTitle( const char * text );
+    IMGUI_API bool      NavPaneAutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL );
     IMGUI_API void      NavPaneFooterBegin();
     IMGUI_API void      NavPaneFooterEnd();
     IMGUI_API bool      NavSettingsItem( bool selected );
     IMGUI_API void      EndNavigationView();
     IMGUI_API void      NavigationViewBeginContent();
+    IMGUI_API void      NavContentHeader( const char * title );
     IMGUI_API void      NavigationViewEndContent();
+    IMGUI_API bool      IsNavPaneOpening();
+    IMGUI_API bool      IsNavPaneClosing();
 
     IMGUI_API bool       ComboBox( const char * label, int * current_item, const char * const items[], int items_count );
     IMGUI_API bool       ListBox( const char * label, int * current_item, const char * const items[], int items_count, int height_in_items = 7 );

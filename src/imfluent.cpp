@@ -2555,18 +2555,59 @@ namespace
 {
     struct NavViewState
     {
-        float CurrentWidth;
-        bool  ContentStarted;
+        float               CurrentWidth;
+        bool                ContentStarted;
         ImFluentNavViewMode Mode;
+        ImFluentNavViewMode PrevMode;
+        bool                NextToggleVisible;
+        bool                NextToggleVisibleSet;
     };
 }
 
 static NavViewState g_NavView;
 
+void ImFluent::SetNextNavPaneToggleButtonVisible( bool visible )
+{
+    g_NavView.NextToggleVisible    = visible;
+    g_NavView.NextToggleVisibleSet = true;
+}
+
+bool ImFluent::IsNavPaneOpening()
+{
+    return g_NavView.PrevMode != ImFluentNavViewMode_LeftOpen
+        && g_NavView.Mode     == ImFluentNavViewMode_LeftOpen;
+}
+
+bool ImFluent::IsNavPaneClosing()
+{
+    return g_NavView.PrevMode == ImFluentNavViewMode_LeftOpen
+        && g_NavView.Mode     != ImFluentNavViewMode_LeftOpen;
+}
+
 bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_io )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
+    g_NavView.PrevMode = g_NavView.Mode;
     g_NavView.Mode = mode_io ? *mode_io : ImFluentNavViewMode_LeftCompact;
+
+    const bool toggle_visible = g_NavView.NextToggleVisibleSet ? g_NavView.NextToggleVisible : true;
+    g_NavView.NextToggleVisibleSet = false;
+
+    if ( g_NavView.Mode == ImFluentNavViewMode_Top )
+    {
+        const float h = FluentDpx( style.NavItemHeight );
+        g_NavView.CurrentWidth = ImGui::GetContentRegionAvail().x;
+
+        ImGui::PushID( id );
+        ImGui::BeginGroup();
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
+        const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( 0, h + FluentDpx( style.SpacingSmall ) * 2.f ),
+                                                  ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
+        return pane_open ? true : true;
+    }
+
     const float target_w = (g_NavView.Mode == ImFluentNavViewMode_LeftOpen)
         ? FluentDpx( style.NavPaneOpenWidth ) : FluentDpx( style.NavPaneCompactWidth );
     g_NavView.CurrentWidth = AnimateFloat( ImGui::GetID( id ), target_w, 0.20f );
@@ -2579,6 +2620,9 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
     const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( g_NavView.CurrentWidth, 0.f ),
                                               ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
     if ( !pane_open )
+        return true;
+
+    if ( !toggle_visible )
         return true;
 
     const float row_h = FluentDpx( style.NavItemHeight );
@@ -2612,6 +2656,46 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
     glyph = ConsumePendingGlyph( glyph );
     const ImFluentStyle & style = ImFluent::GetStyle();
     const ImGuiID id = w->GetID( label );
+
+    if ( g_NavView.Mode == ImFluentNavViewMode_Top )
+    {
+        const float h = FluentDpx( style.NavItemHeight );
+        const float pad_x = FluentDpx( style.SpacingLarge );
+        const ImVec2 ts = ImGui::CalcTextSize( label );
+        const float gw = glyph ? ImGui::CalcTextSize( glyph ).x + FluentDpx( style.SpacingMedium ) : 0.f;
+        const float w_item = pad_x * 2.f + gw + ts.x;
+        const ImVec2 pos = w->DC.CursorPos;
+        const ImRect bb( pos, ImVec2( pos.x + w_item, pos.y + h ) );
+        ImGui::ItemSize( bb );
+        if ( !ImGui::ItemAdd( bb, id ) ) { ImGui::SameLine(); return false; }
+        bool hov = false, held = false;
+        const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+        const float r = FluentDpx( style.ControlCornerRadius );
+        const ImU32 fill = AnimateColorU32( id, ResolveSubtleFillState( selected, held, hov ) );
+        ImDrawList * dl = w->DrawList;
+        dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+        const float cy = ( bb.Min.y + bb.Max.y - ImGui::GetFontSize() ) * 0.5f;
+        float text_x = bb.Min.x + pad_x;
+        if ( glyph )
+        {
+            dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
+            text_x += ImGui::CalcTextSize( glyph ).x + FluentDpx( style.SpacingMedium );
+        }
+        dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
+        if ( selected )
+        {
+            const float bw = bb.GetWidth() * 0.5f;
+            const float bx = ( bb.Min.x + bb.Max.x ) * 0.5f;
+            dl->AddRectFilled( ImVec2( bx - bw * 0.5f, bb.Max.y - FluentDpx( style.SelectionIndicatorThickness ) ),
+                               ImVec2( bx + bw * 0.5f, bb.Max.y ),
+                               ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ),
+                               FluentDpx( style.SpacingXSmall ) );
+        }
+        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+        ImGui::SameLine();
+        return pressed;
+    }
+
     const float row_h = FluentDpx( style.NavItemHeight );
     const float W = ImGui::GetContentRegionAvail().x;
     const ImVec2 pos = w->DC.CursorPos;
@@ -2657,8 +2741,32 @@ void ImFluent::NavSubHeader( const char * text )
     ImGui::PopStyleColor();
 }
 
-bool ImFluent::NavBackButton( bool can_go_back )
+void ImFluent::NavPaneTitle( const char * text )
 {
+    if ( !text || !*text ) return;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    if ( g_NavView.CurrentWidth < FluentDpx( style.AppBarButtonWidth + style.SpacingXXLarge + style.SpacingMedium ) ) return;
+    ImGui::SetCursorPosX( FluentDpx( style.StandardIconSize - 2.f ) );
+    ImFluent::TextBlock( text, ImFluentTextStyle_BodyStrong );
+    ImGui::Dummy( ImVec2( 0.f, FluentDpx( style.SpacingXSmall ) ) );
+}
+
+bool ImFluent::NavPaneAutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index, const char * hint )
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    if ( g_NavView.CurrentWidth < FluentDpx( style.AppBarButtonWidth + style.SpacingXXLarge + style.SpacingMedium ) )
+        return false;
+    ImGui::SetCursorPosX( FluentDpx( style.SpacingSmall ) );
+    ImGui::PushItemWidth( g_NavView.CurrentWidth - FluentDpx( style.SpacingSmall ) * 2.f );
+    const bool changed = ImFluent::AutoSuggestBox( label, buf, buf_size, items, items_count, selected_index, hint );
+    ImGui::PopItemWidth();
+    ImGui::Dummy( ImVec2( 0.f, FluentDpx( style.SpacingXSmall ) ) );
+    return changed;
+}
+
+bool ImFluent::NavBackButton( bool enabled, bool visible )
+{
+    if ( !visible ) return false;
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
     const ImFluentStyle & style = ImFluent::GetStyle();
@@ -2672,25 +2780,25 @@ bool ImFluent::NavBackButton( bool can_go_back )
 
     bool hovered = false, held = false;
     bool pressed = false;
-    if ( can_go_back )
+    if ( enabled )
         pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
 
     ImDrawList * dl = w->DrawList;
     const float r = FluentDpx( style.ControlCornerRadius );
-    if ( can_go_back && (hovered || held) )
+    if ( enabled && (hovered || held) )
     {
         const ImU32 fill = held ? ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary )
             : ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
         dl->AddRectFilled( bb.Min, bb.Max, fill, r );
     }
 
-    const ImU32 textCol = can_go_back ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
+    const ImU32 textCol = enabled ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
         : ImFluent::GetColorU32( ImFluentCol_TextDisabled );
     const float cy = (bb.Min.y + bb.Max.y - ImGui::GetFontSize()) * 0.5f;
     dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.StandardIconSize - 2.f ), cy ),
                  textCol, ImFluentIcon_BackArrow );
 
-    if ( can_go_back && IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    if ( enabled && IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
     return pressed;
 }
 
@@ -2727,6 +2835,14 @@ void ImFluent::NavigationViewBeginContent()
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXXLarge ), FluentDpx( style.SpacingXXLarge ) ) );
     ImGui::BeginChild( "##nav-content", ImVec2( 0, 0 ), ImGuiChildFlags_AlwaysUseWindowPadding );
     g_NavView.ContentStarted = true;
+}
+
+void ImFluent::NavContentHeader( const char * title )
+{
+    if ( !title || !*title ) return;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    ImFluent::TextBlock( title, ImFluentTextStyle_Title );
+    ImGui::Dummy( ImVec2( 0.f, FluentDpx( style.SpacingMedium ) ) );
 }
 
 void ImFluent::NavigationViewEndContent()
