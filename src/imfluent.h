@@ -291,11 +291,7 @@ namespace ImFluent
     IMGUI_API void                  SetThemePreset( ImFluentThemePreset preset );
     IMGUI_API ImFluentThemePreset   GetThemePreset();
 
-    IMGUI_API ImU32                 GetColorU32( ImFluentCol idx, float alpha_mul = 1.0f );
-    IMGUI_API const ImVec4 &        GetStyleColorVec4( ImFluentCol idx );
-
-    IMGUI_API const char *          LocalizeGetMsg( ImFluentLocKey key );
-    IMGUI_API void                  LocalizeRegisterEntries( const ImFluentLocEntry * entries, int count );
+    IMGUI_API void      LoadFluentFonts();
 
     IMGUI_API void      PushFluentStyle();
     IMGUI_API void      PopFluentStyle();
@@ -311,13 +307,6 @@ namespace ImFluent
     IMGUI_API void      BeginDisabled( bool disabled = true );
     IMGUI_API void      EndDisabled();
 
-    IMGUI_API float     FluentDpx( float v );
-    IMGUI_API ImVec2    FluentDpx( const ImVec2 & v );
-
-    IMGUI_API void      SetFont( ImFluentTextStyle style, ImFont * font );
-    IMGUI_API ImFont *  GetFont( ImFluentTextStyle style );
-
-    IMGUI_API void      LoadFluentFonts();
     IMGUI_API void      PushFont( ImFluentTextStyle style );
     IMGUI_API void      PopFont();
 
@@ -331,17 +320,21 @@ namespace ImFluent
     IMGUI_API bool      ToggleButton( const char * label, bool * v, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API bool      RepeatButton( const char * label, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API bool      DropDownButton( const char * label, const ImVec2 & size = ImVec2( 0, 0 ) );
+    IMGUI_API bool      DropDownButtonEx( const char * label, bool * v_state, bool * dropdown_clicked, const ImVec2 & size, bool split, bool toggled );
     IMGUI_API bool      SplitButton( const char * label, bool * dropdown_clicked, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API bool      ToggleSplitButton( const char * label, bool * v, bool * dropdown_clicked, const ImVec2 & size = ImVec2( 0, 0 ) );
 
     IMGUI_API bool      Checkbox( const char * label, bool * v );
     IMGUI_API bool      CheckboxTristate( const char * label, int * v_state );
+    IMGUI_API bool      CheckboxEx( const char * label, int * v_tri, bool * v_bool );
+
     IMGUI_API bool      RadioButton( const char * label, bool active );
     IMGUI_API bool      RadioButton( const char * label, int * v, int v_button );
     IMGUI_API bool      RadioButtons( const char * label, int * v, const char * const items[], int items_count, int max_columns = 1 );
     IMGUI_API bool      ToggleSwitch( const char * label, bool * v, const char * on_text = "On", const char * off_text = "Off" );
     IMGUI_API bool      RatingControl( const char * label, float * value, int max_stars = 5 );
 
+    IMGUI_API bool      Slider( const char * label, ImGuiDataType dtype, void * v, const void * v_min, const void * v_max, const char * format, ImGuiSliderFlags flags );
     IMGUI_API bool      Slider( const char * label, float * v, float v_min, float v_max, const char * format = "%.2f", ImGuiSliderFlags flags = 0 );
     IMGUI_API bool      SliderInt( const char * label, int * v, int v_min, int v_max, const char * format = "%d", ImGuiSliderFlags flags = 0 );
     IMGUI_API bool      RangeSlider( const char * label, float * v_min, float * v_max, float v_lo, float v_hi, const char * format = "%.2f" );

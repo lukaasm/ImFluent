@@ -11,6 +11,7 @@
 #if !defined(IMFLUENT_DISABLE_DEMO_WINDOWS)
 
 #include "imfluent_icons.h"
+#include "imfluent_internal.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -1456,9 +1457,6 @@ static void RenderCurrentPage()
     PageHeader("Not found", id);
 }
 
-// ============================================================================
-// Title bar (back/forward/title/search/close)
-// ============================================================================
 static void DrawTitleBar(bool* p_open)
 {
     const ImFluentStyle& style = ImFluent::GetStyle();
