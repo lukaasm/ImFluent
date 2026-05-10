@@ -3716,10 +3716,12 @@ void ImFluent::EndTeachingTip()
 bool ImFluent::BeginTitleBar( const char * title, float height )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
-    const float h = (height > 0.f) ? height : FluentDpx( style.TitleBarHeight );
+    const float ctrl_h   = FluentDpx( style.ControlHeight );
+    const float h        = ImMax( ctrl_h, ( height > 0.f ) ? height : FluentDpx( style.TitleBarHeight ) );
+    const float pad_y    = ( h - ctrl_h ) * 0.5f;
     ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_SolidBgBase ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding,
-                         ImVec2( FluentDpx( style.SpacingMedium ), FluentDpx( style.SpacingXSmall ) ) );
+                         ImVec2( FluentDpx( style.SpacingMedium ), pad_y ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing,
                          ImVec2( FluentDpx( style.SpacingMedium ), 0.f ) );
     const bool open = ImGui::BeginChild( "##fluent-titlebar", ImVec2( 0, h ),
@@ -3734,8 +3736,11 @@ bool ImFluent::BeginTitleBar( const char * title, float height )
     }
     if ( title && *title )
     {
-        ImGui::AlignTextToFramePadding();
-        TextBlock( title, ImFluentTextStyle_Body );
+        ImFluent::PushFont( ImFluentTextStyle_Body );
+        const float shift = ImMax( 0.f, ( ctrl_h - ImGui::GetFontSize() ) * 0.5f );
+        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + shift );
+        ImGui::TextUnformatted( title );
+        ImFluent::PopFont();
         ImGui::SameLine();
     }
     return true;
@@ -3746,6 +3751,98 @@ void ImFluent::EndTitleBar()
     ImGui::EndChild();
     ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor();
+}
+
+namespace
+{
+    static bool TitleBarChromeButton( const char * id, const char * glyph, bool enabled )
+    {
+        ImGuiWindow * w = ImGui::GetCurrentWindow();
+        if ( w->SkipItems ) return false;
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float bar_h = ImGui::GetWindowSize().y;
+        const float btn_w = ImFluent::FluentDpx( style.NavItemHeight );
+        const ImGuiID iid = w->GetID( id );
+        const float top_y = w->Pos.y;
+        const ImVec2 pos = w->DC.CursorPos;
+        const ImRect bb( ImVec2( pos.x, top_y ), ImVec2( pos.x + btn_w, top_y + bar_h ) );
+        ImGui::ItemSize( ImVec2( btn_w, ImGui::GetFontSize() ) );
+        if ( !ImGui::ItemAdd( bb, iid ) ) return false;
+        bool hov = false, held = false;
+        const bool pressed = enabled ? ImGui::ButtonBehavior( bb, iid, &hov, &held ) : false;
+        ImDrawList * dl = w->DrawList;
+        const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+        if ( enabled && ( hov || held ) )
+        {
+            const ImU32 fill = held ? ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary )
+                                    : ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+            dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+        }
+        const ImU32 textCol = enabled ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
+                                      : ImFluent::GetColorU32( ImFluentCol_TextDisabled );
+        const ImVec2 ts = ImGui::CalcTextSize( glyph );
+        dl->AddText( ImVec2( bb.Min.x + ( btn_w - ts.x ) * 0.5f,
+                             bb.Min.y + ( bar_h - ts.y ) * 0.5f ),
+                     textCol, glyph );
+        ImGui::SameLine();
+        return pressed;
+    }
+}
+
+bool ImFluent::TitleBarBackButton( bool enabled, bool visible )
+{
+    if ( !visible ) return false;
+    return TitleBarChromeButton( "##tb-back", ImFluentIcon_BackArrow, enabled );
+}
+
+bool ImFluent::TitleBarPaneToggleButton( bool enabled, bool visible )
+{
+    if ( !visible ) return false;
+    return TitleBarChromeButton( "##tb-toggle", ImFluentIcon_GlobalNavButton, enabled );
+}
+
+namespace
+{
+    static void TitleBarVerticallyCenterCursor()
+    {
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float ctrl_h = ImFluent::FluentDpx( style.ControlHeight );
+        const float bar_h  = ImGui::GetWindowSize().y;
+        const float pad_y  = ImMax( 0.f, ( bar_h - ctrl_h ) * 0.5f );
+        const float shift  = ImMax( 0.f, ( ctrl_h - ImGui::GetFontSize() ) * 0.5f );
+        const float top    = ImGui::GetWindowPos().y + pad_y + shift;
+        ImGui::SetCursorScreenPos( ImVec2( ImGui::GetCursorScreenPos().x, top ) );
+    }
+}
+
+void ImFluent::TitleBarIcon( const char * glyph )
+{
+    if ( !glyph || !*glyph ) return;
+    TitleBarVerticallyCenterCursor();
+    ImGui::TextUnformatted( glyph );
+    ImGui::SameLine();
+}
+
+void ImFluent::TitleBarTitle( const char * text )
+{
+    if ( !text || !*text ) return;
+    ImFluent::PushFont( ImFluentTextStyle_Body );
+    TitleBarVerticallyCenterCursor();
+    ImGui::TextUnformatted( text );
+    ImFluent::PopFont();
+    ImGui::SameLine();
+}
+
+void ImFluent::TitleBarSubtitle( const char * subtitle )
+{
+    if ( !subtitle || !*subtitle ) return;
+    ImGui::SameLine();
+    ImFluent::PushFont( ImFluentTextStyle_Caption );
+    TitleBarVerticallyCenterCursor();
+    ImGui::PushStyleColor( ImGuiCol_Text, ImFluent::GetColorU32( ImFluentCol_TextSecondary ) );
+    ImGui::TextUnformatted( subtitle );
+    ImGui::PopStyleColor();
+    ImFluent::PopFont();
 }
 
 bool ImFluent::BeginMenuBar()

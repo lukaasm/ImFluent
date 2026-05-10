@@ -1487,15 +1487,32 @@ static void Page_Item_TitleBar()
     {
     if (BeginTitleBar("ImFluent App"))
     {
-        AppBarButton("Back",    ImFluentIcon_BackArrow); ImGui::SameLine();
-        AppBarButton("Forward", ImFluentIcon_Forward);   ImGui::SameLine();
-        AppBarSeparator();                               ImGui::SameLine();
+        TitleBarBackButton();
+        TitleBarPaneToggleButton();
         static char q[64] = "";
         ImGui::PushItemWidth(FluentDpx(220.f));
         TextBox("##search", q, sizeof(q), "Search");
         ImGui::PopItemWidth();
         EndTitleBar();
     }
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Back + pane toggle + icon + subtitle"))
+    {
+    static int back_clicks = 0;
+    static int toggle_clicks = 0;
+    if (BeginTitleBar(NULL))
+    {
+        if (TitleBarBackButton(back_clicks > 0 ? true : false)) --back_clicks;
+        if (TitleBarPaneToggleButton())                          ++toggle_clicks;
+        TitleBarIcon(ImFluentIcon_Home);
+        TitleBarTitle("My App");
+        TitleBarSubtitle("v1.0 \xe2\x80\x94 preview");
+        EndTitleBar();
+    }
+    if (Button("Push back-stack item")) ++back_clicks;
+    ControlExampleOutput("back stack: %d   pane toggles: %d", back_clicks, toggle_clicks);
     }
     EndControlExample();
 }

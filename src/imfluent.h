@@ -451,6 +451,11 @@ namespace ImFluent
     IMGUI_API void      EndTeachingTip();
 
     IMGUI_API bool      BeginTitleBar( const char * title = NULL, float height = 0.f );
+    IMGUI_API bool      TitleBarBackButton( bool enabled = true, bool visible = true );
+    IMGUI_API bool      TitleBarPaneToggleButton( bool enabled = true, bool visible = true );
+    IMGUI_API void      TitleBarIcon( const char * glyph );
+    IMGUI_API void      TitleBarTitle( const char * text );
+    IMGUI_API void      TitleBarSubtitle( const char * subtitle );
     IMGUI_API void      EndTitleBar();
 
     IMGUI_API bool      BeginMenuBar();
