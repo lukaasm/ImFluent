@@ -374,6 +374,7 @@ ImFluentThemePreset ImFluent::GetThemePreset() { return g_Preset; }
 void ImFluent::SetThemePreset( ImFluentThemePreset preset )
 {
     g_Preset = preset;
+    BuildThemePalette( g_Style, preset );
 
     ImGuiStyle & s = ImGui::GetStyle();
     ImVec4 * c = s.Colors;
