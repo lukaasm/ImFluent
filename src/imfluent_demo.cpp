@@ -391,17 +391,41 @@ static void Page_Item_DropDownButton()
 
 static void Page_Item_SplitButton()
 {
-    PageHeader("SplitButton", "A button with two parts.");
-    BeginControlExample("Split button");
-    bool ddClicked = false;
-    if (SplitButton("Send", &ddClicked)) {}
-    if (ddClicked) OpenMenuFlyout("##sb-menu");
-    if (BeginMenuFlyout("##sb-menu"))
+    PageHeader("SplitButton", "A primary action plus a chevron that opens a flyout. Click the label to invoke the action; click the chevron to open the menu.");
+
+    BeginControlExample("Send with options");
+    static const char* send_modes[] = { "Send now", "Send later", "Save as draft", "Discard" };
+    static int  picked_mode = 0;
+    static int  send_count  = 0;
+    bool dd1 = false;
+    if (SplitButton(send_modes[picked_mode], &dd1)) send_count++;
+    if (dd1) OpenMenuFlyout("##sb-menu1");
+    if (BeginMenuFlyout("##sb-menu1"))
     {
-        MenuFlyoutItem("Send now");
-        MenuFlyoutItem("Send later");
+        SetNextItemGlyph(ImFluentIcon_Mail);     if (MenuFlyoutItem("Send now"))      picked_mode = 0;
+        SetNextItemGlyph(ImFluentIcon_Clock);    if (MenuFlyoutItem("Send later"))    picked_mode = 1;
+        SetNextItemGlyph(ImFluentIcon_Save);     if (MenuFlyoutItem("Save as draft")) picked_mode = 2;
+        MenuFlyoutSeparator();
+        SetNextItemGlyph(ImFluentIcon_Delete);   if (MenuFlyoutItem("Discard"))       picked_mode = 3;
         EndMenuFlyout();
     }
+    ControlExampleOutput("Mode = %s   Sends = %d", send_modes[picked_mode], send_count);
+    EndControlExample();
+
+    BeginControlExample("ToggleSplitButton (paragraph alignment)");
+    static bool   align_on    = true;
+    static int    align_pick  = 0;
+    static const char* aligns[] = { "Align left", "Align center", "Align right", "Justify" };
+    bool dd2 = false;
+    if (ToggleSplitButton(aligns[align_pick], &align_on, &dd2)) {}
+    if (dd2) OpenMenuFlyout("##sb-menu2");
+    if (BeginMenuFlyout("##sb-menu2"))
+    {
+        for (int i = 0; i < IM_ARRAYSIZE(aligns); ++i)
+            if (RadioMenuFlyoutItem(aligns[i], &align_pick, i)) align_on = true;
+        EndMenuFlyout();
+    }
+    ControlExampleOutput("On = %s   Pick = %s", align_on ? "true" : "false", aligns[align_pick]);
     EndControlExample();
 }
 
