@@ -86,6 +86,26 @@ namespace
         s.SelectionIndicatorThickness= 3.f;
         s.SelectionIndicatorInset    = 2.f;
         s.TextInputAccentLineThickness = 2.f;
+
+        const char ** loc = s.LocalizationTable;
+        loc[ImFluentLocKey_AutoSuggestNoSuggestions] = "No suggestions";
+        loc[ImFluentLocKey_DatePickerPickADate]      = "Pick a date";
+        loc[ImFluentLocKey_DatePickerDayFormat]      = "Day %d";
+        loc[ImFluentLocKey_DatePickerYearFormat]     = "Year %d";
+        loc[ImFluentLocKey_TimePickerHourFormat]     = "%02d h";
+        loc[ImFluentLocKey_TimePickerMinuteFormat]   = "%02d min";
+        loc[ImFluentLocKey_MonthJanuary]             = "January";
+        loc[ImFluentLocKey_MonthFebruary]            = "February";
+        loc[ImFluentLocKey_MonthMarch]               = "March";
+        loc[ImFluentLocKey_MonthApril]               = "April";
+        loc[ImFluentLocKey_MonthMay]                 = "May";
+        loc[ImFluentLocKey_MonthJune]                = "June";
+        loc[ImFluentLocKey_MonthJuly]                = "July";
+        loc[ImFluentLocKey_MonthAugust]              = "August";
+        loc[ImFluentLocKey_MonthSeptember]           = "September";
+        loc[ImFluentLocKey_MonthOctober]             = "October";
+        loc[ImFluentLocKey_MonthNovember]            = "November";
+        loc[ImFluentLocKey_MonthDecember]            = "December";
     }
 
     static void BuildDarkPalette( ImFluentStyle & s )
@@ -329,6 +349,24 @@ const ImVec4 & ImFluent::GetStyleColorVec4( ImFluentCol idx )
     static const ImVec4 zero( 0, 0, 0, 0 );
     if ( idx < 0 || idx >= ImFluentCol_COUNT ) return zero;
     return g_Style.Colors[idx];
+}
+
+const char * ImFluent::LocalizeGetMsg( ImFluentLocKey key )
+{
+    if ( key < 0 || key >= ImFluentLocKey_COUNT ) return "*Missing Text*";
+    const char * msg = g_Style.LocalizationTable[key];
+    return msg ? msg : "*Missing Text*";
+}
+
+void ImFluent::LocalizeRegisterEntries( const ImFluentLocEntry * entries, int count )
+{
+    if ( !entries || count <= 0 ) return;
+    for ( int n = 0; n < count; ++n )
+    {
+        const ImFluentLocKey k = entries[n].Key;
+        if ( k < 0 || k >= ImFluentLocKey_COUNT ) continue;
+        g_Style.LocalizationTable[k] = entries[n].Text;
+    }
 }
 
 ImFluentThemePreset ImFluent::GetThemePreset() { return g_Preset; }
@@ -1689,7 +1727,7 @@ namespace ImFluent
                     ++shown;
                 }
                 if ( shown == 0 )
-                    ImGui::TextDisabled( "No suggestions" );
+                    ImGui::TextDisabled( "%s", LocalizeGetMsg( ImFluentLocKey_AutoSuggestNoSuggestions ) );
                 ImGui::EndPopup();
             }
             PopOverlayWindowStyle();
@@ -2781,11 +2819,6 @@ namespace ImFluent
         return d;
     }
 
-    static const char * kMonthNames[12] = {
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    };
-
     bool DatePicker( const char * label, ImFluentDate * date )
     {
         if ( !date ) return false;
@@ -2795,14 +2828,23 @@ namespace ImFluent
         int dim = DaysInMonth( date->Year, date->Month );
         ImGui::PushItemWidth( FluentDpx( style.ControlMinWidth ) );
         int day = date->Day, month = date->Month, year = date->Year;
-        if ( ImGui::DragInt( "##day", &day, 0.1f, 1, dim, "Day %d" ) ) { date->Day = day;   changed = true; }
+        if ( ImGui::DragInt( "##day", &day, 0.1f, 1, dim, LocalizeGetMsg( ImFluentLocKey_DatePickerDayFormat ) ) ) { date->Day = day;   changed = true; }
         ImGui::SameLine();
-        if ( ImGui::Combo( "##month", &month, "January\0February\0March\0April\0May\0June\0July\0August\0September\0October\0November\0December\0" ) )
+        char month_combo[256];
+        int  off = 0;
+        for ( int i = 0; i < 12 && off < ( int )sizeof( month_combo ) - 2; ++i )
+        {
+            const char * m = LocalizeGetMsg( ( ImFluentLocKey )( ImFluentLocKey_MonthJanuary + i ) );
+            const int    n = ImFormatString( month_combo + off, sizeof( month_combo ) - off, "%s", m );
+            off += n + 1;
+        }
+        month_combo[off] = 0;
+        if ( ImGui::Combo( "##month", &month, month_combo ) )
         {
             date->Month = month + 1; date->Day = ImClamp( date->Day, 1, DaysInMonth( date->Year, date->Month ) ); changed = true;
         }
         ImGui::SameLine();
-        if ( ImGui::DragInt( "##year", &year, 0.5f, 1900, 2100, "Year %d" ) ) { date->Year = year; date->Day = ImClamp( date->Day, 1, DaysInMonth( date->Year, date->Month ) ); changed = true; }
+        if ( ImGui::DragInt( "##year", &year, 0.5f, 1900, 2100, LocalizeGetMsg( ImFluentLocKey_DatePickerYearFormat ) ) ) { date->Year = year; date->Day = ImClamp( date->Day, 1, DaysInMonth( date->Year, date->Month ) ); changed = true; }
         ImGui::PopItemWidth();
         if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
         ImGui::PopID();
@@ -2817,9 +2859,9 @@ namespace ImFluent
         bool changed = false;
         int h = time->Hour, m = time->Minute;
         ImGui::PushItemWidth( FluentDpx( style.NavPaneCompactWidth * 2.f ) );
-        if ( ImGui::DragInt( "##hour", &h, 0.1f, 0, 23, "%02d h" ) ) { time->Hour = h; changed = true; }
+        if ( ImGui::DragInt( "##hour", &h, 0.1f, 0, 23, LocalizeGetMsg( ImFluentLocKey_TimePickerHourFormat ) ) ) { time->Hour = h; changed = true; }
         ImGui::SameLine();
-        if ( ImGui::DragInt( "##minute", &m, 0.5f, 0, 59, "%02d min" ) ) { time->Minute = m; changed = true; }
+        if ( ImGui::DragInt( "##minute", &m, 0.5f, 0, 59, LocalizeGetMsg( ImFluentLocKey_TimePickerMinuteFormat ) ) ) { time->Minute = m; changed = true; }
         ImGui::PopItemWidth();
         if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
         ImGui::PopID();
@@ -2837,14 +2879,14 @@ namespace ImFluent
         const float h = FluentDpx( style.ControlHeight );
         const float w = ImGui::CalcItemWidth();
         ImGui::PushID( label );
-        if ( ImFluent::Button( preview[0] ? preview : (hint ? hint : "Pick a date"), ImVec2( w, h ) ) )
+        if ( ImFluent::Button( preview[0] ? preview : (hint ? hint : LocalizeGetMsg( ImFluentLocKey_DatePickerPickADate )), ImVec2( w, h ) ) )
             ImGui::OpenPopup( "##cal" );
         if ( ImGui::BeginPopup( "##cal" ) )
         {
 
             if ( ImFluent::Button( "<" ) ) { date->Month--; if ( date->Month < 1 ) { date->Month = 12; date->Year--; } }
             ImGui::SameLine();
-            char hdr[32]; ImFormatString( hdr, IM_ARRAYSIZE( hdr ), "%s %d", kMonthNames[date->Month - 1], date->Year );
+            char hdr[32]; ImFormatString( hdr, IM_ARRAYSIZE( hdr ), "%s %d", LocalizeGetMsg( ( ImFluentLocKey )( ImFluentLocKey_MonthJanuary + date->Month - 1 ) ), date->Year );
             ImGui::TextUnformatted( hdr );
             ImGui::SameLine();
             if ( ImFluent::Button( ">" ) ) { date->Month++; if ( date->Month > 12 ) { date->Month = 1; date->Year++; } }

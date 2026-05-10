@@ -150,6 +150,36 @@ enum ImFluentProgressBarState_
 };
 typedef int ImFluentProgressBarState;
 
+enum ImFluentLocKey_
+{
+    ImFluentLocKey_AutoSuggestNoSuggestions = 0,
+    ImFluentLocKey_DatePickerPickADate,
+    ImFluentLocKey_DatePickerDayFormat,
+    ImFluentLocKey_DatePickerYearFormat,
+    ImFluentLocKey_TimePickerHourFormat,
+    ImFluentLocKey_TimePickerMinuteFormat,
+    ImFluentLocKey_MonthJanuary,
+    ImFluentLocKey_MonthFebruary,
+    ImFluentLocKey_MonthMarch,
+    ImFluentLocKey_MonthApril,
+    ImFluentLocKey_MonthMay,
+    ImFluentLocKey_MonthJune,
+    ImFluentLocKey_MonthJuly,
+    ImFluentLocKey_MonthAugust,
+    ImFluentLocKey_MonthSeptember,
+    ImFluentLocKey_MonthOctober,
+    ImFluentLocKey_MonthNovember,
+    ImFluentLocKey_MonthDecember,
+    ImFluentLocKey_COUNT
+};
+typedef int ImFluentLocKey;
+
+struct ImFluentLocEntry
+{
+    ImFluentLocKey  Key;
+    const char *    Text;
+};
+
 struct ImFluentStyle
 {
     float       ControlCornerRadius;
@@ -209,6 +239,7 @@ struct ImFluentStyle
     IMGUI_API   ImFluentStyle();
 
     ImVec4      Colors[ImFluentCol_COUNT];
+    const char* LocalizationTable[ImFluentLocKey_COUNT];
 };
 
 namespace ImFluent
@@ -220,6 +251,9 @@ namespace ImFluent
 
     IMGUI_API ImU32                 GetColorU32( ImFluentCol idx, float alpha_mul = 1.0f );
     IMGUI_API const ImVec4 &        GetStyleColorVec4( ImFluentCol idx );
+
+    IMGUI_API const char *          LocalizeGetMsg( ImFluentLocKey key );
+    IMGUI_API void                  LocalizeRegisterEntries( const ImFluentLocEntry * entries, int count );
 
     IMGUI_API void      PushFluentStyle();
     IMGUI_API void      PopFluentStyle();
