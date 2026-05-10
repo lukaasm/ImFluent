@@ -150,6 +150,31 @@ enum ImFluentProgressBarState_
 };
 typedef int ImFluentProgressBarState;
 
+enum ImFluentStyleVar_
+{
+    ImFluentStyleVar_ControlCornerRadius = 0,
+    ImFluentStyleVar_OverlayCornerRadius,
+    ImFluentStyleVar_ControlHeight,
+    ImFluentStyleVar_ControlMinWidth,
+    ImFluentStyleVar_CardPadding,
+    ImFluentStyleVar_SpacingXSmall,
+    ImFluentStyleVar_SpacingSmall,
+    ImFluentStyleVar_SpacingMedium,
+    ImFluentStyleVar_SpacingLarge,
+    ImFluentStyleVar_SpacingXLarge,
+    ImFluentStyleVar_SpacingXXLarge,
+    ImFluentStyleVar_StrokeThin,
+    ImFluentStyleVar_StrokeMedium,
+    ImFluentStyleVar_StrokeThick,
+    ImFluentStyleVar_FocusStrokeThicknessOuter,
+    ImFluentStyleVar_FocusStrokeThicknessInner,
+    ImFluentStyleVar_NavPaneCompactWidth,
+    ImFluentStyleVar_NavPaneOpenWidth,
+    ImFluentStyleVar_ControlContentPadding,
+    ImFluentStyleVar_COUNT
+};
+typedef int ImFluentStyleVar;
+
 enum ImFluentLocKey_
 {
     ImFluentLocKey_AutoSuggestNoSuggestions = 0,
@@ -258,6 +283,17 @@ namespace ImFluent
     IMGUI_API void      PushFluentStyle();
     IMGUI_API void      PopFluentStyle();
 
+    IMGUI_API void      PushStyleColor( ImFluentCol idx, ImU32 col );
+    IMGUI_API void      PushStyleColor( ImFluentCol idx, const ImVec4 & col );
+    IMGUI_API void      PopStyleColor( int count = 1 );
+
+    IMGUI_API void      PushStyleVar( ImFluentStyleVar idx, float val );
+    IMGUI_API void      PushStyleVar( ImFluentStyleVar idx, const ImVec2 & val );
+    IMGUI_API void      PopStyleVar( int count = 1 );
+
+    IMGUI_API void      BeginDisabled( bool disabled = true );
+    IMGUI_API void      EndDisabled();
+
     IMGUI_API float     FluentDpx( float v );
     IMGUI_API ImVec2    FluentDpx( const ImVec2 & v );
 
@@ -285,11 +321,13 @@ namespace ImFluent
     IMGUI_API bool      CheckboxTristate( const char * label, int * v_state );
     IMGUI_API bool      RadioButton( const char * label, bool active );
     IMGUI_API bool      RadioButton( const char * label, int * v, int v_button );
+    IMGUI_API bool      RadioButtons( const char * label, int * v, const char * const items[], int items_count, int max_columns = 1 );
     IMGUI_API bool      ToggleSwitch( const char * label, bool * v, const char * on_text = "On", const char * off_text = "Off" );
     IMGUI_API bool      RatingControl( const char * label, float * value, int max_stars = 5 );
 
     IMGUI_API bool      Slider( const char * label, float * v, float v_min, float v_max, const char * format = "%.2f", ImGuiSliderFlags flags = 0 );
     IMGUI_API bool      SliderInt( const char * label, int * v, int v_min, int v_max, const char * format = "%d", ImGuiSliderFlags flags = 0 );
+    IMGUI_API bool      RangeSlider( const char * label, float * v_min, float * v_max, float v_lo, float v_hi, const char * format = "%.2f" );
     IMGUI_API void      ProgressBar( float fraction, const ImVec2 & size_arg = ImVec2( -1.f, 0 ), const char * overlay = NULL, ImFluentProgressBarState state = ImFluentProgressBarState_Running );
     IMGUI_API void      ProgressRing( float diameter_dpx = 32.f, float fraction = -1.f );
 
@@ -306,6 +344,17 @@ namespace ImFluent
 
     IMGUI_API bool      BeginCard( const char * id, const ImVec2 & size = ImVec2( 0, 0 ), ImFluentCardStyle style = ImFluentCardStyle_Filled );
     IMGUI_API void      EndCard();
+
+    IMGUI_API bool      BeginSettingsCard( const char * id, const char * header, const char * description = NULL, const char * glyph = NULL );
+    IMGUI_API void      EndSettingsCard();
+
+    IMGUI_API void      BeginStackPanelHorizontal( float spacing = -1.f );
+    IMGUI_API void      BeginStackPanelVertical( float spacing = -1.f );
+    IMGUI_API void      EndStackPanel();
+
+    IMGUI_API void      BeginWrapPanel( float h_spacing = -1.f, float v_spacing = -1.f );
+    IMGUI_API bool      WrapPanelNextItem( float item_width );
+    IMGUI_API void      EndWrapPanel();
 
     IMGUI_API bool      BeginExpander( const char * label, bool * open );
     IMGUI_API void      EndExpander();
@@ -347,6 +396,10 @@ namespace ImFluent
     IMGUI_API void      OpenMenuFlyout( const char * id );
     IMGUI_API bool      BeginMenuFlyout( const char * id );
     IMGUI_API bool      MenuFlyoutItem( const char * label, const char * shortcut = NULL, const char * glyph = NULL, bool selected = false, bool enabled = true );
+    IMGUI_API bool      ToggleMenuFlyoutItem( const char * label, bool * v, const char * shortcut = NULL, bool enabled = true );
+    IMGUI_API bool      RadioMenuFlyoutItem( const char * label, int * v, int v_button, const char * shortcut = NULL, bool enabled = true );
+    IMGUI_API bool      BeginMenuFlyoutSubItem( const char * label, const char * glyph = NULL, bool enabled = true );
+    IMGUI_API void      EndMenuFlyoutSubItem();
     IMGUI_API void      MenuFlyoutSeparator();
     IMGUI_API void      EndMenuFlyout();
 
@@ -360,9 +413,17 @@ namespace ImFluent
     IMGUI_API void      InfoBar( ImFluentInfoSeverity severity, const char * title, const char * message, bool * is_open = NULL, const char * glyph_override = NULL );
     IMGUI_API void      InfoBadge( int count = -1, const char * glyph = NULL );
 
+    IMGUI_API void      OpenTeachingTip( const char * id );
+    IMGUI_API bool      BeginTeachingTip( const char * id, const char * title, ImFluentTeachingTipPlacement placement = ImFluentTeachingTipPlacement_Bottom );
+    IMGUI_API void      EndTeachingTip();
+
+    IMGUI_API bool      BeginTitleBar( const char * title = NULL, float height = 0.f );
+    IMGUI_API void      EndTitleBar();
+
     IMGUI_API bool      BeginMenuBar();
     IMGUI_API void      EndMenuBar();
     IMGUI_API bool      AppBarButton( const char * label, const char * glyph, const ImVec2 & size = ImVec2( 0, 0 ) );
+    IMGUI_API bool      AppBarToggleButton( const char * label, const char * glyph, bool * v, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API void      AppBarSeparator();
 
     struct ImFluentDate { int Year; int Month; int Day; };

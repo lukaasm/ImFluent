@@ -89,6 +89,12 @@ static void Page_Item_AppBarButton   ();
 static void Page_Item_DatePicker     ();
 static void Page_Item_TimePicker     ();
 static void Page_Item_CalendarDatePicker();
+static void Page_Item_SettingsCard   ();
+static void Page_Item_StackPanel     ();
+static void Page_Item_WrapPanel      ();
+static void Page_Item_TeachingTip    ();
+static void Page_Item_TitleBar       ();
+static void Page_Item_StyleStack     ();
 
 static const ControlInfo g_Controls[] = {
     // ---- Basic Input -------------------------------------------------------
@@ -129,7 +135,11 @@ static const ControlInfo g_Controls[] = {
 
     // ---- Layout / Containers -----------------------------------------------
     { "Card",            "Layout",      "Card",              "A surface that groups related content.",                            ImFluentIcon_Folder,        &Page_Item_Card },
+    { "SettingsCard",    "Layout",      "SettingsCard",      "Card row used on settings pages: glyph + header + description + control slot.", ImFluentIcon_Settings, &Page_Item_SettingsCard },
     { "Expander",        "Layout",      "Expander",          "A control with a header that expands to reveal a body.",            ImFluentIcon_ChevronDown,   &Page_Item_Expander },
+    { "StackPanel",      "Layout",      "StackPanel",        "Linear container with uniform spacing; horizontal or vertical.",    ImFluentIcon_Spacing,       &Page_Item_StackPanel },
+    { "WrapPanel",       "Layout",      "WrapPanel",         "Lays children left-to-right and wraps to a new row when full.",     ImFluentIcon_Spacing,       &Page_Item_WrapPanel },
+    { "TitleBar",        "Layout",      "TitleBar",          "Custom title-bar shell hosting nav chevrons, search, and actions.", ImFluentIcon_GlobalNavButton, &Page_Item_TitleBar },
 
     // ---- Navigation --------------------------------------------------------
     { "TabView",         "Navigation",  "TabView",           "A control with multiple tabs the user can switch between.",         ImFluentIcon_AllControls,   &Page_Item_TabView },
@@ -141,6 +151,7 @@ static const ControlInfo g_Controls[] = {
     { "ContentDialog",   "DialogsAndFlyouts", "ContentDialog","A modal dialog with title, body, and action buttons.",             ImFluentIcon_Important,     &Page_Item_ContentDialog },
     { "Flyout",          "DialogsAndFlyouts", "Flyout",      "A lightweight contextual popup.",                                   ImFluentIcon_More,          &Page_Item_Flyout },
     { "MenuFlyout",      "DialogsAndFlyouts", "MenuFlyout",  "A flyout with a list of menu items.",                               ImFluentIcon_More,          &Page_Item_MenuFlyout },
+    { "TeachingTip",     "DialogsAndFlyouts", "TeachingTip", "Anchored callout used to teach a feature; placement = Top/Bottom/Left/Right.", ImFluentIcon_Info, &Page_Item_TeachingTip },
 
     // ---- Menus & toolbars --------------------------------------------------
     { "AppBarButton",    "MenusAndToolbars", "AppBarButton", "A toolbar button with an icon glyph above its label.",              ImFluentIcon_Add,           &Page_Item_AppBarButton },
@@ -149,6 +160,9 @@ static const ControlInfo g_Controls[] = {
     { "DatePicker",         "DateTime", "DatePicker",         "Lets a user pick a date.",                                          ImFluentIcon_Calendar,    &Page_Item_DatePicker },
     { "TimePicker",         "DateTime", "TimePicker",         "Lets a user pick a time.",                                          ImFluentIcon_Clock,       &Page_Item_TimePicker },
     { "CalendarDatePicker", "DateTime", "CalendarDatePicker", "Drop-down calendar for picking a date.",                            ImFluentIcon_Calendar,    &Page_Item_CalendarDatePicker },
+
+    // ---- Design / Theming --------------------------------------------------
+    { "StyleStack",         "Design",   "Style stack",        "Push/pop Fluent color and sizing tokens for scoped overrides.",     ImFluentIcon_Color,       &Page_Item_StyleStack },
 };
 static const int g_ControlsCount = (int)(sizeof(g_Controls) / sizeof(g_Controls[0]));
 
@@ -156,6 +170,7 @@ static const GroupInfo g_Groups[] = {
     { "BasicInput",         "Basic input",        ImFluentIcon_Add },
     { "Collections",        "Collections",        ImFluentIcon_AllControls },
     { "DateTime",           "Date & time",        ImFluentIcon_Calendar },
+    { "Design",             "Design",             ImFluentIcon_Color },
     { "DialogsAndFlyouts",  "Dialogs & flyouts",  ImFluentIcon_Important },
     { "Layout",             "Layout",             ImFluentIcon_Folder },
     { "MenusAndToolbars",   "Menus & toolbars",   ImFluentIcon_More },
@@ -432,6 +447,13 @@ static void Page_Item_RadioButton()
     RadioButton("Option 3", &s, 3);
     ControlExampleOutput("Selected = %d", s);
     EndControlExample();
+
+    BeginControlExample("RadioButtons group (multi-column)");
+    static int picked = 2;
+    static const char* sizes[] = { "Small", "Medium", "Large", "Extra large", "Huge", "Gigantic" };
+    RadioButtons("Pick a size", &picked, sizes, IM_ARRAYSIZE(sizes), 3);
+    ControlExampleOutput("Picked = %s", sizes[picked]);
+    EndControlExample();
 }
 
 static void Page_Item_ToggleSwitch()
@@ -480,6 +502,14 @@ static void Page_Item_Slider()
     SetNextItemDescription("Drag the thumb to adjust system volume.");
     Slider("##s-vol", &vol, 0.f, 1.f, "%.0f%%");
     ImGui::PopItemWidth();
+    EndControlExample();
+
+    BeginControlExample("RangeSlider (two thumbs)");
+    static float range_lo = 25.f, range_hi = 75.f;
+    ImGui::PushItemWidth(280.f);
+    RangeSlider("##rs", &range_lo, &range_hi, 0.f, 100.f, "%.0f");
+    ImGui::PopItemWidth();
+    ControlExampleOutput("Range: [%.0f, %.0f]", range_lo, range_hi);
     EndControlExample();
 }
 
@@ -945,6 +975,33 @@ static void Page_Item_MenuFlyout()
         EndMenuFlyout();
     }
     EndControlExample();
+
+    BeginControlExample("Toggle, Radio, and cascading SubItem");
+    static bool word_wrap   = true;
+    static bool show_ruler  = false;
+    static int  zoom_pct    = 100;
+    if (Button("Open view menu")) OpenMenuFlyout("##mf3");
+    if (BeginMenuFlyout("##mf3"))
+    {
+        ToggleMenuFlyoutItem("Word wrap",   &word_wrap,  "Alt+Z");
+        ToggleMenuFlyoutItem("Show ruler",  &show_ruler);
+        MenuFlyoutSeparator();
+        if (BeginMenuFlyoutSubItem("Zoom", ImFluentIcon_View))
+        {
+            RadioMenuFlyoutItem("50%",   &zoom_pct,  50);
+            RadioMenuFlyoutItem("75%",   &zoom_pct,  75);
+            RadioMenuFlyoutItem("100%",  &zoom_pct, 100);
+            RadioMenuFlyoutItem("150%",  &zoom_pct, 150);
+            RadioMenuFlyoutItem("200%",  &zoom_pct, 200);
+            EndMenuFlyoutSubItem();
+        }
+        EndMenuFlyout();
+    }
+    ControlExampleOutput("wrap=%s  ruler=%s  zoom=%d%%",
+                         word_wrap ? "on" : "off",
+                         show_ruler ? "on" : "off",
+                         zoom_pct);
+    EndControlExample();
 }
 
 // ---- Menus & toolbars ------------------------------------------------------
@@ -958,6 +1015,14 @@ static void Page_Item_AppBarButton()
     AppBarButton("Delete", ImFluentIcon_Delete); ImGui::SameLine();
     AppBarSeparator();                            ImGui::SameLine();
     AppBarButton("Share",  ImFluentIcon_Share);
+    EndControlExample();
+
+    BeginControlExample("AppBarToggleButton");
+    static bool bold = true, italic = false, under = false;
+    AppBarToggleButton("Bold",      "B", &bold);   ImGui::SameLine();
+    AppBarToggleButton("Italic",    "I", &italic); ImGui::SameLine();
+    AppBarToggleButton("Underline", "U", &under);
+    ControlExampleOutput("B=%d I=%d U=%d", bold ? 1 : 0, italic ? 1 : 0, under ? 1 : 0);
     EndControlExample();
 }
 
@@ -995,6 +1060,169 @@ static void Page_Item_CalendarDatePicker()
     EndControlExample();
 }
 
+// ---- Layout / Containers (additions) ---------------------------------------
+
+static void Page_Item_SettingsCard()
+{
+    PageHeader("SettingsCard", "Card row with glyph + header + description on the left and a control on the right. The standard layout for settings pages.");
+
+    BeginControlExample("Toggle");
+    static bool wifi = true;
+    if (BeginSettingsCard("##sc-wifi", "Wi-Fi", "Connect to wireless networks.", ImFluentIcon_GlobalNavButton))
+    {
+        ToggleSwitch("##wifi", &wifi);
+        EndSettingsCard();
+    }
+    EndControlExample();
+
+    BeginControlExample("ComboBox");
+    static int theme = 0;
+    if (BeginSettingsCard("##sc-theme", "App theme", "Choose Light, Dark, or High Contrast.", ImFluentIcon_Color))
+    {
+        static const char* themes[] = { "Light", "Dark", "High Contrast" };
+        ComboBox("##theme", &theme, themes, IM_ARRAYSIZE(themes));
+        EndSettingsCard();
+    }
+    EndControlExample();
+
+    BeginControlExample("Button (action card)");
+    static int clear_count = 0;
+    if (BeginSettingsCard("##sc-clear", "Clear cache", "Free disk space used by cached assets.", ImFluentIcon_Delete))
+    {
+        if (Button("Clear")) clear_count++;
+        EndSettingsCard();
+    }
+    ControlExampleOutput("Clicks: %d", clear_count);
+    EndControlExample();
+}
+
+static void Page_Item_StackPanel()
+{
+    PageHeader("StackPanel", "Linear container that stacks children with a uniform spacing. Use horizontal for toolbars/inline groups, vertical for forms.");
+
+    BeginControlExample("Horizontal");
+    BeginStackPanelHorizontal();
+    Button("Save");
+    Button("Discard");
+    AccentButton("Continue");
+    EndStackPanel();
+    EndControlExample();
+
+    BeginControlExample("Vertical (16 dpx spacing)");
+    BeginStackPanelVertical(FluentDpx(16.f));
+    static bool a = true, b = false, c = true;
+    Checkbox("Enable telemetry", &a);
+    Checkbox("Send crash reports", &b);
+    Checkbox("Receive newsletters", &c);
+    EndStackPanel();
+    EndControlExample();
+}
+
+static void Page_Item_WrapPanel()
+{
+    PageHeader("WrapPanel", "Lays children out left-to-right and wraps onto a new row when the content region is exhausted.");
+
+    BeginControlExample("Pill row");
+    static const char* tags[] = {
+        "Productivity", "Design", "Networking", "Storage", "Security",
+        "Accessibility", "Performance", "Privacy", "Sync", "Themes"
+    };
+    BeginWrapPanel();
+    for (int i = 0; i < IM_ARRAYSIZE(tags); ++i)
+    {
+        const float item_w = ImGui::CalcTextSize(tags[i]).x + FluentDpx(24.f);
+        WrapPanelNextItem(item_w);
+        Button(tags[i], ImVec2(item_w, 0));
+    }
+    EndWrapPanel();
+    EndControlExample();
+}
+
+// ---- Dialogs & Flyouts (additions) -----------------------------------------
+
+static void Page_Item_TeachingTip()
+{
+    PageHeader("TeachingTip", "Anchored callout used to teach the user about a feature. Anchored to the trigger; placement chooses which edge to attach to.");
+
+    auto tip_block = [](const char* label, const char* id, ImFluentTeachingTipPlacement placement, const char* hint)
+    {
+        if (Button(label)) OpenTeachingTip(id);
+        if (BeginTeachingTip(id, "Pro tip", placement))
+        {
+            TextBlockColored(hint, GetColorU32(ImFluentCol_TextSecondary), ImFluentTextStyle_Body);
+            ImGui::Dummy(ImVec2(0, FluentDpx(8.f)));
+            if (Button("Got it")) ImGui::CloseCurrentPopup();
+            EndTeachingTip();
+        }
+    };
+
+    BeginControlExample("All four placements");
+    tip_block("Top",    "##tt-top",    ImFluentTeachingTipPlacement_Top,    "I appear above the trigger.");
+    ImGui::SameLine();
+    tip_block("Bottom", "##tt-bot",    ImFluentTeachingTipPlacement_Bottom, "I appear below the trigger.");
+    ImGui::SameLine();
+    tip_block("Left",   "##tt-left",   ImFluentTeachingTipPlacement_Left,   "I appear to the left of the trigger.");
+    ImGui::SameLine();
+    tip_block("Right",  "##tt-right",  ImFluentTeachingTipPlacement_Right,  "I appear to the right of the trigger.");
+    EndControlExample();
+}
+
+// ---- Chrome (TitleBar) -----------------------------------------------------
+
+static void Page_Item_TitleBar()
+{
+    PageHeader("TitleBar", "Custom title-bar shell that hosts navigation chevrons, search, and inline actions. Drop into the top of your application window.");
+
+    BeginControlExample("Chevrons + title + search");
+    if (BeginTitleBar("ImFluent App"))
+    {
+        AppBarButton("Back",    ImFluentIcon_BackArrow); ImGui::SameLine();
+        AppBarButton("Forward", ImFluentIcon_Forward);   ImGui::SameLine();
+        AppBarSeparator();                               ImGui::SameLine();
+        static char q[64] = "";
+        ImGui::PushItemWidth(FluentDpx(220.f));
+        TextBox("##search", q, sizeof(q), "Search");
+        ImGui::PopItemWidth();
+        EndTitleBar();
+    }
+    EndControlExample();
+}
+
+// ---- Style stack -----------------------------------------------------------
+
+static void Page_Item_StyleStack()
+{
+    PageHeader("Style stack", "Push/pop Fluent tokens (colors and sizing vars) to scope visual overrides without mutating the global ImFluentStyle.");
+
+    BeginControlExample("PushStyleColor");
+    Button("Default button");
+    ImGui::SameLine();
+    PushStyleColor(ImFluentCol_ControlFillDefault, IM_COL32(255, 80, 90, 64));
+    PushStyleColor(ImFluentCol_ControlFillSecondary, IM_COL32(255, 80, 90, 96));
+    Button("Custom-tinted");
+    PopStyleColor(2);
+    EndControlExample();
+
+    BeginControlExample("PushStyleVar");
+    Button("Default radius", ImVec2(180, 36));
+    ImGui::SameLine();
+    PushStyleVar(ImFluentStyleVar_ControlCornerRadius, 18.f);
+    Button("Pill button", ImVec2(180, 36));
+    PopStyleVar();
+    EndControlExample();
+
+    BeginControlExample("BeginDisabled scope");
+    static bool disable_ui = true;
+    Checkbox("Disable controls below", &disable_ui);
+    BeginDisabled(disable_ui);
+    static bool b = false;
+    Checkbox("I'm disabled", &b);
+    static char text[64] = "";
+    TextBox("##d-tb", text, sizeof(text), "Disabled");
+    EndDisabled();
+    EndControlExample();
+}
+
 // ============================================================================
 // Top-level pages: Home, AllControls, Section_, Settings
 // ============================================================================
@@ -1009,10 +1237,12 @@ static void Page_Home()
     const Tile tiles[] = {
         { "Section_BasicInput",       "Basic input",      "Buttons, switches, sliders",  ImFluentIcon_Add },
         { "Section_Collections",      "Collections",      "Lists, trees, grids",         ImFluentIcon_AllControls },
+        { "Section_Layout",           "Layout",           "Cards, stacks, settings",     ImFluentIcon_Folder },
         { "Section_Navigation",       "Navigation",       "Tabs, nav pane, breadcrumbs", ImFluentIcon_GlobalNavButton },
         { "Section_DialogsAndFlyouts","Dialogs & flyouts","Dialogs, menus, tips",        ImFluentIcon_Important },
         { "Section_Text",             "Text",             "Text input variants",         ImFluentIcon_Typography },
         { "Section_StatusAndInfo",    "Status & info",    "Progress, badges, info bars", ImFluentIcon_Info },
+        { "Section_Design",           "Design",           "Style stack, theming",        ImFluentIcon_Color },
     };
     for (size_t i = 0; i < sizeof(tiles) / sizeof(tiles[0]); ++i)
     {

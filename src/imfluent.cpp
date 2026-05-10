@@ -459,6 +459,122 @@ void ImFluent::PushFluentStyle()
 }
 void ImFluent::PopFluentStyle() { ImGui::PopFont(); }
 
+namespace
+{
+    struct ColorStackEntry { ImFluentCol Idx; ImVec4 Prev; };
+    static ImVector<ColorStackEntry> g_ColorStack;
+
+    enum StyleVarKind { StyleVarKind_Float, StyleVarKind_Vec2 };
+    struct StyleVarStackEntry { ImFluentStyleVar Idx; StyleVarKind Kind; ImVec2 Prev; };
+    static ImVector<StyleVarStackEntry> g_StyleVarStack;
+
+    static float * StyleVarFloatPtr( ImFluentStyle & s, ImFluentStyleVar idx )
+    {
+        switch ( idx )
+        {
+        case ImFluentStyleVar_ControlCornerRadius:       return &s.ControlCornerRadius;
+        case ImFluentStyleVar_OverlayCornerRadius:       return &s.OverlayCornerRadius;
+        case ImFluentStyleVar_ControlHeight:             return &s.ControlHeight;
+        case ImFluentStyleVar_ControlMinWidth:           return &s.ControlMinWidth;
+        case ImFluentStyleVar_CardPadding:               return &s.CardPadding;
+        case ImFluentStyleVar_SpacingXSmall:             return &s.SpacingXSmall;
+        case ImFluentStyleVar_SpacingSmall:              return &s.SpacingSmall;
+        case ImFluentStyleVar_SpacingMedium:             return &s.SpacingMedium;
+        case ImFluentStyleVar_SpacingLarge:              return &s.SpacingLarge;
+        case ImFluentStyleVar_SpacingXLarge:             return &s.SpacingXLarge;
+        case ImFluentStyleVar_SpacingXXLarge:            return &s.SpacingXXLarge;
+        case ImFluentStyleVar_StrokeThin:                return &s.StrokeThin;
+        case ImFluentStyleVar_StrokeMedium:              return &s.StrokeMedium;
+        case ImFluentStyleVar_StrokeThick:               return &s.StrokeThick;
+        case ImFluentStyleVar_FocusStrokeThicknessOuter: return &s.FocusStrokeThicknessOuter;
+        case ImFluentStyleVar_FocusStrokeThicknessInner: return &s.FocusStrokeThicknessInner;
+        case ImFluentStyleVar_NavPaneCompactWidth:       return &s.NavPaneCompactWidth;
+        case ImFluentStyleVar_NavPaneOpenWidth:          return &s.NavPaneOpenWidth;
+        default:                                          return NULL;
+        }
+    }
+
+    static ImVec2 * StyleVarVec2Ptr( ImFluentStyle & s, ImFluentStyleVar idx )
+    {
+        if ( idx == ImFluentStyleVar_ControlContentPadding ) return &s.ControlContentPadding;
+        return NULL;
+    }
+}
+
+void ImFluent::PushStyleColor( ImFluentCol idx, ImU32 col )
+{
+    PushStyleColor( idx, ImGui::ColorConvertU32ToFloat4( col ) );
+}
+
+void ImFluent::PushStyleColor( ImFluentCol idx, const ImVec4 & col )
+{
+    if ( idx < 0 || idx >= ImFluentCol_COUNT ) return;
+    ColorStackEntry e; e.Idx = idx; e.Prev = g_Style.Colors[idx];
+    g_ColorStack.push_back( e );
+    g_Style.Colors[idx] = col;
+}
+
+void ImFluent::PopStyleColor( int count )
+{
+    while ( count > 0 && !g_ColorStack.empty() )
+    {
+        const ColorStackEntry & e = g_ColorStack.back();
+        g_Style.Colors[e.Idx] = e.Prev;
+        g_ColorStack.pop_back();
+        --count;
+    }
+}
+
+void ImFluent::PushStyleVar( ImFluentStyleVar idx, float val )
+{
+    float * p = StyleVarFloatPtr( g_Style, idx );
+    if ( !p ) { IM_ASSERT( 0 && "PushStyleVar: idx is not a float" ); return; }
+    StyleVarStackEntry e; e.Idx = idx; e.Kind = StyleVarKind_Float;
+    e.Prev = ImVec2( *p, 0.f );
+    g_StyleVarStack.push_back( e );
+    *p = val;
+}
+
+void ImFluent::PushStyleVar( ImFluentStyleVar idx, const ImVec2 & val )
+{
+    ImVec2 * p = StyleVarVec2Ptr( g_Style, idx );
+    if ( !p ) { IM_ASSERT( 0 && "PushStyleVar: idx is not a Vec2" ); return; }
+    StyleVarStackEntry e; e.Idx = idx; e.Kind = StyleVarKind_Vec2;
+    e.Prev = *p;
+    g_StyleVarStack.push_back( e );
+    *p = val;
+}
+
+void ImFluent::PopStyleVar( int count )
+{
+    while ( count > 0 && !g_StyleVarStack.empty() )
+    {
+        const StyleVarStackEntry & e = g_StyleVarStack.back();
+        if ( e.Kind == StyleVarKind_Float )
+        {
+            float * p = StyleVarFloatPtr( g_Style, e.Idx );
+            if ( p ) *p = e.Prev.x;
+        }
+        else
+        {
+            ImVec2 * p = StyleVarVec2Ptr( g_Style, e.Idx );
+            if ( p ) *p = e.Prev;
+        }
+        g_StyleVarStack.pop_back();
+        --count;
+    }
+}
+
+void ImFluent::BeginDisabled( bool disabled )
+{
+    ImGui::BeginDisabled( disabled );
+}
+
+void ImFluent::EndDisabled()
+{
+    ImGui::EndDisabled();
+}
+
 float ImFluent::FluentDpx( float v )
 {
     return v * ImGui::GetStyle().FontScaleDpi;
@@ -1215,6 +1331,33 @@ namespace ImFluent
         return false;
     }
 
+    bool RadioButtons( const char * label, int * v, const char * const items[], int items_count, int max_columns )
+    {
+        if ( !items || items_count <= 0 ) return false;
+        if ( max_columns < 1 ) max_columns = 1;
+        bool changed = false;
+        ImGui::PushID( label );
+        if ( label && *label )
+        {
+            DrawAndConsumePendingHeader();
+            ImGui::TextUnformatted( label );
+        }
+        const int rows = ( items_count + max_columns - 1 ) / max_columns;
+        for ( int row = 0; row < rows; ++row )
+        {
+            for ( int col = 0; col < max_columns; ++col )
+            {
+                const int i = col * rows + row;
+                if ( i >= items_count ) continue;
+                if ( col > 0 ) ImGui::SameLine();
+                if ( RadioButton( items[i], v, i ) ) changed = true;
+            }
+        }
+        DrawAndConsumePendingDescription();
+        ImGui::PopID();
+        return changed;
+    }
+
     bool ToggleSwitch( const char * label, bool * v, const char * on_text, const char * off_text )
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
@@ -1389,6 +1532,96 @@ namespace ImFluent
     bool SliderInt( const char * label, int * v, int v_min, int v_max, const char * format, ImGuiSliderFlags flags )
     {
         return SliderImpl( label, ImGuiDataType_S32, v, &v_min, &v_max, format, flags );
+    }
+
+    bool RangeSlider( const char * label, float * v_min, float * v_max, float v_lo, float v_hi, const char * format )
+    {
+        if ( !v_min || !v_max || v_hi <= v_lo ) return false;
+        ImGuiWindow * w = ImGui::GetCurrentWindow();
+        if ( w->SkipItems ) return false;
+        DrawAndConsumePendingHeader();
+        const ImFluentStyle & style = GetStyle();
+        const ImGuiID id_lo = w->GetID( ImGui::GetID( label ) );
+        const ImGuiID id_hi = w->GetID( ( const void * )( ( intptr_t )id_lo + 1 ) );
+        const float h       = FluentDpx( style.ControlHeight );
+        const float w_avail = ImGui::CalcItemWidth();
+        const ImVec2 pos    = w->DC.CursorPos;
+        const ImRect frame_bb( pos, ImVec2( pos.x + w_avail, pos.y + h ) );
+        ImGui::ItemSize( frame_bb );
+        if ( !ImGui::ItemAdd( frame_bb, id_lo ) ) return false;
+        ImGui::SetNextItemAllowOverlap();
+        ImGui::ItemAdd( frame_bb, id_hi );
+
+        const float thumb_r       = FluentDpx( style.SliderThumbRadius );
+        const float track_h       = FluentDpx( style.SliderTrackHeight );
+        const float track_left    = frame_bb.Min.x + thumb_r;
+        const float track_right   = frame_bb.Max.x - thumb_r;
+        const float track_w       = ImMax( 1.f, track_right - track_left );
+        const float track_y       = ( frame_bb.Min.y + frame_bb.Max.y ) * 0.5f;
+        const float range         = v_hi - v_lo;
+
+        auto value_to_x = [ & ]( float val )
+        {
+            return track_left + ( ( val - v_lo ) / range ) * track_w;
+        };
+        auto x_to_value = [ & ]( float x )
+        {
+            return v_lo + ImClamp( ( x - track_left ) / track_w, 0.f, 1.f ) * range;
+        };
+
+        const float lo_x = value_to_x( *v_min );
+        const float hi_x = value_to_x( *v_max );
+
+        const ImRect lo_bb( ImVec2( lo_x - thumb_r, track_y - thumb_r ), ImVec2( lo_x + thumb_r, track_y + thumb_r ) );
+        const ImRect hi_bb( ImVec2( hi_x - thumb_r, track_y - thumb_r ), ImVec2( hi_x + thumb_r, track_y + thumb_r ) );
+
+        bool changed = false;
+        bool lo_hov = false, lo_held = false;
+        bool hi_hov = false, hi_held = false;
+        ImGui::ButtonBehavior( lo_bb, id_lo, &lo_hov, &lo_held );
+        ImGui::ButtonBehavior( hi_bb, id_hi, &hi_hov, &hi_held );
+        if ( lo_held )
+        {
+            const float nv = ImClamp( x_to_value( ImGui::GetMousePos().x ), v_lo, *v_max );
+            if ( nv != *v_min ) { *v_min = nv; changed = true; }
+        }
+        if ( hi_held )
+        {
+            const float nv = ImClamp( x_to_value( ImGui::GetMousePos().x ), *v_min, v_hi );
+            if ( nv != *v_max ) { *v_max = nv; changed = true; }
+        }
+
+        ImDrawList * dl = w->DrawList;
+        dl->AddRectFilled( ImVec2( track_left, track_y - track_h * 0.5f ),
+                           ImVec2( track_right, track_y + track_h * 0.5f ),
+                           GetColorU32( ImFluentCol_ControlStrongFillDefault ), track_h * 0.5f );
+        dl->AddRectFilled( ImVec2( lo_x, track_y - track_h * 0.5f ),
+                           ImVec2( hi_x, track_y + track_h * 0.5f ),
+                           GetColorU32( ImFluentCol_AccentFillDefault ), track_h * 0.5f );
+
+        const float inner_r = thumb_r * 0.5f;
+        for ( int side = 0; side < 2; ++side )
+        {
+            const ImVec2 c = ( side == 0 ) ? ImVec2( lo_x, track_y ) : ImVec2( hi_x, track_y );
+            dl->AddCircleFilled( c, thumb_r, GetColorU32( ImFluentCol_AccentFillDefault ), 32 );
+            dl->AddCircleFilled( c, inner_r, GetColorU32( ImFluentCol_TextOnAccentPrimary ), 24 );
+        }
+
+        if ( format && *format )
+        {
+            char buf[64];
+            ImFormatString( buf, IM_ARRAYSIZE( buf ), format, *v_min );
+            ImGui::SameLine();
+            ImGui::TextUnformatted( buf );
+            ImGui::SameLine();
+            ImGui::TextUnformatted( "\xe2\x80\x93" );
+            ImGui::SameLine();
+            ImFormatString( buf, IM_ARRAYSIZE( buf ), format, *v_max );
+            ImGui::TextUnformatted( buf );
+        }
+
+        DrawAndConsumePendingDescription();
+        return changed;
     }
 
     void ProgressBar( float fraction, const ImVec2 & size_arg, const char * overlay, ImFluentProgressBarState state )
@@ -1804,6 +2037,128 @@ namespace ImFluent
         ImGui::EndChild();
         ImGui::PopStyleVar( 3 );
         ImGui::PopStyleColor( 2 );
+    }
+
+    bool BeginSettingsCard( const char * id, const char * header, const char * description, const char * glyph )
+    {
+        const ImFluentStyle & style = GetStyle();
+        if ( !BeginCard( id, ImVec2( -FLT_MIN, 0 ), ImFluentCardStyle_Filled ) )
+            return false;
+        ImGui::PushID( id );
+
+        const float font_h     = ImGui::GetFontSize();
+        const float gap_y      = description ? FluentDpx( style.SpacingXSmall ) : 0.f;
+        const float text_h     = font_h + ( description ? font_h + gap_y : 0.f );
+        const float control_h  = FluentDpx( style.ControlHeight );
+        const float row_h      = ImMax( text_h, control_h );
+        const float glyph_w    = glyph ? FluentDpx( style.SpinButtonWidth ) : 0.f;
+        const float trail_w    = FluentDpx( style.ControlMinWidth );
+
+        const ImVec2 pos      = ImGui::GetCursorScreenPos();
+        const float  avail_w  = ImGui::GetContentRegionAvail().x;
+        ImDrawList * dl       = ImGui::GetWindowDrawList();
+
+        if ( glyph )
+        {
+            const ImVec2 gs = ImGui::CalcTextSize( glyph );
+            dl->AddText( ImVec2( pos.x + ( glyph_w - gs.x ) * 0.5f,
+                                 pos.y + ( row_h - gs.y ) * 0.5f ),
+                         GetColorU32( ImFluentCol_TextPrimary ), glyph );
+        }
+        const float text_x = pos.x + glyph_w;
+        const float text_y = pos.y + ( row_h - text_h ) * 0.5f;
+        if ( header )
+            dl->AddText( ImVec2( text_x, text_y ), GetColorU32( ImFluentCol_TextPrimary ), header );
+        if ( description )
+            dl->AddText( ImVec2( text_x, text_y + font_h + gap_y ),
+                         GetColorU32( ImFluentCol_TextSecondary ), description );
+
+        ImGui::Dummy( ImVec2( avail_w - trail_w, row_h ) );
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos( ImVec2( pos.x + avail_w - trail_w,
+                                           pos.y + ( row_h - control_h ) * 0.5f ) );
+        ImGui::PushItemWidth( trail_w );
+        return true;
+    }
+
+    void EndSettingsCard()
+    {
+        ImGui::PopItemWidth();
+        ImGui::PopID();
+        EndCard();
+    }
+
+    namespace
+    {
+        struct WrapPanelState { float Avail; float HSpacing; float VSpacing; float CursorX; bool First; };
+        static ImVector<WrapPanelState> g_WrapPanelStack;
+    }
+
+    void BeginStackPanelHorizontal( float spacing )
+    {
+        const ImFluentStyle & style = GetStyle();
+        if ( spacing < 0.f ) spacing = FluentDpx( style.SpacingMedium );
+        ImGui::BeginGroup();
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( spacing, ImGui::GetStyle().ItemSpacing.y ) );
+    }
+
+    void BeginStackPanelVertical( float spacing )
+    {
+        const ImFluentStyle & style = GetStyle();
+        if ( spacing < 0.f ) spacing = FluentDpx( style.SpacingMedium );
+        ImGui::BeginGroup();
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( ImGui::GetStyle().ItemSpacing.x, spacing ) );
+    }
+
+    void EndStackPanel()
+    {
+        ImGui::PopStyleVar();
+        ImGui::EndGroup();
+    }
+
+    void BeginWrapPanel( float h_spacing, float v_spacing )
+    {
+        const ImFluentStyle & style = GetStyle();
+        if ( h_spacing < 0.f ) h_spacing = FluentDpx( style.SpacingMedium );
+        if ( v_spacing < 0.f ) v_spacing = FluentDpx( style.SpacingMedium );
+        WrapPanelState s;
+        s.Avail    = ImGui::GetContentRegionAvail().x;
+        s.HSpacing = h_spacing;
+        s.VSpacing = v_spacing;
+        s.CursorX  = 0.f;
+        s.First    = true;
+        g_WrapPanelStack.push_back( s );
+        ImGui::BeginGroup();
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( h_spacing, v_spacing ) );
+    }
+
+    bool WrapPanelNextItem( float item_width )
+    {
+        if ( g_WrapPanelStack.empty() ) return false;
+        WrapPanelState & s = g_WrapPanelStack.back();
+        if ( s.First )
+        {
+            s.First = false;
+            s.CursorX = item_width;
+            return true;
+        }
+        const float needed = item_width + s.HSpacing;
+        if ( s.CursorX + needed > s.Avail )
+        {
+            s.CursorX = item_width;
+            return true;
+        }
+        s.CursorX += needed;
+        ImGui::SameLine();
+        return true;
+    }
+
+    void EndWrapPanel()
+    {
+        if ( g_WrapPanelStack.empty() ) { IM_ASSERT( 0 && "EndWrapPanel without matching Begin" ); return; }
+        g_WrapPanelStack.pop_back();
+        ImGui::PopStyleVar();
+        ImGui::EndGroup();
     }
 
     bool BeginExpander( const char * label, bool * open )
@@ -2516,6 +2871,97 @@ namespace ImFluent
         return pressed;
     }
 
+    bool ToggleMenuFlyoutItem( const char * label, bool * v, const char * shortcut, bool enabled )
+    {
+        const bool selected = v && *v;
+        const char * mark = selected ? ImFluentIcon_Check : NULL;
+        if ( MenuFlyoutItem( label, shortcut, mark, false, enabled ) )
+        {
+            if ( v ) *v = !*v;
+            return true;
+        }
+        return false;
+    }
+
+    bool RadioMenuFlyoutItem( const char * label, int * v, int v_button, const char * shortcut, bool enabled )
+    {
+        const bool selected = v && (*v == v_button);
+        const char * mark = selected ? ImFluentIcon_Check : NULL;
+        if ( MenuFlyoutItem( label, shortcut, mark, false, enabled ) )
+        {
+            if ( v ) *v = v_button;
+            return true;
+        }
+        return false;
+    }
+
+    bool BeginMenuFlyoutSubItem( const char * label, const char * glyph, bool enabled )
+    {
+        ImGuiWindow * w = ImGui::GetCurrentWindow();
+        if ( w->SkipItems ) return false;
+        glyph = ConsumePendingGlyph( glyph );
+        const ImFluentStyle & style = GetStyle();
+        const ImGuiID id = w->GetID( label );
+        const float h = FluentDpx( style.MenuItemHeight );
+        const float min_w = FluentDpx( style.NavPaneCompactWidth * 3.75f );
+        const ImVec2 ts = ImGui::CalcTextSize( label );
+        const ImVec2 pos = w->DC.CursorPos;
+        const float W = ImMax( min_w, ts.x + FluentDpx( style.AppBarButtonWidth ) );
+        const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
+        ImGui::ItemSize( bb );
+        if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+        bool hov = false, held = false;
+        const bool pressed = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held,
+                                                              ImGuiButtonFlags_PressedOnClick |
+                                                              ImGuiButtonFlags_NoNavFocus ) : false;
+        const bool open = ImGui::IsPopupOpen( label, ImGuiPopupFlags_None );
+        if ( pressed || ( hov && !open ) )
+        {
+            ImGui::OpenPopup( label );
+        }
+
+        ImDrawList * dl = w->DrawList;
+        if ( hov || open )
+        {
+            const ImU32 bg = held ? GetColorU32( ImFluentCol_SubtleFillTertiary ) : GetColorU32( ImFluentCol_SubtleFillSecondary );
+            dl->AddRectFilled( bb.Min, bb.Max, bg, FluentDpx( style.ControlCornerRadius ) );
+        }
+        const float cy = (bb.Min.y + bb.Max.y - ts.y) * 0.5f;
+        if ( glyph )
+            dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingLarge ), cy ),
+                         enabled ? GetColorU32( ImFluentCol_TextPrimary ) : GetColorU32( ImFluentCol_TextDisabled ), glyph );
+        dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.NavItemHeight ), cy ),
+                     enabled ? GetColorU32( ImFluentCol_TextPrimary ) : GetColorU32( ImFluentCol_TextDisabled ), label );
+        DrawChevron( dl,
+                     ImVec2( bb.Max.x - FluentDpx( style.SpacingLarge ),
+                             ( bb.Min.y + bb.Max.y ) * 0.5f ),
+                     ImGuiDir_Right,
+                     enabled ? GetColorU32( ImFluentCol_TextSecondary ) : GetColorU32( ImFluentCol_TextDisabled ),
+                     FluentDpx( style.ChevronGlyphSize ) );
+
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
+        ImGui::PushStyleColor( ImGuiCol_HeaderHovered, GetColorU32( ImFluentCol_SubtleFillSecondary ) );
+        ImGui::PushStyleColor( ImGuiCol_HeaderActive, GetColorU32( ImFluentCol_SubtleFillTertiary ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
+        ImGui::SetNextWindowPos( ImVec2( bb.Max.x, bb.Min.y ), ImGuiCond_Appearing );
+        if ( ImGui::BeginPopup( label ) )
+            return true;
+        ImGui::PopStyleVar( 3 );
+        ImGui::PopStyleColor( 4 );
+        return false;
+    }
+
+    void EndMenuFlyoutSubItem()
+    {
+        ImGui::EndPopup();
+        ImGui::PopStyleVar( 3 );
+        ImGui::PopStyleColor( 4 );
+    }
+
     void MenuFlyoutSeparator()
     {
         const ImFluentStyle & style = GetStyle();
@@ -2743,6 +3189,111 @@ namespace ImFluent
                               GetColorU32( ImFluentCol_TextOnAccentPrimary ), text );
     }
 
+    void OpenTeachingTip( const char * id )
+    {
+        ImGui::OpenPopup( id );
+        ImGuiContext & g = *ImGui::GetCurrentContext();
+        StorePopupAnchor( ImGui::GetID( id ), g.LastItemData.Rect );
+    }
+
+    bool BeginTeachingTip( const char * id, const char * title, ImFluentTeachingTipPlacement placement )
+    {
+        const ImFluentStyle & style = GetStyle();
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding,
+                             ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingLarge ) ) );
+
+        if ( ImGui::IsPopupOpen( id, ImGuiPopupFlags_None ) )
+        {
+            const ImGuiID pid = ImGui::GetID( id );
+            const ImRect * anchor = FindPopupAnchor( pid );
+            if ( anchor )
+            {
+                const float gap = FluentDpx( style.SpacingMedium );
+                ImVec2 pos;
+                ImVec2 pivot( 0.f, 0.f );
+                switch ( placement )
+                {
+                case ImFluentTeachingTipPlacement_Top:
+                    pos   = ImVec2( ( anchor->Min.x + anchor->Max.x ) * 0.5f, anchor->Min.y - gap );
+                    pivot = ImVec2( 0.5f, 1.f );
+                    break;
+                case ImFluentTeachingTipPlacement_Left:
+                    pos   = ImVec2( anchor->Min.x - gap, ( anchor->Min.y + anchor->Max.y ) * 0.5f );
+                    pivot = ImVec2( 1.f, 0.5f );
+                    break;
+                case ImFluentTeachingTipPlacement_Right:
+                    pos   = ImVec2( anchor->Max.x + gap, ( anchor->Min.y + anchor->Max.y ) * 0.5f );
+                    pivot = ImVec2( 0.f, 0.5f );
+                    break;
+                case ImFluentTeachingTipPlacement_Bottom:
+                default:
+                    pos   = ImVec2( ( anchor->Min.x + anchor->Max.x ) * 0.5f, anchor->Max.y + gap );
+                    pivot = ImVec2( 0.5f, 0.f );
+                    break;
+                }
+                ImGui::SetNextWindowPos( pos, ImGuiCond_Appearing, pivot );
+            }
+        }
+
+        if ( ImGui::BeginPopup( id ) )
+        {
+            if ( title && *title )
+            {
+                TextBlock( title, ImFluentTextStyle_BodyStrong );
+                ImGui::Dummy( ImVec2( 0.f, FluentDpx( style.SpacingXSmall ) ) );
+            }
+            return true;
+        }
+        ImGui::PopStyleVar( 2 );
+        ImGui::PopStyleColor( 2 );
+        return false;
+    }
+
+    void EndTeachingTip()
+    {
+        ImGui::EndPopup();
+        ImGui::PopStyleVar( 2 );
+        ImGui::PopStyleColor( 2 );
+    }
+
+    bool BeginTitleBar( const char * title, float height )
+    {
+        const ImFluentStyle & style = GetStyle();
+        const float h = ( height > 0.f ) ? height : FluentDpx( style.TitleBarHeight );
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_SolidBgBase ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding,
+                             ImVec2( FluentDpx( style.SpacingMedium ), FluentDpx( style.SpacingXSmall ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing,
+                             ImVec2( FluentDpx( style.SpacingMedium ), 0.f ) );
+        const bool open = ImGui::BeginChild( "##fluent-titlebar", ImVec2( 0, h ),
+                                             ImGuiChildFlags_AlwaysUseWindowPadding,
+                                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        if ( !open )
+        {
+            ImGui::EndChild();
+            ImGui::PopStyleVar( 2 );
+            ImGui::PopStyleColor();
+            return false;
+        }
+        if ( title && *title )
+        {
+            ImGui::AlignTextToFramePadding();
+            TextBlock( title, ImFluentTextStyle_Body );
+            ImGui::SameLine();
+        }
+        return true;
+    }
+
+    void EndTitleBar()
+    {
+        ImGui::EndChild();
+        ImGui::PopStyleVar( 2 );
+        ImGui::PopStyleColor();
+    }
+
     bool BeginMenuBar()
     {
         const ImFluentStyle & style = GetStyle();
@@ -2781,6 +3332,50 @@ namespace ImFluent
         }
         const ImVec2 ts = ImGui::CalcTextSize( label );
         dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f, bb.Max.y - ts.y - FluentDpx( style.SpacingMedium - 2.f ) ), GetColorU32( ImFluentCol_TextPrimary ), label );
+        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+        return pressed;
+    }
+
+    bool AppBarToggleButton( const char * label, const char * glyph, bool * v, const ImVec2 & size_arg )
+    {
+        ImGuiWindow * w = ImGui::GetCurrentWindow();
+        if ( w->SkipItems ) return false;
+        glyph = ConsumePendingGlyph( glyph );
+        const ImFluentStyle & style = GetStyle();
+        const ImGuiID id = w->GetID( label );
+        const float W = (size_arg.x > 0 ? size_arg.x : FluentDpx( style.AppBarButtonWidth ));
+        const float H = (size_arg.y > 0 ? size_arg.y : FluentDpx( style.AppBarButtonHeight ));
+        const ImVec2 pos = w->DC.CursorPos;
+        const ImRect bb( pos, ImVec2( pos.x + W, pos.y + H ) );
+        ImGui::ItemSize( bb );
+        if ( !ImGui::ItemAdd( bb, id ) ) return false;
+        bool hov = false, held = false;
+        const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+        if ( pressed && v ) *v = !*v;
+        const bool on = v && *v;
+
+        ImDrawList * dl = w->DrawList;
+        const float r = FluentDpx( style.ControlCornerRadius );
+        ImU32 fill;
+        if ( on )
+            fill = held ? GetColorU32( ImFluentCol_AccentFillTertiary )
+                 : hov  ? GetColorU32( ImFluentCol_AccentFillSecondary )
+                 :        GetColorU32( ImFluentCol_AccentFillDefault );
+        else
+            fill = ResolveSubtleFillState( false , held, hov );
+        dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
+
+        const ImU32 textCol = on ? GetColorU32( ImFluentCol_TextOnAccentPrimary )
+                                 : GetColorU32( ImFluentCol_TextPrimary );
+        if ( glyph )
+        {
+            const ImVec2 gs = ImGui::CalcTextSize( glyph );
+            dl->AddText( ImVec2( bb.Min.x + (W - gs.x) * 0.5f,
+                                 bb.Min.y + FluentDpx( style.SpacingMedium ) ), textCol, glyph );
+        }
+        const ImVec2 ts = ImGui::CalcTextSize( label );
+        dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f,
+                             bb.Max.y - ts.y - FluentDpx( style.SpacingMedium - 2.f ) ), textCol, label );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
         return pressed;
     }
