@@ -2649,13 +2649,18 @@ namespace ImFluent
         const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
         const float   h  = FluentDpx( style.ControlHeight );
-        const float   W  = ImGui::GetContentRegionAvail().x;
         const ImVec2  pos = w->DC.CursorPos;
-        const ImRect  bb ( pos, ImVec2( pos.x + W, pos.y + h ) );
+
+        // The hit/fill rect spans the full row of the parent container,
+        // not just the indented content region — matches WinUI's
+        // TreeViewItem highlight that covers the whole row.
+        const float row_left  = w->WorkRect.Min.x;
+        const float row_right = w->WorkRect.Max.x;
+        const ImRect bb( ImVec2( row_left, pos.y ), ImVec2( row_right, pos.y + h ) );
 
         const char * glyph = ConsumePendingGlyph( NULL );
 
-        ImGui::ItemSize( bb );
+        ImGui::ItemSize( ImVec2( row_right - pos.x, h ) );
 
         const float pad           = FluentDpx( style.SpacingMedium );
         const float check_w       = FluentDpx( style.CheckboxSize );
@@ -2665,7 +2670,8 @@ namespace ImFluent
         const float glyph_w       = FluentDpx( style.StandardIconSize + 2.f );
         const float glyph_gap     = FluentDpx( style.SpacingMedium );
 
-        float x = bb.Min.x + pad;
+        // Content x-positions start at the indented cursor, not the row edge.
+        float x = pos.x + pad;
         ImRect check_bb;
         if ( p_checked )
         {
