@@ -11,7 +11,6 @@ int main( int, char ** )
     if ( !SDL_Init( SDL_INIT_VIDEO | SDL_INIT_GAMEPAD ) )
         return 1;
 
-    // Create SDL window graphics context
     float main_scale = SDL_GetDisplayContentScale( SDL_GetPrimaryDisplay() );
 
     SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
@@ -34,8 +33,8 @@ int main( int, char ** )
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO & io = ImGui::GetIO(); ( void )io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
     ImGui::StyleColorsDark();
 
@@ -47,15 +46,14 @@ int main( int, char ** )
     ImGui_ImplSDLGPU3_InitInfo init_info = {};
     init_info.Device = gpu_device;
     init_info.ColorTargetFormat = SDL_GetGPUSwapchainTextureFormat( gpu_device, window );
-    init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;                      // Only used in multi-viewports mode.
-    init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;  // Only used in multi-viewports mode.
+    init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;
+    init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
     init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
     ImGui_ImplSDLGPU3_Init( &init_info );
 
     ImFluent::LoadFluentFonts();
     ImFluent::SetThemePreset( ImFluentThemePreset_Dark );
 
-    // Our state
     bool show_demo_window = true;
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4( 0.45f, 0.55f, 0.60f, 1.00f );
@@ -90,10 +88,10 @@ int main( int, char ** )
         ImDrawData * draw_data = ImGui::GetDrawData();
         const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
 
-        SDL_GPUCommandBuffer * command_buffer = SDL_AcquireGPUCommandBuffer( gpu_device ); // Acquire a GPU command buffer
+        SDL_GPUCommandBuffer * command_buffer = SDL_AcquireGPUCommandBuffer( gpu_device );
 
         SDL_GPUTexture * swapchain_texture;
-        SDL_WaitAndAcquireGPUSwapchainTexture( command_buffer, window, &swapchain_texture, nullptr, nullptr ); // Acquire a swapchain texture
+        SDL_WaitAndAcquireGPUSwapchainTexture( command_buffer, window, &swapchain_texture, nullptr, nullptr );
 
         if ( swapchain_texture != nullptr && !is_minimized )
         {

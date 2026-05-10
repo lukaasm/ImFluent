@@ -469,7 +469,7 @@ namespace ImFluent
     IMGUI_API void      EndMenuBar();
 
     IMGUI_API bool      BeginCommandBar( const char * id, float height = 0.f );
-    IMGUI_API bool      BeginCommandBarOverflow();   // returns true while the "..." flyout is open
+    IMGUI_API bool      BeginCommandBarOverflow();
     IMGUI_API void      EndCommandBarOverflow();
     IMGUI_API void      EndCommandBar();
     IMGUI_API bool      AppBarButton( const char * label, const char * glyph, const ImVec2 & size = ImVec2( 0, 0 ) );

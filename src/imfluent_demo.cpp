@@ -1,11 +1,3 @@
-// imfluent_demo.cpp
-// Built-in demo window — WinUI 3 Gallery viewer. Defines
-// ImFluent::ShowDemoWindow (declared in imfluent.h).
-//
-// When IMFLUENT_DISABLE_DEMO_WINDOWS is defined, the entire body compiles out
-// and ShowDemoWindow becomes an empty stub (mirrors ImGui's
-// IMGUI_DISABLE_DEMO_WINDOWS convention).
-
 #include "imfluent.h"
 
 #if !defined(IMFLUENT_DISABLE_DEMO_WINDOWS)
@@ -28,9 +20,7 @@ namespace ImFluentGalleryApp
 
 using namespace ImFluent;
 
-// ============================================================================
-// ControlInfo data
-// ============================================================================
+// [SECTION] ControlInfo data
 
 struct ControlInfo
 {
@@ -38,8 +28,8 @@ struct ControlInfo
     const char*  GroupId;
     const char*  Title;
     const char*  Subtitle;
-    const char*  Glyph;       // points at one of ImFluentIcon_* in imfluent_icons.h
-    void       (*PageFn)();   // demo function for the ItemPage
+    const char*  Glyph;
+    void       (*PageFn)();
 };
 
 struct GroupInfo
@@ -49,7 +39,6 @@ struct GroupInfo
     const char* Glyph;
 };
 
-// Forward declarations of every Page_Item_* — defined later in this TU.
 static void Page_Item_Button         ();
 static void Page_Item_HyperlinkButton();
 static void Page_Item_DropDownButton ();
@@ -101,7 +90,6 @@ static void Page_Item_PersonPicture  ();
 static void Page_Item_CommandBar     ();
 
 static const ControlInfo g_Controls[] = {
-    // ---- Basic Input -------------------------------------------------------
     { "Button",          "BasicInput",  "Button",            "A control that responds to user input and raises a Click event.", ImFluentIcon_Add,           &Page_Item_Button },
     { "HyperlinkButton", "BasicInput",  "HyperlinkButton",   "A button that appears as hyperlink text and can navigate to a URI.", ImFluentIcon_Share,         &Page_Item_HyperlinkButton },
     { "DropDownButton",  "BasicInput",  "DropDownButton",    "A button with a chevron that opens a flyout when clicked.",        ImFluentIcon_ChevronDown,   &Page_Item_DropDownButton },
@@ -114,7 +102,6 @@ static const ControlInfo g_Controls[] = {
     { "RatingControl",   "BasicInput",  "RatingControl",     "Lets users rate something on a 5-star scale.",                      ImFluentIcon_StarFilled,    &Page_Item_RatingControl },
     { "Slider",          "BasicInput",  "Slider",            "A control that lets the user select from a range of values.",      ImFluentIcon_Spacing,       &Page_Item_Slider },
 
-    // ---- Status & Info -----------------------------------------------------
     { "ProgressBar",     "StatusAndInfo", "ProgressBar",     "Shows the progress of a long-running operation.",                  ImFluentIcon_Refresh,       &Page_Item_ProgressBar },
     { "ProgressRing",    "StatusAndInfo", "ProgressRing",    "Shows the progress of a long-running operation as a ring.",        ImFluentIcon_Refresh,       &Page_Item_ProgressRing },
     { "InfoBar",         "StatusAndInfo", "InfoBar",         "Inline notification for app-wide status messages.",                 ImFluentIcon_Info,          &Page_Item_InfoBar },
@@ -122,7 +109,6 @@ static const ControlInfo g_Controls[] = {
     { "PersonPicture",   "StatusAndInfo", "PersonPicture",   "Circular avatar with deterministic tint and initials.",             ImFluentIcon_Contact,       &Page_Item_PersonPicture },
     { "ToolTip",         "StatusAndInfo", "ToolTip",         "Pops up additional info about an element on hover.",                ImFluentIcon_Info,          &Page_Item_ToolTip },
 
-    // ---- Text --------------------------------------------------------------
     { "TextBlock",       "Text",        "TextBlock",         "Displays small amounts of read-only text.",                         ImFluentIcon_Typography,    &Page_Item_TextBlock },
     { "TextBox",         "Text",        "TextBox",           "A single-line plain-text input field.",                             ImFluentIcon_Edit,          &Page_Item_TextBox },
     { "PasswordBox",     "Text",        "PasswordBox",       "A control for entering passwords.",                                  ImFluentIcon_Hide,          &Page_Item_PasswordBox },
@@ -130,7 +116,6 @@ static const ControlInfo g_Controls[] = {
     { "AutoSuggestBox",  "Text",        "AutoSuggestBox",    "A text-box that gives suggestions as the user types.",              ImFluentIcon_Search,        &Page_Item_AutoSuggestBox },
     { "RichEditBox",     "Text",        "RichEditBox",       "Multi-line text input.",                                            ImFluentIcon_Document,      &Page_Item_RichEditBox },
 
-    // ---- Collections -------------------------------------------------------
     { "ComboBox",        "Collections", "ComboBox",          "A drop-down list of items.",                                        ImFluentIcon_ChevronDown,   &Page_Item_ComboBox },
     { "ListBox",         "Collections", "ListBox",           "A control that lets users select from a list.",                     ImFluentIcon_AllControls,   &Page_Item_ListBox },
     { "ListView",        "Collections", "ListView",          "A vertical list of items with selection.",                          ImFluentIcon_AllControls,   &Page_Item_ListView },
@@ -138,7 +123,6 @@ static const ControlInfo g_Controls[] = {
     { "GridView",        "Collections", "GridView",          "A grid layout of selectable items.",                                ImFluentIcon_AllControls,   &Page_Item_GridView },
     { "PipsPager",       "Collections", "PipsPager",         "A pager rendered as a row of dots.",                                ImFluentIcon_More,          &Page_Item_PipsPager },
 
-    // ---- Layout / Containers -----------------------------------------------
     { "Card",            "Layout",      "Card",              "A surface that groups related content.",                            ImFluentIcon_Folder,        &Page_Item_Card },
     { "SettingsCard",    "Layout",      "SettingsCard",      "Card row used on settings pages: glyph + header + description + control slot.", ImFluentIcon_Settings, &Page_Item_SettingsCard },
     { "Expander",        "Layout",      "Expander",          "A control with a header that expands to reveal a body.",            ImFluentIcon_ChevronDown,   &Page_Item_Expander },
@@ -146,28 +130,23 @@ static const ControlInfo g_Controls[] = {
     { "WrapPanel",       "Layout",      "WrapPanel",         "Lays children left-to-right and wraps to a new row when full.",     ImFluentIcon_Spacing,       &Page_Item_WrapPanel },
     { "TitleBar",        "Layout",      "TitleBar",          "Custom title-bar shell hosting nav chevrons, search, and actions.", ImFluentIcon_GlobalNavButton, &Page_Item_TitleBar },
 
-    // ---- Navigation --------------------------------------------------------
     { "TabView",         "Navigation",  "TabView",           "A control with multiple tabs the user can switch between.",         ImFluentIcon_AllControls,   &Page_Item_TabView },
     { "NavigationView",  "Navigation",  "NavigationView",    "A side-pane navigation control.",                                   ImFluentIcon_GlobalNavButton, &Page_Item_NavigationView },
     { "SelectorBar",     "Navigation",  "SelectorBar",       "A horizontal list of pill-shaped pivot items.",                     ImFluentIcon_AllControls,   &Page_Item_SelectorBar },
     { "BreadcrumbBar",   "Navigation",  "BreadcrumbBar",     "A trail of clickable parent items showing the current location.",   ImFluentIcon_ChevronRight,  &Page_Item_BreadcrumbBar },
 
-    // ---- Dialogs & Flyouts -------------------------------------------------
     { "ContentDialog",   "DialogsAndFlyouts", "ContentDialog","A modal dialog with title, body, and action buttons.",             ImFluentIcon_Important,     &Page_Item_ContentDialog },
     { "Flyout",          "DialogsAndFlyouts", "Flyout",      "A lightweight contextual popup.",                                   ImFluentIcon_More,          &Page_Item_Flyout },
     { "MenuFlyout",      "DialogsAndFlyouts", "MenuFlyout",  "A flyout with a list of menu items.",                               ImFluentIcon_More,          &Page_Item_MenuFlyout },
     { "TeachingTip",     "DialogsAndFlyouts", "TeachingTip", "Anchored callout used to teach a feature; placement = Top/Bottom/Left/Right.", ImFluentIcon_Info, &Page_Item_TeachingTip },
 
-    // ---- Menus & toolbars --------------------------------------------------
     { "AppBarButton",    "MenusAndToolbars", "AppBarButton", "A toolbar button with an icon glyph above its label.",              ImFluentIcon_Add,           &Page_Item_AppBarButton },
     { "CommandBar",      "MenusAndToolbars", "CommandBar",   "Toolbar with primary commands + overflow flyout for secondary.",   ImFluentIcon_More,          &Page_Item_CommandBar },
 
-    // ---- Date & Time -------------------------------------------------------
     { "DatePicker",         "DateTime", "DatePicker",         "Lets a user pick a date.",                                          ImFluentIcon_Calendar,    &Page_Item_DatePicker },
     { "TimePicker",         "DateTime", "TimePicker",         "Lets a user pick a time.",                                          ImFluentIcon_Clock,       &Page_Item_TimePicker },
     { "CalendarDatePicker", "DateTime", "CalendarDatePicker", "Drop-down calendar for picking a date.",                            ImFluentIcon_Calendar,    &Page_Item_CalendarDatePicker },
 
-    // ---- Design / Theming --------------------------------------------------
     { "StyleStack",         "Design",   "Style stack",        "Push/pop Fluent color and sizing tokens for scoped overrides.",     ImFluentIcon_Color,       &Page_Item_StyleStack },
 };
 static const int g_ControlsCount = (int)(sizeof(g_Controls) / sizeof(g_Controls[0]));
@@ -195,9 +174,7 @@ static const ControlInfo* FindControl(const char* uniqueId)
     return nullptr;
 }
 
-// ============================================================================
-// Navigation state + page router
-// ============================================================================
+// [SECTION] Navigation state + page router
 namespace
 {
 struct GalleryState
@@ -206,8 +183,8 @@ struct GalleryState
     int                      NavCursor = -1;
     ImFluentNavViewMode      NavMode   = ImFluentNavViewMode_LeftOpen;
     char                     SearchBuf[128] = {};
-    int                      ExpandedGroup  = -1; // -1 = none, otherwise index into g_Groups
-    bool                     ResetScroll    = false; // set after each navigation
+    int                      ExpandedGroup  = -1;
+    bool                     ResetScroll    = false;
 };
 }
 static GalleryState g_State;
@@ -230,9 +207,7 @@ static const char* CurrentPageId()
     return g_State.NavStack[g_State.NavCursor].c_str();
 }
 
-// ============================================================================
-// PageHeader + ControlExample helpers
-// ============================================================================
+// [SECTION] PageHeader + ControlExample helpers
 static void PageHeader(const char* title, const char* subtitle = nullptr)
 {
     TextBlock(title, ImFluentTextStyle_TitleLarge);
@@ -279,11 +254,9 @@ static void EndControlExample()
     ImGui::Dummy(ImVec2(0.f, FluentDpx(16.f)));
 }
 
-// ============================================================================
-// Per-control demo pages
-// ============================================================================
+// [SECTION] Per-control demo pages
 
-// ---- Buttons family --------------------------------------------------------
+// [SECTION] Buttons family
 
 static void Page_Item_Button()
 {
@@ -416,7 +389,7 @@ static void Page_Item_RepeatButton()
     EndControlExample();
 }
 
-// ---- Selection -------------------------------------------------------------
+// [SECTION] Selection
 
 static void Page_Item_CheckBox()
 {
@@ -578,7 +551,7 @@ static void Page_Item_ProgressRing()
     EndControlExample();
 }
 
-// ---- Text ------------------------------------------------------------------
+// [SECTION] Text
 
 static void Page_Item_TextBlock()
 {
@@ -733,7 +706,7 @@ static void Page_Item_RichEditBox()
     EndControlExample();
 }
 
-// ---- Collections -----------------------------------------------------------
+// [SECTION] Collections
 
 static void Page_Item_ComboBox()
 {
@@ -884,7 +857,7 @@ static void Page_Item_BreadcrumbBar()
     EndControlExample();
 }
 
-// ---- Layout / Containers ---------------------------------------------------
+// [SECTION] Layout / Containers
 
 static void Page_Item_Card()
 {
@@ -1090,7 +1063,7 @@ static void Page_Item_SelectorBar()
     EndControlExample();
 }
 
-// ---- Status & info ---------------------------------------------------------
+// [SECTION] Status & info
 
 static void Page_Item_InfoBar()
 {
@@ -1151,7 +1124,7 @@ static void Page_Item_ToolTip()
     EndControlExample();
 }
 
-// ---- Dialogs ---------------------------------------------------------------
+// [SECTION] Dialogs
 
 static void Page_Item_ContentDialog()
 {
@@ -1228,9 +1201,6 @@ static void Page_Item_MenuFlyout()
     if (Button("Open share menu")) OpenMenuFlyout("##mf2");
     if (BeginMenuFlyout("##mf2"))
     {
-        // SetNextItemGlyph drains exactly one item; equivalent to passing the
-        // glyph as the third arg, but reads cleaner when the icon list is
-        // computed elsewhere.
         SetNextItemGlyph(ImFluentIcon_Mail);   MenuFlyoutItem("Email a copy");
         SetNextItemGlyph(ImFluentIcon_Print);  MenuFlyoutItem("Print");
         SetNextItemGlyph(ImFluentIcon_Share);  MenuFlyoutItem("Share to…",        "Ctrl+S");
@@ -1271,7 +1241,7 @@ static void Page_Item_MenuFlyout()
     EndControlExample();
 }
 
-// ---- Menus & toolbars ------------------------------------------------------
+// [SECTION] Menus & toolbars
 
 static void Page_Item_AppBarButton()
 {
@@ -1308,7 +1278,7 @@ static void Page_Item_AppBarButton()
     EndControlExample();
 }
 
-// ---- Date & time -----------------------------------------------------------
+// [SECTION] Date & time
 
 static void Page_Item_DatePicker()
 {
@@ -1348,7 +1318,7 @@ static void Page_Item_CalendarDatePicker()
     EndControlExample();
 }
 
-// ---- Status & info (additions) ---------------------------------------------
+// [SECTION] Status & info (additions)
 
 static void Page_Item_PersonPicture()
 {
@@ -1380,7 +1350,7 @@ static void Page_Item_PersonPicture()
     EndControlExample();
 }
 
-// ---- Menus & toolbars (additions) ------------------------------------------
+// [SECTION] Menus & toolbars (additions)
 
 static void Page_Item_CommandBar()
 {
@@ -1413,7 +1383,7 @@ static void Page_Item_CommandBar()
     EndControlExample();
 }
 
-// ---- Layout / Containers (additions) ---------------------------------------
+// [SECTION] Layout / Containers (additions)
 
 static void Page_Item_SettingsCard()
 {
@@ -1503,7 +1473,7 @@ static void Page_Item_WrapPanel()
     EndControlExample();
 }
 
-// ---- Dialogs & Flyouts (additions) -----------------------------------------
+// [SECTION] Dialogs & Flyouts (additions)
 
 static void Page_Item_TeachingTip()
 {
@@ -1534,7 +1504,7 @@ static void Page_Item_TeachingTip()
     EndControlExample();
 }
 
-// ---- Chrome (TitleBar) -----------------------------------------------------
+// [SECTION] Chrome (TitleBar)
 
 static void Page_Item_TitleBar()
 {
@@ -1574,7 +1544,7 @@ static void Page_Item_TitleBar()
     EndControlExample();
 }
 
-// ---- Style stack -----------------------------------------------------------
+// [SECTION] Style stack
 
 static void Page_Item_StyleStack()
 {
@@ -1615,9 +1585,7 @@ static void Page_Item_StyleStack()
     EndControlExample();
 }
 
-// ============================================================================
-// Top-level pages: Home, AllControls, Section_, Settings
-// ============================================================================
+// [SECTION] Top-level pages
 static void Page_Home()
 {
     PageHeader("ImFluent Gallery", "A WinUI 3 Gallery clone built on Dear ImGui + the Fluent 2 design system.");
@@ -1668,9 +1636,6 @@ static void Page_AllControls()
             ImFluent::Separator();
             ImGui::Dummy(ImVec2(0, FluentDpx(16.f)));
         }
-        // Each demo page goes into its own NavFlattened child window so its
-        // ID stack, item rect, and any unbalanced Begin/End calls stay
-        // scoped — we never reach the AllControls window's IDStack root.
         ImGui::PushID(i);
         ImGui::BeginChild(c.UniqueId, ImVec2(-FLT_MIN, 0),
                           ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened,
@@ -1731,9 +1696,7 @@ static void Page_Settings()
     TextBlockColored(ver, ImFluent::GetColorU32(ImFluentCol_TextSecondary), ImFluentTextStyle_Caption);
 }
 
-// ============================================================================
-// Page router
-// ============================================================================
+// [SECTION] Page router
 static void RenderCurrentPage()
 {
     const char* id = CurrentPageId();
@@ -1774,7 +1737,6 @@ static void DrawTitleBar(bool* p_open)
     ImGui::Dummy(ImVec2(FluentDpx(12.f), 0)); ImGui::SameLine();
     ImFluent::TextBlock(ImFluentIcon_Home "  WinUI 3 Gallery (ImFluent)", ImFluentTextStyle_BodyStrong);
 
-    // Right-aligned: search box + optional close X.
     const float searchW = FluentDpx(280.f);
     const float rightW  = searchW + (closeW > 0.f ? FluentDpx(8.f) + closeW : 0.f);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - rightW + ImGui::GetCursorStartPos().x);
@@ -1796,9 +1758,7 @@ static void DrawTitleBar(bool* p_open)
     ImGui::PopStyleColor();
 }
 
-// ============================================================================
-// Navigation pane
-// ============================================================================
+// [SECTION] Navigation pane
 static void DrawNavigationPane()
 {
     BeginNavigationView("##gallery-nav", &g_State.NavMode);
@@ -1843,15 +1803,12 @@ static void DrawNavigationPane()
     EndNavigationView();
 }
 
-// ============================================================================
-// Shell entry — body of ImFluent::ShowDemoWindow
-// ============================================================================
+// [SECTION] Shell entry
 static void ShowDemoWindowImpl(bool* p_open)
 {
     if (g_State.NavStack.empty())
         Navigate("Home");
 
-    // Theme hotkeys (debug).
     if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) ImFluent::SetThemePreset(ImFluentThemePreset_Light);
     if (ImGui::IsKeyPressed(ImGuiKey_F2, false)) ImFluent::SetThemePreset(ImFluentThemePreset_Dark);
     if (ImGui::IsKeyPressed(ImGuiKey_F3, false)) ImFluent::SetThemePreset(ImFluentThemePreset_HighContrast);
@@ -1870,9 +1827,6 @@ static void ShowDemoWindowImpl(bool* p_open)
     DrawTitleBar(p_open);
     DrawNavigationPane();
     NavigationViewBeginContent();
-    // After a navigation, reset the content child's scroll position so a long
-    // page's scroll doesn't carry into a short page (and clip new content out
-    // of view).
     if (g_State.ResetScroll)
     {
         ImGui::SetScrollY(0.f);
@@ -1884,7 +1838,7 @@ static void ShowDemoWindowImpl(bool* p_open)
     ImGui::End();
 }
 
-} // namespace ImFluentGalleryApp
+}
 
 namespace ImFluent
 {
@@ -1895,11 +1849,11 @@ void ShowDemoWindow(bool* p_open)
 }
 }
 
-#else // IMFLUENT_DISABLE_DEMO_WINDOWS
+#else
 
 namespace ImFluent
 {
 void ShowDemoWindow(bool*) {}
 }
 
-#endif // IMFLUENT_DISABLE_DEMO_WINDOWS
+#endif
