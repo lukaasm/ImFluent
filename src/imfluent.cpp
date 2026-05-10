@@ -814,14 +814,13 @@ namespace ImFluent
                        size_arg.y > 0.f ? size_arg.y : ImMax( min_height_dpx, ts.y + pad_y * 2.f ) );
     }
 
-    static void DrawButtonLabel( ImDrawList * dl, const ImRect & bb, const char * label, ImU32 col, float pad_x, float pad_y )
+    static void DrawButtonLabel( ImDrawList *, const ImRect & bb, const char * label, ImU32 col, float pad_x, float pad_y )
     {
-        ( void )dl; ( void )pad_x; ( void )pad_y;
         ImGui::PushStyleColor( ImGuiCol_Text, col );
         const ImVec2 ts = ImGui::CalcTextSize( label, NULL, true );
-        ImRect text_bb( ImVec2( bb.Min.x + pad_x, bb.Min.y + pad_y ),
-                        ImVec2( bb.Max.x - pad_x, bb.Max.y - pad_y ) );
-        ImGui::RenderTextClipped( text_bb.Min, text_bb.Max, label, NULL, &ts, ImVec2( 0.5f, 0.5f ), &bb );
+        const ImVec2 text_min( bb.Min.x + pad_x, bb.Min.y + pad_y );
+        const ImVec2 text_max( bb.Max.x - pad_x, bb.Max.y - pad_y );
+        ImGui::RenderTextClipped( text_min, text_max, label, NULL, &ts, ImVec2( 0.5f, 0.5f ), &bb );
         ImGui::PopStyleColor();
     }
 
@@ -1773,23 +1772,16 @@ namespace ImFluent
 
     void SetItemTooltip( const char * fmt, ... )
     {
-        if ( !ImGui::IsItemHovered() ) return;
-        char buf[1024];
-        va_list ap;
-        va_start( ap, fmt );
-        ImFormatStringV( buf, IM_ARRAYSIZE( buf ), fmt, ap );
-        va_end( ap );
-
+        if ( !ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) ) return;
         const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingLarge ), FluentDpx( style.SpacingMedium ) ) );
-        if ( ImGui::BeginTooltip() )
-        {
-            ImGui::TextUnformatted( buf );
-            ImGui::EndTooltip();
-        }
+        va_list ap;
+        va_start( ap, fmt );
+        ImGui::SetTooltipV( fmt, ap );
+        va_end( ap );
         ImGui::PopStyleVar( 2 );
         ImGui::PopStyleColor( 2 );
     }
