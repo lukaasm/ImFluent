@@ -618,6 +618,18 @@ static void Page_Item_TextBox()
     ImGui::PopItemWidth();
     }
     EndControlExample();
+
+    if (BeginControlExample("Validation error (SetNextItemError)"))
+    {
+    static char buf_email[128] = "";
+    ImGui::PushItemWidth(280.f);
+    SetNextItemHeader("Email");
+    const bool email_invalid = buf_email[0] && !std::strchr(buf_email, '@');
+    if (email_invalid) SetNextItemError("Enter a valid email address (must contain '@').");
+    TextBox("##tb-email", buf_email, sizeof(buf_email), "name@example.com");
+    ImGui::PopItemWidth();
+    }
+    EndControlExample();
 }
 
 static void Page_Item_PasswordBox()

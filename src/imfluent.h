@@ -313,6 +313,7 @@ namespace ImFluent
     IMGUI_API void      SetNextItemHeader( const char * text );
     IMGUI_API void      SetNextItemDescription( const char * text );
     IMGUI_API void      SetNextItemGlyph( const char * glyph );
+    IMGUI_API void      SetNextItemError( const char * error );
 
     IMGUI_API bool      Button( const char * label, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API bool      AccentButton( const char * label, const ImVec2 & size = ImVec2( 0, 0 ) );

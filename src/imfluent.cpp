@@ -24,9 +24,11 @@ namespace ImFluent
         const char * Header;
         const char * Description;
         const char * Glyph;
+        const char * Error;
         bool        HasHeader;
         bool        HasDescription;
         bool        HasGlyph;
+        bool        HasError;
     };
 
     NextItemFluentData g_NextItem = {};
@@ -368,6 +370,34 @@ namespace ImFluent
         g_NextItem.Glyph = NULL;
         g_NextItem.HasGlyph = false;
         return g;
+    }
+
+    static bool HasPendingError() { return g_NextItem.HasError; }
+
+    static void DrawAndConsumePendingError( const ImRect & item_bb )
+    {
+        if ( !g_NextItem.HasError ) return;
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float t = FluentDpx( style.TextInputAccentLineThickness );
+        const float r = FluentDpx( style.ControlCornerRadius );
+        const ImU32 col = ImFluent::GetColorU32( ImFluentCol_SystemFillCritical );
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            ImVec2( item_bb.Min.x + r * 0.5f, item_bb.Max.y - t ),
+            ImVec2( item_bb.Max.x - r * 0.5f, item_bb.Max.y ),
+            col );
+        ImFluent::PushFont( ImFluentTextStyle_Caption );
+        ImGui::PushStyleColor( ImGuiCol_Text, col );
+        ImGui::TextUnformatted( g_NextItem.Error );
+        ImGui::PopStyleColor();
+        ImFluent::PopFont();
+        g_NextItem.Error = NULL;
+        g_NextItem.HasError = false;
+    }
+
+    static void DrawAndConsumePendingError()
+    {
+        if ( !g_NextItem.HasError ) return;
+        DrawAndConsumePendingError( ImGui::GetCurrentContext()->LastItemData.Rect );
     }
 
     static const ImU32 kAnimSeed = 0xF1ECF1ECu;
@@ -1064,6 +1094,7 @@ void ImFluent::PopFont() { ImGui::PopFont(); }
 void ImFluent::SetNextItemHeader( const char * text ) { g_NextItem.Header = text;  g_NextItem.HasHeader = (text != NULL); }
 void ImFluent::SetNextItemDescription( const char * text ) { g_NextItem.Description = text;  g_NextItem.HasDescription = (text != NULL); }
 void ImFluent::SetNextItemGlyph( const char * glyph ) { g_NextItem.Glyph = glyph; g_NextItem.HasGlyph = (glyph != NULL); }
+void ImFluent::SetNextItemError( const char * error ) { g_NextItem.Error = error; g_NextItem.HasError = (error != NULL); }
 
 bool ImFluent::Button( const char * label, const ImVec2 & size )
 {
@@ -1803,16 +1834,17 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
 
     PopControlFrameStyle();
 
-    if ( ImGui::IsItemActive() )
+    const ImRect input_bb = ImGui::GetCurrentContext()->LastItemData.Rect;
+    if ( ImGui::IsItemActive() && !HasPendingError() )
     {
         ImDrawList * dl = w->DrawList;
-        const ImRect & last = ImGui::GetCurrentContext()->LastItemData.Rect;
         const float t = FluentDpx( style.SpacingXSmall );
-        dl->AddRectFilled( ImVec2( last.Min.x + FluentDpx( style.ControlCornerRadius ), last.Max.y - t ),
-                           ImVec2( last.Max.x - FluentDpx( style.ControlCornerRadius ), last.Max.y ),
+        dl->AddRectFilled( ImVec2( input_bb.Min.x + FluentDpx( style.ControlCornerRadius ), input_bb.Max.y - t ),
+                           ImVec2( input_bb.Max.x - FluentDpx( style.ControlCornerRadius ), input_bb.Max.y ),
                            ImFluent::GetColorU32( ImFluentCol_ElevationTextControlFocusedBottom ) );
     }
     DrawAndConsumePendingDescription();
+    DrawAndConsumePendingError( input_bb );
     return changed;
 }
 
@@ -1854,7 +1886,7 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
 
     // Bottom focus underline (carried over from TextBoxImpl).
-    if ( input_active )
+    if ( input_active && !HasPendingError() )
     {
         ImDrawList * dl0 = w->DrawList;
         const float t = FluentDpx( style.SpacingXSmall );
@@ -1889,6 +1921,7 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
                  ImFluent::GetColorU32( ImFluentCol_TextSecondary ), eye_glyph );
 
     DrawAndConsumePendingDescription();
+    DrawAndConsumePendingError( input_rect );
     return changed;
 }
 
@@ -1981,6 +2014,7 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
 
     ImGui::PopItemFlag();
     DrawAndConsumePendingDescription();
+    DrawAndConsumePendingError( input_rect );
     return changed;
 }
 
@@ -1992,7 +2026,9 @@ bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, con
     PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
     const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags );
     PopControlFrameStyle();
+    const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     DrawAndConsumePendingDescription();
+    DrawAndConsumePendingError( input_rect );
     return changed;
 }
 
@@ -2655,7 +2691,9 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     }
     ImGui::PopStyleColor( 6 );
     ImGui::PopStyleVar( 2 );
+    const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     DrawAndConsumePendingDescription();
+    DrawAndConsumePendingError( input_rect );
     return changed;
 }
 
@@ -3727,6 +3765,7 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
     if ( !date ) return false;
     const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushID( label );
+    ImGui::BeginGroup();
     bool changed = false;
     int dim = DaysInMonth( date->Year, date->Month );
     ImGui::PushItemWidth( FluentDpx( style.ControlMinWidth ) );
@@ -3750,7 +3789,10 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
     if ( ImGui::DragInt( "##year", &year, 0.5f, 1900, 2100, LocalizeGetMsg( ImFluentLocKey_DatePickerYearFormat ) ) ) { date->Year = year; date->Day = ImClamp( date->Day, 1, DaysInMonth( date->Year, date->Month ) ); changed = true; }
     ImGui::PopItemWidth();
     if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
+    ImGui::EndGroup();
+    const ImRect group_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     ImGui::PopID();
+    DrawAndConsumePendingError( group_rect );
     return changed;
 }
 
@@ -3759,6 +3801,7 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time )
     if ( !time ) return false;
     const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushID( label );
+    ImGui::BeginGroup();
     bool changed = false;
     int h = time->Hour, m = time->Minute;
     ImGui::PushItemWidth( FluentDpx( style.NavPaneCompactWidth * 2.f ) );
@@ -3767,7 +3810,10 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time )
     if ( ImGui::DragInt( "##minute", &m, 0.5f, 0, 59, LocalizeGetMsg( ImFluentLocKey_TimePickerMinuteFormat ) ) ) { time->Minute = m; changed = true; }
     ImGui::PopItemWidth();
     if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
+    ImGui::EndGroup();
+    const ImRect group_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     ImGui::PopID();
+    DrawAndConsumePendingError( group_rect );
     return changed;
 }
 
@@ -3787,6 +3833,7 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
         : (hint ? hint : LocalizeGetMsg( ImFluentLocKey_DatePickerPickADate ));
     if ( ImFluent::Button( btn_label, ImVec2( w, h ) ) )
         ImGui::OpenPopup( "##cal" );
+    const ImRect trigger_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     if ( ImGui::BeginPopup( "##cal" ) )
     {
 
@@ -3825,6 +3872,7 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
     }
     ImGui::PopID();
     if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
+    DrawAndConsumePendingError( trigger_rect );
     return changed;
 }
 
