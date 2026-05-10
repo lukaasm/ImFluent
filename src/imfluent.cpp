@@ -567,7 +567,7 @@ namespace ImFluent
     {
         using namespace ImFluent;
         const ImFluentStyle & style = ImFluent::GetStyle();
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_AcrylicFill ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary ) );
         ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( padding_x ), FluentDpx( padding_y ) ) );
@@ -2088,7 +2088,7 @@ void ImFluent::SetItemTooltip( const char * fmt, ... )
 {
     if ( !ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) ) return;
     const ImFluentStyle & style = ImFluent::GetStyle();
-    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_AcrylicFill ) );
+    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary ) );
     ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
     ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingLarge ), FluentDpx( style.SpacingMedium ) ) );
@@ -2905,7 +2905,7 @@ void ImFluent::OpenFlyout( const char * id )
 bool ImFluent::BeginFlyout( const char * id )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
-    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_AcrylicFill ) );
+    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary ) );
     ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
     ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingXLarge ) ) );
@@ -2945,7 +2945,7 @@ void ImFluent::OpenMenuFlyout( const char * id )
 bool ImFluent::BeginMenuFlyout( const char * id )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
-    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_AcrylicFill ) );
+    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary ) );
     ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
     ImGui::PushStyleColor( ImGuiCol_HeaderHovered, ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary ) );
     ImGui::PushStyleColor( ImGuiCol_HeaderActive, ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary ) );
@@ -3062,7 +3062,7 @@ bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, b
                  enabled ? ImFluent::GetColorU32( ImFluentCol_TextSecondary ) : ImFluent::GetColorU32( ImFluentCol_TextDisabled ),
                  FluentDpx( style.ChevronGlyphSize ) );
 
-    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_AcrylicFill ) );
+    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary ) );
     ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
     ImGui::PushStyleColor( ImGuiCol_HeaderHovered, ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary ) );
     ImGui::PushStyleColor( ImGuiCol_HeaderActive, ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary ) );
@@ -3405,7 +3405,7 @@ void ImFluent::OpenTeachingTip( const char * id )
 bool ImFluent::BeginTeachingTip( const char * id, const char * title, ImFluentTeachingTipPlacement placement )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
-    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_AcrylicFill ) );
+    ImGui::PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary ) );
     ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
     ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding,
