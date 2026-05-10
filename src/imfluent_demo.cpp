@@ -918,6 +918,43 @@ static void Page_Item_Expander()
     }
     }
     EndControlExample();
+
+    if (BeginControlExample("Up direction (body opens above)"))
+    {
+    static bool s_open = false;
+    static bool s_notify_email = true;
+    static bool s_notify_push  = false;
+    static int  s_priority = 1;
+    if (BeginExpander("Notification preferences", &s_open, ImFluentExpandDirection_Up))
+    {
+        Checkbox("Email notifications", &s_notify_email);
+        Checkbox("Push notifications",  &s_notify_push);
+        TextBlock("Priority:", ImFluentTextStyle_Body);
+        RadioButton("Low",    &s_priority, 0); ImGui::SameLine();
+        RadioButton("Normal", &s_priority, 1); ImGui::SameLine();
+        RadioButton("High",   &s_priority, 2);
+        EndExpander();
+    }
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Expand / collapse events"))
+    {
+    static bool s_open = false;
+    static int  expanded_count  = 0;
+    static int  collapsed_count = 0;
+    bool just_expanded = false, just_collapsed = false;
+    if (BeginExpander("Notifications", &s_open, ImFluentExpandDirection_Down,
+                      &just_expanded, &just_collapsed))
+    {
+        TextBlock("Body content shown when open.", ImFluentTextStyle_Caption);
+        EndExpander();
+    }
+    if (just_expanded)  ++expanded_count;
+    if (just_collapsed) ++collapsed_count;
+    ControlExampleOutput("expanded: %d   collapsed: %d", expanded_count, collapsed_count);
+    }
+    EndControlExample();
 }
 
 static void Page_Item_TabView()

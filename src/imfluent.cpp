@@ -2363,70 +2363,130 @@ void ImFluent::EndWrapPanel()
     ImGui::EndGroup();
 }
 
-bool ImFluent::BeginExpander( const char * label, bool * open )
+struct ExpanderState
+{
+    char                    Label[128];
+    bool *                  Open;
+    ImFluentExpandDirection Direction;
+    bool                    BodyActive;
+};
+static ImVector<ExpanderState> g_ExpanderStack;
+
+static bool ExpanderHeader( const char * label, bool * open, ImFluentExpandDirection dir )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
     const ImFluentStyle & style = ImFluent::GetStyle();
     const ImGuiID id = w->GetID( label );
-    const float row_h = FluentDpx( style.ControlHeight );
+    const float row_h = ImFluent::FluentDpx( style.ControlHeight );
     const float W = ImGui::GetContentRegionAvail().x;
     const ImVec2 pos = w->DC.CursorPos;
     const ImRect bb( pos, ImVec2( pos.x + W, pos.y + row_h ) );
     ImGui::ItemSize( bb );
-
-    if ( !ImGui::ItemAdd( bb, id ) ) return false;
+    if ( !ImGui::ItemAdd( bb, id ) ) return open && *open;
 
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
     if ( pressed && open ) *open = !*open;
     const bool isOpen = open && *open;
 
-    const float r = FluentDpx( style.ControlCornerRadius );
-    ImU32 fill = ResolveControlFillState( false, held, hovered );
-    fill = AnimateColorU32( id, fill );
+    const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+    ImU32 fill = ImFluent::ResolveControlFillState( false, held, hovered );
+    fill = ImFluent::AnimateColorU32( id, fill );
     ImDrawList * dl = w->DrawList;
     dl->AddRectFilled( bb.Min, bb.Max, fill, r );
-    DrawElevationBorder( dl, bb, r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
+    ImFluent::DrawElevationBorder( dl, bb, r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
 
-    const float t_anim = AnimateFloat( id ^ 0xEEEE, isOpen ? 1.f : 0.f, 0.20f );
-    const float ang = -IM_PI * 0.5f + t_anim * IM_PI;
-    const float cx = bb.Max.x - FluentDpx( style.CheckboxSize );
+    const float closed_phase = ( dir == ImFluentExpandDirection_Up ) ? 1.f : 0.f;
+    const float open_phase   = ( dir == ImFluentExpandDirection_Up ) ? 0.f : 1.f;
+    const float t_anim = ImFluent::AnimateFloat( id ^ 0xEEEE, isOpen ? open_phase : closed_phase, 0.20f );
+    const float cx = bb.Max.x - ImFluent::FluentDpx( style.CheckboxSize );
     const float cy = (bb.Min.y + bb.Max.y) * 0.5f;
-    const float L = FluentDpx( style.ChevronGlyphSize + 1.f );
+    const float L = ImFluent::FluentDpx( style.ChevronGlyphSize + 1.f );
     const ImVec2 a( cx - L, cy + L * 0.5f - t_anim * L );
     const ImVec2 b( cx, cy - L * 0.5f + t_anim * L );
     const ImVec2 c( cx + L, cy + L * 0.5f - t_anim * L );
-    dl->AddLine( a, b, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
-    dl->AddLine( b, c, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
-    ( void )ang;
+    dl->AddLine( a, b, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::FluentDpx( style.StrokeMedium ) );
+    dl->AddLine( b, c, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::FluentDpx( style.StrokeMedium ) );
 
-    dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingXLarge ), cy - ImGui::GetFontSize() * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
-
-    if ( isOpen )
-    {
-        ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_CardBgDefault ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, r );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingLarge ) ) );
-        const bool open = ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders );
-        if ( !open )
-        {
-            ImGui::EndChild();
-            ImGui::PopStyleVar( 2 );
-            ImGui::PopStyleColor();
-            return false;
-        }
-        return true;
-    }
-    return false;
+    dl->AddText( ImVec2( bb.Min.x + ImFluent::FluentDpx( style.SpacingXLarge ), cy - ImGui::GetFontSize() * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
+    if ( ImFluent::IsItemFocused( id ) ) ImFluent::DrawFocusRing( dl, bb, r );
+    return isOpen;
 }
 
-void ImFluent::EndExpander()
+static bool ExpanderPushBody( const char * label )
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+    const float W = ImGui::GetContentRegionAvail().x;
+    ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_CardBgDefault ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, r );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( ImFluent::FluentDpx( style.SpacingXLarge ), ImFluent::FluentDpx( style.SpacingLarge ) ) );
+    const bool open = ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders );
+    if ( !open )
+    {
+        ImGui::EndChild();
+        ImGui::PopStyleVar( 2 );
+        ImGui::PopStyleColor();
+        return false;
+    }
+    return true;
+}
+
+static void ExpanderPopBody()
 {
     ImGui::EndChild();
     ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor();
+}
+
+bool ImFluent::BeginExpander( const char * label, bool * open, ImFluentExpandDirection direction, bool * out_just_expanded, bool * out_just_collapsed )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
+
+    const ImGuiID id = w->GetID( label );
+    ImGuiStorage * st = ImGui::GetStateStorage();
+    const ImGuiID prev_key = id ^ 0xEC0CACEDu;
+    const bool prev_open = st->GetBool( prev_key, false );
+    const bool cur_open  = open && *open;
+    if ( out_just_expanded )  *out_just_expanded  = ( !prev_open && cur_open );
+    if ( out_just_collapsed ) *out_just_collapsed = ( prev_open && !cur_open );
+    st->SetBool( prev_key, cur_open );
+
+    if ( direction == ImFluentExpandDirection_Down )
+    {
+        const bool isOpen = ExpanderHeader( label, open, direction );
+        if ( !isOpen ) return false;
+        ExpanderState s; ImStrncpy( s.Label, label, sizeof( s.Label ) );
+        s.Open = open; s.Direction = direction;
+        s.BodyActive = ExpanderPushBody( label );
+        g_ExpanderStack.push_back( s );
+        return s.BodyActive;
+    }
+    else
+    {
+        if ( !cur_open )
+        {
+            ExpanderHeader( label, open, direction );
+            return false;
+        }
+        ExpanderState s; ImStrncpy( s.Label, label, sizeof( s.Label ) );
+        s.Open = open; s.Direction = direction;
+        s.BodyActive = ExpanderPushBody( label );
+        g_ExpanderStack.push_back( s );
+        return s.BodyActive;
+    }
+}
+
+void ImFluent::EndExpander()
+{
+    if ( g_ExpanderStack.empty() ) return;
+    const ExpanderState s = g_ExpanderStack.back();
+    g_ExpanderStack.pop_back();
+    if ( s.BodyActive ) ExpanderPopBody();
+    if ( s.Direction == ImFluentExpandDirection_Up )
+        ExpanderHeader( s.Label, s.Open, s.Direction );
 }
 
 bool ImFluent::BeginScrollView( const char * id, const ImVec2 & size )

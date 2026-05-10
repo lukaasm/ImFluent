@@ -168,6 +168,13 @@ enum ImFluentProgressBarState_
 };
 typedef int ImFluentProgressBarState;
 
+enum ImFluentExpandDirection_
+{
+    ImFluentExpandDirection_Down = 0,
+    ImFluentExpandDirection_Up,
+};
+typedef int ImFluentExpandDirection;
+
 enum ImFluentTextBoxFlags_
 {
     ImFluentTextBoxFlags_None        = 0,
@@ -376,7 +383,7 @@ namespace ImFluent
     IMGUI_API bool      WrapPanelNextItem( float item_width );
     IMGUI_API void      EndWrapPanel();
 
-    IMGUI_API bool      BeginExpander( const char * label, bool * open );
+    IMGUI_API bool      BeginExpander( const char * label, bool * open, ImFluentExpandDirection direction = ImFluentExpandDirection_Down, bool * out_just_expanded = NULL, bool * out_just_collapsed = NULL );
     IMGUI_API void      EndExpander();
 
     IMGUI_API bool      BeginScrollView( const char * id, const ImVec2 & size = ImVec2( 0, 0 ) );
