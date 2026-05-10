@@ -1820,7 +1820,7 @@ void ImFluent::ProgressRing( float diameter_dpx, float fraction )
     }
 }
 
-bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const char * hint, ImGuiInputTextFlags extra_flags )
+bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const char * hint, ImGuiInputTextFlags extra_flags, ImFluentTextBoxFlags fluent_flags, int max_length )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
@@ -1829,13 +1829,76 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
     const ImFluentStyle & style = ImFluent::GetStyle();
     PushControlFrameStyle( FluentDpx( style.ControlHeight ) );
 
-    bool changed = hint ? ImGui::InputTextWithHint( label, hint, buf, buf_size, extra_flags )
-        : ImGui::InputText( label, buf, buf_size, extra_flags );
+    struct CharLimit { char * Buf; int Max; };
+    CharLimit limit = { buf, max_length };
+    ImGuiInputTextCallback cb = NULL;
+    void * cb_user = NULL;
+    if ( max_length > 0 )
+    {
+        extra_flags |= ImGuiInputTextFlags_CallbackCharFilter;
+        cb = []( ImGuiInputTextCallbackData * data ) -> int
+        {
+            const CharLimit * lim = ( const CharLimit * )data->UserData;
+            if ( !lim || data->EventFlag != ImGuiInputTextFlags_CallbackCharFilter ) return 0;
+            int n_chars = 0;
+            for ( const char * p = lim->Buf; *p; ++p )
+                if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
+            return ( n_chars >= lim->Max ) ? 1 : 0;
+        };
+        cb_user = &limit;
+    }
+
+    if ( ( fluent_flags & ImFluentTextBoxFlags_ClearButton ) && buf && buf[0] )
+        ImGui::SetNextItemAllowOverlap();
+
+    bool changed = hint
+        ? ImGui::InputTextWithHint( label, hint, buf, buf_size, extra_flags, cb, cb_user )
+        : ImGui::InputText( label, buf, buf_size, extra_flags, cb, cb_user );
 
     PopControlFrameStyle();
 
     const ImRect input_bb = ImGui::GetCurrentContext()->LastItemData.Rect;
-    if ( ImGui::IsItemActive() && !HasPendingError() )
+    const ImGuiID input_id = ImGui::GetCurrentContext()->LastItemData.ID;
+    const bool   active   = ImGui::IsItemActive();
+
+    if ( ( fluent_flags & ImFluentTextBoxFlags_ClearButton ) && buf && buf[0] )
+    {
+        const float btn_w = FluentDpx( style.RevealButtonWidth );
+        const float inset = FluentDpx( style.SpacingXSmall );
+        const ImRect btn_bb(
+            ImVec2( input_bb.Max.x - btn_w - inset, input_bb.Min.y + inset ),
+            ImVec2( input_bb.Max.x - inset,         input_bb.Max.y - inset ) );
+        const ImGuiID id = input_id ^ 0xC1EA8u;
+        ImGui::KeepAliveID( id );
+        bool hov = false, held = false;
+        const bool added = ImGui::ItemAdd( btn_bb, id );
+        const bool pr = added && ImGui::ButtonBehavior( btn_bb, id, &hov, &held );
+        ImDrawList * dl = w->DrawList;
+        const float r = FluentDpx( style.ControlCornerRadius );
+        if ( hov || held )
+        {
+            const ImU32 frame_bg = active ? ImFluent::GetColorU32( ImFluentCol_ControlFillInputActive )
+                                          : ImFluent::GetColorU32( ImFluentCol_ControlFillDefault );
+            dl->AddRectFilled( btn_bb.Min, btn_bb.Max, ImFluent::GetColorU32( ImFluentCol_LayerFillAlt ),
+                               r, ImDrawFlags_RoundCornersRight );
+            dl->AddRectFilled( btn_bb.Min, btn_bb.Max, frame_bg, r, ImDrawFlags_RoundCornersRight );
+            const ImU32 hi = held ? ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary )
+                                  : ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+            dl->AddRectFilled( btn_bb.Min, btn_bb.Max, hi, r, ImDrawFlags_RoundCornersRight );
+        }
+        const char * x_glyph = ImFluentIcon_Cancel;
+        const ImVec2 ts = ImGui::CalcTextSize( x_glyph );
+        dl->AddText( ImVec2( btn_bb.Min.x + ( btn_bb.GetWidth() - ts.x ) * 0.5f,
+                             btn_bb.Min.y + ( btn_bb.GetHeight() - ts.y ) * 0.5f ),
+                     ImFluent::GetColorU32( ImFluentCol_TextSecondary ), x_glyph );
+        if ( pr )
+        {
+            buf[0] = 0;
+            changed = true;
+        }
+    }
+
+    if ( active && !HasPendingError() )
     {
         ImDrawList * dl = w->DrawList;
         const float t = FluentDpx( style.SpacingXSmall );
@@ -1843,6 +1906,23 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
                            ImVec2( input_bb.Max.x - FluentDpx( style.ControlCornerRadius ), input_bb.Max.y ),
                            ImFluent::GetColorU32( ImFluentCol_ElevationTextControlFocusedBottom ) );
     }
+
+    if ( ( fluent_flags & ImFluentTextBoxFlags_ShowCounter ) && max_length > 0 && buf )
+    {
+        int n_chars = 0;
+        for ( const char * p = buf; *p; ++p )
+            if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
+        const char * counter; const char * counter_end;
+        ImFormatStringToTempBuffer( &counter, &counter_end, "%d / %d", n_chars, max_length );
+        const ImVec2 ts = ImGui::CalcTextSize( counter, counter_end );
+        ImFluent::PushFont( ImFluentTextStyle_Caption );
+        ImGui::PushStyleColor( ImGuiCol_Text, ImFluent::GetColorU32( ImFluentCol_TextSecondary ) );
+        ImGui::SetCursorScreenPos( ImVec2( input_bb.Max.x - ts.x, input_bb.Max.y + FluentDpx( style.SpacingXSmall ) ) );
+        ImGui::TextUnformatted( counter, counter_end );
+        ImGui::PopStyleColor();
+        ImFluent::PopFont();
+    }
+
     DrawAndConsumePendingDescription();
     DrawAndConsumePendingError( input_bb );
     return changed;

@@ -167,6 +167,14 @@ enum ImFluentProgressBarState_
 };
 typedef int ImFluentProgressBarState;
 
+enum ImFluentTextBoxFlags_
+{
+    ImFluentTextBoxFlags_None        = 0,
+    ImFluentTextBoxFlags_ClearButton = 1 << 0,
+    ImFluentTextBoxFlags_ShowCounter = 1 << 1,
+};
+typedef int ImFluentTextBoxFlags;
+
 enum ImFluentStyleVar_
 {
     ImFluentStyleVar_ControlCornerRadius = 0,
@@ -342,7 +350,7 @@ namespace ImFluent
     IMGUI_API void      ProgressBar( float fraction, const ImVec2 & size_arg = ImVec2( -1.f, 0 ), const char * overlay = NULL, ImFluentProgressBarState state = ImFluentProgressBarState_Running );
     IMGUI_API void      ProgressRing( float diameter_dpx = 32.f, float fraction = -1.f );
 
-    IMGUI_API bool      TextBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
+    IMGUI_API bool      TextBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImFluentTextBoxFlags fluent_flags = ImFluentTextBoxFlags_None, int max_length = 0 );
     IMGUI_API bool      PasswordBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
     IMGUI_API bool      NumberBox( const char * label, double * v, double step = 1.0, double step_fast = 10.0, const char * format = "%.3f", ImGuiInputTextFlags flags = 0 );
     IMGUI_API bool      RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size = ImVec2( 0, 0 ), ImGuiInputTextFlags flags = 0 );

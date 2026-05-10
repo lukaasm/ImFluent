@@ -630,6 +630,17 @@ static void Page_Item_TextBox()
     ImGui::PopItemWidth();
     }
     EndControlExample();
+
+    if (BeginControlExample("Clear button + max length + counter"))
+    {
+    static char buf_bio[256] = "";
+    ImGui::PushItemWidth(280.f);
+    SetNextItemHeader("Short bio");
+    TextBox("##tb-bio", buf_bio, sizeof(buf_bio), "Tell us about yourself", 0,
+            ImFluentTextBoxFlags_ClearButton | ImFluentTextBoxFlags_ShowCounter, 64);
+    ImGui::PopItemWidth();
+    }
+    EndControlExample();
 }
 
 static void Page_Item_PasswordBox()
