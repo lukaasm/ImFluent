@@ -245,28 +245,8 @@ static void PageHeader(const char* title, const char* subtitle = nullptr)
     ImGui::Dummy(ImVec2(0.f, FluentDpx(8.f)));
 }
 
-namespace
-{
-struct ControlExampleState
-{
-    bool        SourceVisible = false;
-    int         SourceTab     = 0; // 0=XAML, 1=C#
-    const char* XamlCode      = nullptr;
-    const char* CSharpCode    = nullptr;
-    bool        OutputUsed    = false;
-    bool        OptionsUsed   = false;
-    char        Output[512]   = {};
-};
-}
-static ControlExampleState g_CE;
-
 static void BeginControlExample(const char* header)
 {
-    g_CE.OutputUsed  = false;
-    g_CE.OptionsUsed = false;
-    g_CE.XamlCode    = nullptr;
-    g_CE.CSharpCode  = nullptr;
-    g_CE.Output[0]   = 0;
     TextBlock(header, ImFluentTextStyle_BodyStrong);
     ImGui::Dummy(ImVec2(0.f, FluentDpx(4.f)));
     BeginCard(header, ImVec2(0.f, 0.f), ImFluentCardStyle_Filled);
@@ -274,52 +254,26 @@ static void BeginControlExample(const char* header)
 
 static void ControlExampleOptionsHeader()
 {
-    g_CE.OptionsUsed = true;
     ImFluent::Separator();
     TextBlock("Options:", ImFluentTextStyle_Caption);
 }
 
 static void ControlExampleOutput(const char* fmt, ...)
 {
-    g_CE.OutputUsed = true;
+    char buf[512];
     va_list ap; va_start(ap, fmt);
-    std::vsnprintf(g_CE.Output, sizeof(g_CE.Output), fmt, ap);
+    std::vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     ImGui::Dummy(ImVec2(0.f, FluentDpx(8.f)));
     ImFluent::Separator();
     const char* line; const char* line_end;
-    ImFormatStringToTempBuffer(&line, &line_end, "Output: %s", g_CE.Output);
+    ImFormatStringToTempBuffer(&line, &line_end, "Output: %s", buf);
     (void)line_end;
     TextBlock(line, ImFluentTextStyle_Caption);
 }
 
-static void ControlExampleSourceHeader(const char* xaml_code, const char* csharp_code)
-{
-    g_CE.XamlCode   = xaml_code;
-    g_CE.CSharpCode = csharp_code;
-}
-
 static void EndControlExample()
 {
-    if (g_CE.XamlCode || g_CE.CSharpCode)
-    {
-        ImGui::Dummy(ImVec2(0.f, FluentDpx(8.f)));
-        ImFluent::Separator();
-        ImGui::Dummy(ImVec2(0.f, FluentDpx(4.f)));
-        if (BeginExpander("Source code", &g_CE.SourceVisible))
-        {
-            BeginSelectorBar("##src");
-            if (g_CE.XamlCode)   { if (SelectorBarItem("XAML", g_CE.SourceTab == 0)) g_CE.SourceTab = 0; }
-            if (g_CE.CSharpCode) { if (SelectorBarItem("C#",   g_CE.SourceTab == 1)) g_CE.SourceTab = 1; }
-            EndSelectorBar();
-            const char* code = (g_CE.SourceTab == 0 && g_CE.XamlCode) ? g_CE.XamlCode :
-                               (g_CE.SourceTab == 1 && g_CE.CSharpCode) ? g_CE.CSharpCode :
-                               (g_CE.XamlCode ? g_CE.XamlCode : g_CE.CSharpCode);
-            if (code)
-                ImGui::TextUnformatted(code);
-            EndExpander();
-        }
-    }
     EndCard();
     ImGui::Dummy(ImVec2(0.f, FluentDpx(16.f)));
 }
@@ -338,16 +292,12 @@ static void Page_Item_Button()
     static int s_clicks = 0;
     if (Button("Standard button")) ++s_clicks;
     ControlExampleOutput("Click count: %d", s_clicks);
-    ControlExampleSourceHeader("<Button Content=\"Standard button\" Click=\"OnClick\" />",
-                               "private void OnClick(object sender, RoutedEventArgs e) { ++clicks; }");
     EndControlExample();
 
     BeginControlExample("Accent button");
     static int s_aclicks = 0;
     if (AccentButton("Accent button")) ++s_aclicks;
     ControlExampleOutput("Click count: %d", s_aclicks);
-    ControlExampleSourceHeader("<Button Style=\"{StaticResource AccentButtonStyle}\" Content=\"Accent button\" />",
-                               "// AccentButtonStyle is provided by WinUI.");
     EndControlExample();
 
     BeginControlExample("States");
@@ -367,8 +317,6 @@ static void Page_Item_HyperlinkButton()
     static int s = 0;
     if (HyperlinkButton("Open the Fluent 2 design system")) ++s;
     ControlExampleOutput("Clicks: %d", s);
-    ControlExampleSourceHeader("<HyperlinkButton Content=\"Open the Fluent 2 design system\" NavigateUri=\"https://fluent2.microsoft.design/\" />",
-                               nullptr);
     EndControlExample();
 }
 
