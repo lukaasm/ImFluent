@@ -2289,7 +2289,14 @@ bool ImFluent::BeginExpander( const char * label, bool * open )
         ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_CardBgDefault ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, r );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingLarge ) ) );
-        ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders );
+        const bool open = ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders );
+        if ( !open )
+        {
+            ImGui::EndChild();
+            ImGui::PopStyleVar( 2 );
+            ImGui::PopStyleColor();
+            return false;
+        }
         return true;
     }
     return false;
@@ -2366,11 +2373,12 @@ void ImFluent::EndTabView()
 
 bool ImFluent::BeginSelectorBar( const char * id )
 {
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
     const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushID( id );
     ImGui::BeginGroup();
     ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingXSmall ), 0.f ) );
-    ( void )style;
     return true;
 }
 
@@ -2448,8 +2456,10 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
     ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
-    ImGui::BeginChild( "##nav-pane", ImVec2( g_NavView.CurrentWidth, 0.f ),
-                       ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
+    const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( g_NavView.CurrentWidth, 0.f ),
+                                              ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
+    if ( !pane_open )
+        return true;
 
     const float row_h = FluentDpx( style.NavItemHeight );
     if ( ImGui::InvisibleButton( "##nav-toggle", ImVec2( g_NavView.CurrentWidth - FluentDpx( style.SpacingMedium ), row_h ) ) )

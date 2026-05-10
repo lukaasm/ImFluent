@@ -246,11 +246,11 @@ static void PageHeader(const char* title, const char* subtitle = nullptr)
     ImGui::Dummy(ImVec2(0.f, FluentDpx(8.f)));
 }
 
-static void BeginControlExample(const char* header)
+static bool BeginControlExample(const char* header)
 {
     TextBlock(header, ImFluentTextStyle_BodyStrong);
     ImGui::Dummy(ImVec2(0.f, FluentDpx(4.f)));
-    BeginCard(header, ImVec2(0.f, 0.f), ImFluentCardStyle_Filled);
+    return BeginCard(header, ImVec2(0.f, 0.f), ImFluentCardStyle_Filled);
 }
 
 static void ControlExampleOptionsHeader()
@@ -289,42 +289,51 @@ static void Page_Item_Button()
 {
     PageHeader("Button", "A control that responds to user input and raises a Click event.");
 
-    BeginControlExample("A simple Button");
+    if (BeginControlExample("A simple Button"))
+    {
     static int s_clicks = 0;
     if (Button("Standard button")) ++s_clicks;
     ControlExampleOutput("Click count: %d", s_clicks);
+    }
     EndControlExample();
 
-    BeginControlExample("Accent button");
+    if (BeginControlExample("Accent button"))
+    {
     static int s_aclicks = 0;
     if (AccentButton("Accent button")) ++s_aclicks;
     ControlExampleOutput("Click count: %d", s_aclicks);
+    }
     EndControlExample();
 
-    BeginControlExample("States");
+    if (BeginControlExample("States"))
+    {
     Button("Rest");           ImGui::SameLine();
     AccentButton("Accent");   ImGui::SameLine();
     ImGui::BeginDisabled();
     Button("Disabled");       ImGui::SameLine();
     AccentButton("Accent disabled");
     ImGui::EndDisabled();
+    }
     EndControlExample();
 }
 
 static void Page_Item_HyperlinkButton()
 {
     PageHeader("HyperlinkButton", "A button that appears as hyperlink text.");
-    BeginControlExample("A hyperlink button");
+    if (BeginControlExample("A hyperlink button"))
+    {
     static int s = 0;
     if (HyperlinkButton("Open the Fluent 2 design system")) ++s;
     ControlExampleOutput("Clicks: %d", s);
+    }
     EndControlExample();
 }
 
 static void Page_Item_DropDownButton()
 {
     PageHeader("DropDownButton", "A button with a chevron that opens a flyout when clicked.");
-    BeginControlExample("DropDown");
+    if (BeginControlExample("DropDown"))
+    {
     if (DropDownButton("Choose action"))
         OpenMenuFlyout("##dd-menu");
     if (BeginMenuFlyout("##dd-menu"))
@@ -335,6 +344,7 @@ static void Page_Item_DropDownButton()
         MenuFlyoutItem("Exit", "Alt+F4", ImFluentIcon_Cancel);
         EndMenuFlyout();
     }
+    }
     EndControlExample();
 }
 
@@ -342,7 +352,8 @@ static void Page_Item_SplitButton()
 {
     PageHeader("SplitButton", "A primary action plus a chevron that opens a flyout. Click the label to invoke the action; click the chevron to open the menu.");
 
-    BeginControlExample("Send with options");
+    if (BeginControlExample("Send with options"))
+    {
     static const char* send_modes[] = { "Send now", "Send later", "Save as draft", "Discard" };
     static int  picked_mode = 0;
     static int  send_count  = 0;
@@ -359,9 +370,11 @@ static void Page_Item_SplitButton()
         EndMenuFlyout();
     }
     ControlExampleOutput("Mode = %s   Sends = %d", send_modes[picked_mode], send_count);
+    }
     EndControlExample();
 
-    BeginControlExample("ToggleSplitButton (paragraph alignment)");
+    if (BeginControlExample("ToggleSplitButton (paragraph alignment)"))
+    {
     static bool   align_on    = true;
     static int    align_pick  = 0;
     static const char* aligns[] = { "Align left", "Align center", "Align right", "Justify" };
@@ -375,26 +388,31 @@ static void Page_Item_SplitButton()
         EndMenuFlyout();
     }
     ControlExampleOutput("On = %s   Pick = %s", align_on ? "true" : "false", aligns[align_pick]);
+    }
     EndControlExample();
 }
 
 static void Page_Item_ToggleButton()
 {
     PageHeader("ToggleButton", "A button that can be toggled on or off.");
-    BeginControlExample("Toggle");
+    if (BeginControlExample("Toggle"))
+    {
     static bool s = false;
     ToggleButton("Bold", &s);
     ControlExampleOutput("Bold = %s", s ? "On" : "Off");
+    }
     EndControlExample();
 }
 
 static void Page_Item_RepeatButton()
 {
     PageHeader("RepeatButton", "Fires Click repeatedly while held.");
-    BeginControlExample("Counter");
+    if (BeginControlExample("Counter"))
+    {
     static int s = 0;
     if (RepeatButton("+ Increment")) ++s;
     ControlExampleOutput("Count: %d", s);
+    }
     EndControlExample();
 }
 
@@ -403,92 +421,112 @@ static void Page_Item_RepeatButton()
 static void Page_Item_CheckBox()
 {
     PageHeader("CheckBox", "A control a user can select or clear.");
-    BeginControlExample("Two-state");
+    if (BeginControlExample("Two-state"))
+    {
     static bool s_a = true;
     Checkbox("Sync favorites", &s_a);
     ControlExampleOutput("Sync favorites = %s", s_a ? "true" : "false");
+    }
     EndControlExample();
 
-    BeginControlExample("Three-state");
+    if (BeginControlExample("Three-state"))
+    {
     static int s_t = -1;
     CheckboxTristate("Select all", &s_t);
     ControlExampleOutput("State = %d", s_t);
+    }
     EndControlExample();
 }
 
 static void Page_Item_RadioButton()
 {
     PageHeader("RadioButton", "Choose one of a small set of options.");
-    BeginControlExample("Group");
+    if (BeginControlExample("Group"))
+    {
     static int s = 1;
     RadioButton("Option 1", &s, 1);
     RadioButton("Option 2", &s, 2);
     RadioButton("Option 3", &s, 3);
     ControlExampleOutput("Selected = %d", s);
+    }
     EndControlExample();
 
-    BeginControlExample("RadioButtons group (multi-column)");
+    if (BeginControlExample("RadioButtons group (multi-column)"))
+    {
     static int picked = 2;
     static const char* sizes[] = { "Small", "Medium", "Large", "Extra large", "Huge", "Gigantic" };
     RadioButtons("Pick a size", &picked, sizes, IM_ARRAYSIZE(sizes), 3);
     ControlExampleOutput("Picked = %s", sizes[picked]);
+    }
     EndControlExample();
 }
 
 static void Page_Item_ToggleSwitch()
 {
     PageHeader("ToggleSwitch", "Two-state switch.");
-    BeginControlExample("Wi-Fi");
+    if (BeginControlExample("Wi-Fi"))
+    {
     static bool s = true;
     ToggleSwitch("Wi-Fi", &s, "On", "Off");
     ControlExampleOutput("Wi-Fi = %s", s ? "On" : "Off");
+    }
     EndControlExample();
 }
 
 static void Page_Item_RatingControl()
 {
     PageHeader("RatingControl", "Star-based rating input.");
-    BeginControlExample("Rate");
+    if (BeginControlExample("Rate"))
+    {
     static float r = 3.5f;
     RatingControl("##rate", &r, 5);
     ControlExampleOutput("Rating: %.1f", r);
+    }
     EndControlExample();
 }
 
 static void Page_Item_Slider()
 {
     PageHeader("Slider", "Pick a value from a range.");
-    BeginControlExample("Float");
+    if (BeginControlExample("Float"))
+    {
     static float f = 0.5f;
     ImGui::PushItemWidth(280.f);
     Slider("##s1", &f, 0.f, 1.f, "%.2f");
     ImGui::PopItemWidth();
     ControlExampleOutput("Value: %.2f", f);
+    }
     EndControlExample();
 
-    BeginControlExample("Int");
+    if (BeginControlExample("Int"))
+    {
     static int i = 50;
     ImGui::PushItemWidth(280.f);
     SliderInt("##s2", &i, 0, 100);
     ImGui::PopItemWidth();
     ControlExampleOutput("Value: %d", i);
+    }
     EndControlExample();
 
-    BeginControlExample("Header + Description (SetNextItem* pattern)");
+    if (BeginControlExample("Header + Description (SetNextItem* pattern)"))
+    {
     static float vol = 0.65f;
     ImGui::PushItemWidth(280.f);
     SetNextItemHeader("Volume");
     SetNextItemDescription("Drag the thumb to adjust system volume.");
     Slider("##s-vol", &vol, 0.f, 1.f, "%.0f%%");
     ImGui::PopItemWidth();
+    }
     EndControlExample();
 
-    BeginControlExample("RangeSlider (two thumbs)");
+    if (BeginControlExample("RangeSlider (two thumbs)"))
+    {
     static float range_lo = 25.f, range_hi = 75.f;
     ImGui::PushItemWidth(280.f);
     RangeSlider("##rs", &range_lo, &range_hi, 0.f, 100.f, "%.0f");
     ImGui::PopItemWidth();
     ControlExampleOutput("Range: [%.0f, %.0f]", range_lo, range_hi);
+    }
     EndControlExample();
 }
 
@@ -496,37 +534,47 @@ static void Page_Item_ProgressBar()
 {
     PageHeader("ProgressBar", "Linear progress indicator. State controls the fill color: Running (accent), Paused (caution), Error (critical).");
 
-    BeginControlExample("Determinate");
+    if (BeginControlExample("Determinate"))
+    {
     static float p = 0.0f;
     p += ImGui::GetIO().DeltaTime * 0.1f;
     if (p > 1.f) p = 0.f;
     ProgressBar(p, ImVec2(280.f, 0.f), nullptr);
     ControlExampleOutput("Fraction: %.0f%%", p * 100.f);
+    }
     EndControlExample();
 
-    BeginControlExample("State (Running / Paused / Error)");
+    if (BeginControlExample("State (Running / Paused / Error)"))
+    {
     static int state = 0;
     static const char* state_names[] = { "Running", "Paused", "Error" };
-    BeginSelectorBar("##pb-state");
+    if (BeginSelectorBar("##pb-state"))
+    {
     for (int i = 0; i < 3; ++i)
         if (SelectorBarItem(state_names[i], state == i)) state = i;
-    EndSelectorBar();
+        EndSelectorBar();
+    }
     ProgressBar(0.6f, ImVec2(280.f, 0.f), nullptr, (ImFluentProgressBarState)state);
+    }
     EndControlExample();
 }
 
 static void Page_Item_ProgressRing()
 {
     PageHeader("ProgressRing", "Circular progress indicator.");
-    BeginControlExample("Indeterminate");
+    if (BeginControlExample("Indeterminate"))
+    {
     ProgressRing(40.f, -1.f);
+    }
     EndControlExample();
-    BeginControlExample("Determinate");
+    if (BeginControlExample("Determinate"))
+    {
     static float p = 0.f;
     p += ImGui::GetIO().DeltaTime * 0.2f;
     if (p > 1.f) p = 0.f;
     ProgressRing(40.f, p);
     ControlExampleOutput("Fraction: %.0f%%", p * 100.f);
+    }
     EndControlExample();
 }
 
@@ -535,83 +583,98 @@ static void Page_Item_ProgressRing()
 static void Page_Item_TextBlock()
 {
     PageHeader("TextBlock", "Read-only text in the Fluent type ramp.");
-    BeginControlExample("Type ramp");
+    if (BeginControlExample("Type ramp"))
+    {
     TextBlock("Caption — 12 dp",     ImFluentTextStyle_Caption);
     TextBlock("Body — 14 dp",        ImFluentTextStyle_Body);
     TextBlock("BodyStrong — 14 dp",  ImFluentTextStyle_BodyStrong);
     TextBlock("Subtitle — 20 dp",    ImFluentTextStyle_Subtitle);
     TextBlock("Title — 28 dp",       ImFluentTextStyle_Title);
     TextBlock("TitleLarge — 40 dp",  ImFluentTextStyle_TitleLarge);
+    }
     EndControlExample();
 }
 
 static void Page_Item_TextBox()
 {
     PageHeader("TextBox", "Single-line plain text input.");
-    BeginControlExample("Text input");
+    if (BeginControlExample("Text input"))
+    {
     static char buf[128] = "";
     ImGui::PushItemWidth(280.f);
     TextBox("##tb", buf, sizeof(buf), "Type something...");
     ImGui::PopItemWidth();
     ControlExampleOutput("Value: %s", buf);
+    }
     EndControlExample();
 
-    BeginControlExample("With Header + Description (SetNextItem* pattern)");
+    if (BeginControlExample("With Header + Description (SetNextItem* pattern)"))
+    {
     static char buf2[128] = "";
     ImGui::PushItemWidth(280.f);
     SetNextItemHeader("Display name");
     SetNextItemDescription("Shown next to your avatar in conversations.");
     TextBox("##tb-named", buf2, sizeof(buf2), "Enter your name");
     ImGui::PopItemWidth();
+    }
     EndControlExample();
 }
 
 static void Page_Item_PasswordBox()
 {
     PageHeader("PasswordBox", "Hidden text input. Press and hold the eye button on the right to reveal.");
-    BeginControlExample("Password");
+    if (BeginControlExample("Password"))
+    {
     static char buf[64] = "";
     ImGui::PushItemWidth(280.f);
     PasswordBox("##pb", buf, sizeof(buf), "Enter password");
     ImGui::PopItemWidth();
     ControlExampleOutput("Length: %d", (int)std::strlen(buf));
+    }
     EndControlExample();
 
-    BeginControlExample("With Header + Description");
+    if (BeginControlExample("With Header + Description"))
+    {
     static char buf2[64] = "";
     ImGui::PushItemWidth(280.f);
     SetNextItemHeader("Account password");
     SetNextItemDescription("8+ characters, mix of letters and numbers.");
     PasswordBox("##pb2", buf2, sizeof(buf2), "••••••••");
     ImGui::PopItemWidth();
+    }
     EndControlExample();
 }
 
 static void Page_Item_NumberBox()
 {
     PageHeader("NumberBox", "Numeric input with inline up/down spin buttons. Hold a button for repeat. Ctrl+click steps by step_fast.");
-    BeginControlExample("Number");
+    if (BeginControlExample("Number"))
+    {
     static double v = 1.5;
     ImGui::PushItemWidth(280.f);
     NumberBox("##nb", &v, 0.5, 5.0);
     ImGui::PopItemWidth();
     ControlExampleOutput("Value: %.3f", v);
+    }
     EndControlExample();
 
-    BeginControlExample("With Header + Description");
+    if (BeginControlExample("With Header + Description"))
+    {
     static double qty = 1.0;
     ImGui::PushItemWidth(280.f);
     SetNextItemHeader("Quantity");
     SetNextItemDescription("Step = 1, Ctrl-step = 10.");
     NumberBox("##nb2", &qty, 1.0, 10.0, "%.0f");
     ImGui::PopItemWidth();
+    }
     EndControlExample();
 }
 
 static void Page_Item_AutoSuggestBox()
 {
     PageHeader("AutoSuggestBox", "Text input with a click-to-pick suggestion list. List filters on what you type and stays open while focused.");
-    BeginControlExample("Suggest");
+    if (BeginControlExample("Suggest"))
+    {
     static const char* items[] = { "Apple", "Banana", "Cherry", "Date", "Elderberry", "Fig", "Grapefruit", "Honeydew", "Kiwi" };
     static char buf[32] = "";
     static int  selected = -1;
@@ -632,15 +695,18 @@ static void Page_Item_AutoSuggestBox()
         ControlExampleOutput("Selected: (none)");
 
     selected = -1;
+    }
     EndControlExample();
 }
 
 static void Page_Item_RichEditBox()
 {
     PageHeader("RichEditBox", "Multi-line text input.");
-    BeginControlExample("Multi-line");
+    if (BeginControlExample("Multi-line"))
+    {
     static char buf[1024] = "Type multiple lines here...";
     RichEditBox("##rb", buf, sizeof(buf), ImVec2(380.f, 120.f));
+    }
     EndControlExample();
 }
 
@@ -649,16 +715,19 @@ static void Page_Item_RichEditBox()
 static void Page_Item_ComboBox()
 {
     PageHeader("ComboBox", "A drop-down list.");
-    BeginControlExample("Combo");
+    if (BeginControlExample("Combo"))
+    {
     static int s = 0;
     static const char* items[] = { "Red", "Green", "Blue", "Yellow", "Magenta", "Cyan" };
     ImGui::PushItemWidth(280.f);
     ComboBox("##cb", &s, items, IM_ARRAYSIZE(items));
     ImGui::PopItemWidth();
     ControlExampleOutput("Selected: %s", items[s]);
+    }
     EndControlExample();
 
-    BeginControlExample("With Header + Description");
+    if (BeginControlExample("With Header + Description"))
+    {
     static int  tz_sel = 0;
     static const char* tz_items[] = { "(UTC-08:00) Pacific Time",
                                       "(UTC-05:00) Eastern Time",
@@ -670,32 +739,37 @@ static void Page_Item_ComboBox()
     SetNextItemDescription("Used for scheduling and notifications.");
     ComboBox("##cb-tz", &tz_sel, tz_items, IM_ARRAYSIZE(tz_items));
     ImGui::PopItemWidth();
+    }
     EndControlExample();
 }
 
 static void Page_Item_ListBox()
 {
     PageHeader("ListBox", "Pick from a list.");
-    BeginControlExample("List");
+    if (BeginControlExample("List"))
+    {
     static int s = 0;
     static const char* items[] = { "Item 1", "Item 2", "Item 3", "Item 4", "Item 5" };
     ImGui::PushItemWidth(280.f);
     ListBox("##lb", &s, items, IM_ARRAYSIZE(items));
     ImGui::PopItemWidth();
     ControlExampleOutput("Selected: %s", items[s]);
+    }
     EndControlExample();
 }
 
 static void Page_Item_ListView()
 {
     PageHeader("ListView", "Selectable rows with optional icon.");
-    BeginControlExample("List");
+    if (BeginControlExample("List"))
+    {
     static int s = 1;
     static const char* names[]  = { "Inbox", "Sent items", "Drafts", "Junk" };
     static const char* glyphs[] = { ImFluentIcon_Mail, ImFluentIcon_Share, ImFluentIcon_Edit, ImFluentIcon_Delete };
     for (int i = 0; i < 4; ++i)
     {
         if (ListViewItem(names[i], s == i, glyphs[i])) s = i;
+    }
     }
     EndControlExample();
 }
@@ -704,7 +778,8 @@ static void Page_Item_TreeView()
 {
     PageHeader("TreeView", "Hierarchical list.");
 
-    BeginControlExample("Files");
+    if (BeginControlExample("Files"))
+    {
     static bool a = true, b = false;
     SetNextItemGlyph(ImFluentIcon_Folder);
     if (TreeNode("Documents", &a))
@@ -720,9 +795,11 @@ static void Page_Item_TreeView()
         ListViewItem("notes.txt", false);
         TreePop();
     }
+    }
     EndControlExample();
 
-    BeginControlExample("Multi-select (checkbox variant)");
+    if (BeginControlExample("Multi-select (checkbox variant)"))
+    {
     static bool   ms_open[3] = { true, false, false };
     static bool   ms_chk [3] = { false, false, false };
     SetNextItemGlyph(ImFluentIcon_Folder);
@@ -738,13 +815,15 @@ static void Page_Item_TreeView()
         ms_chk[0] ? "Inbox " : "",
         ms_chk[1] ? "Welcome " : "",
         ms_chk[2] ? "Project " : "");
+    }
     EndControlExample();
 }
 
 static void Page_Item_GridView()
 {
     PageHeader("GridView", "A flow grid of selectable tiles.");
-    BeginControlExample("Tiles");
+    if (BeginControlExample("Tiles"))
+    {
     static int s = 0;
     for (int i = 0; i < 8; ++i)
     {
@@ -754,26 +833,31 @@ static void Page_Item_GridView()
         if (GridViewItem(buf, s == i, ImVec2(140.f, 100.f))) s = i;
         if ((i % 4) != 3) ImGui::SameLine();
     }
+    }
     EndControlExample();
 }
 
 static void Page_Item_PipsPager()
 {
     PageHeader("PipsPager", "A row of dots indicating page position.");
-    BeginControlExample("Pips");
+    if (BeginControlExample("Pips"))
+    {
     static int s = 2;
     PipsPager("##pp", &s, 7);
     ControlExampleOutput("Page %d / 7", s + 1);
+    }
     EndControlExample();
 }
 
 static void Page_Item_BreadcrumbBar()
 {
     PageHeader("BreadcrumbBar", "Trail of clickable parent items.");
-    BeginControlExample("Breadcrumb");
+    if (BeginControlExample("Breadcrumb"))
+    {
     static const char* items[] = { "Home", "Documents", "Work", "Project Phoenix" };
     int clicked = BreadcrumbBar("##br", items, IM_ARRAYSIZE(items));
     if (clicked >= 0) ControlExampleOutput("Clicked index: %d (%s)", clicked, items[clicked]);
+    }
     EndControlExample();
 }
 
@@ -782,7 +866,8 @@ static void Page_Item_BreadcrumbBar()
 static void Page_Item_Card()
 {
     PageHeader("Card", "A grouped surface.");
-    BeginControlExample("Filled card");
+    if (BeginControlExample("Filled card"))
+    {
     if (BeginCard("##card1", ImVec2(380.f, 0.f), ImFluentCardStyle_Filled))
     {
         TextBlock("Card title", ImFluentTextStyle_BodyStrong);
@@ -790,13 +875,15 @@ static void Page_Item_Card()
         Button("Action");
     }
     EndCard();
+    }
     EndControlExample();
 }
 
 static void Page_Item_Expander()
 {
     PageHeader("Expander", "A header that expands to reveal a body.");
-    BeginControlExample("Settings");
+    if (BeginControlExample("Settings"))
+    {
     static bool s_open = false;
     if (BeginExpander("Display options", &s_open))
     {
@@ -806,13 +893,15 @@ static void Page_Item_Expander()
         ToggleSwitch("Acrylic background", &s_acrylic);
         EndExpander();
     }
+    }
     EndControlExample();
 }
 
 static void Page_Item_TabView()
 {
     PageHeader("TabView", "Switch between content areas with tabs.");
-    BeginControlExample("Tabs");
+    if (BeginControlExample("Tabs"))
+    {
     if (BeginTabView("##tv"))
     {
         if (BeginTabItem("Overview")) { TextBlock("Overview content", ImFluentTextStyle_Body); EndTabItem(); }
@@ -820,9 +909,11 @@ static void Page_Item_TabView()
         if (BeginTabItem("Settings")) { TextBlock("Settings content", ImFluentTextStyle_Body); EndTabItem(); }
         EndTabView();
     }
+    }
     EndControlExample();
 
-    BeginControlExample("Closeable tabs + Add button (middle-click also closes)");
+    if (BeginControlExample("Closeable tabs + Add button (middle-click also closes)"))
+    {
     static struct Tab { char title[32]; bool open; } tabs[8] = {
         {"Document 1", true}, {"Document 2", true}, {"Document 3", true}
     };
@@ -852,13 +943,15 @@ static void Page_Item_TabView()
         }
         EndTabView();
     }
+    }
     EndControlExample();
 }
 
 static void Page_Item_NavigationView()
 {
     PageHeader("NavigationView", "Side-pane navigation.");
-    BeginControlExample("Side pane with back button + Settings");
+    if (BeginControlExample("Side pane with back button + Settings"))
+    {
     static ImFluentNavViewMode mode = ImFluentNavViewMode_LeftCompact;
     static int sel = 0;
     static int back_clicks = 0;
@@ -879,21 +972,26 @@ static void Page_Item_NavigationView()
     (void)line_end;
     TextBlock(line, ImFluentTextStyle_Caption);
     ImGui::EndGroup();
+    }
     EndControlExample();
 }
 
 static void Page_Item_SelectorBar()
 {
     PageHeader("SelectorBar", "Pivot-style horizontal selector.");
-    BeginControlExample("Pivot");
+    if (BeginControlExample("Pivot"))
+    {
     static int s = 0;
-    BeginSelectorBar("##sb");
+    if (BeginSelectorBar("##sb"))
+    {
     if (SelectorBarItem("Day",    s == 0)) s = 0;
     if (SelectorBarItem("Week",   s == 1)) s = 1;
     if (SelectorBarItem("Month",  s == 2)) s = 2;
     if (SelectorBarItem("Year",   s == 3)) s = 3;
-    EndSelectorBar();
+        EndSelectorBar();
+    }
     ControlExampleOutput("Selected: %d", s);
+    }
     EndControlExample();
 }
 
@@ -902,33 +1000,39 @@ static void Page_Item_SelectorBar()
 static void Page_Item_InfoBar()
 {
     PageHeader("InfoBar", "Inline notification.");
-    BeginControlExample("All severities");
+    if (BeginControlExample("All severities"))
+    {
     static bool open[4] = { true, true, true, true };
     InfoBar(ImFluentInfoSeverity_Informational, "Informational", "Update is available.", &open[0]);
     InfoBar(ImFluentInfoSeverity_Success,       "Success",       "Sign-in succeeded.",   &open[1]);
     InfoBar(ImFluentInfoSeverity_Warning,       "Warning",       "Battery is low.",      &open[2]);
     InfoBar(ImFluentInfoSeverity_Critical,      "Error",         "Could not save file.", &open[3]);
+    }
     EndControlExample();
 }
 
 static void Page_Item_InfoBadge()
 {
     PageHeader("InfoBadge", "Compact contextual indicator.");
-    BeginControlExample("Variants");
+    if (BeginControlExample("Variants"))
+    {
     TextBlock("Dot:", ImFluentTextStyle_Body); ImGui::SameLine(); InfoBadge();
     ImGui::Spacing();
     TextBlock("Count 3:",   ImFluentTextStyle_Body); ImGui::SameLine(); InfoBadge(3);
     ImGui::Spacing();
     TextBlock("Count 99+:", ImFluentTextStyle_Body); ImGui::SameLine(); InfoBadge(101);
+    }
     EndControlExample();
 }
 
 static void Page_Item_ToolTip()
 {
     PageHeader("ToolTip", "Hover-info popup.");
-    BeginControlExample("Hover");
+    if (BeginControlExample("Hover"))
+    {
     if (Button("Hover me")) {}
     SetItemTooltip("This is a Fluent-styled tooltip.");
+    }
     EndControlExample();
 }
 
@@ -937,7 +1041,8 @@ static void Page_Item_ToolTip()
 static void Page_Item_ContentDialog()
 {
     PageHeader("ContentDialog", "Modal dialog.");
-    BeginControlExample("Open dialog");
+    if (BeginControlExample("Open dialog"))
+    {
     if (Button("Show dialog")) OpenContentDialog("##cd");
     if (BeginContentDialog("##cd", "Save changes?"))
     {
@@ -949,9 +1054,11 @@ static void Page_Item_ContentDialog()
         else if (r == 2) ControlExampleOutput("Result: Don't save");
         else if (r == 3) ControlExampleOutput("Result: Cancel");
     }
+    }
     EndControlExample();
 
-    BeginControlExample("DefaultButton = Close (destructive close highlighted)");
+    if (BeginControlExample("DefaultButton = Close (destructive close highlighted)"))
+    {
     if (Button("Show destructive dialog")) OpenContentDialog("##cd-destructive");
     if (BeginContentDialog("##cd-destructive", "Delete file?"))
     {
@@ -962,13 +1069,15 @@ static void Page_Item_ContentDialog()
         if (r == 1)      ControlExampleOutput("Result: Delete");
         else if (r == 3) ControlExampleOutput("Result: Keep");
     }
+    }
     EndControlExample();
 }
 
 static void Page_Item_Flyout()
 {
     PageHeader("Flyout", "Lightweight contextual popup.");
-    BeginControlExample("Open flyout");
+    if (BeginControlExample("Open flyout"))
+    {
     if (Button("Show flyout")) OpenFlyout("##fl");
     if (BeginFlyout("##fl"))
     {
@@ -977,13 +1086,15 @@ static void Page_Item_Flyout()
         if (Button("Close")) ImGui::CloseCurrentPopup();
         EndFlyout();
     }
+    }
     EndControlExample();
 }
 
 static void Page_Item_MenuFlyout()
 {
     PageHeader("MenuFlyout", "Context menu flyout. Anchored under the trigger item; closes on click-outside.");
-    BeginControlExample("Open menu");
+    if (BeginControlExample("Open menu"))
+    {
     if (Button("Open menu")) OpenMenuFlyout("##mf");
     if (BeginMenuFlyout("##mf"))
     {
@@ -994,9 +1105,11 @@ static void Page_Item_MenuFlyout()
         MenuFlyoutItem("Delete", "Del",    ImFluentIcon_Delete);
         EndMenuFlyout();
     }
+    }
     EndControlExample();
 
-    BeginControlExample("Glyph via SetNextItemGlyph");
+    if (BeginControlExample("Glyph via SetNextItemGlyph"))
+    {
     if (Button("Open share menu")) OpenMenuFlyout("##mf2");
     if (BeginMenuFlyout("##mf2"))
     {
@@ -1010,9 +1123,11 @@ static void Page_Item_MenuFlyout()
         SetNextItemGlyph(ImFluentIcon_Folder); MenuFlyoutItem("Save to folder…");
         EndMenuFlyout();
     }
+    }
     EndControlExample();
 
-    BeginControlExample("Toggle, Radio, and cascading SubItem");
+    if (BeginControlExample("Toggle, Radio, and cascading SubItem"))
+    {
     static bool word_wrap   = true;
     static bool show_ruler  = false;
     static int  zoom_pct    = 100;
@@ -1037,6 +1152,7 @@ static void Page_Item_MenuFlyout()
                          word_wrap ? "on" : "off",
                          show_ruler ? "on" : "off",
                          zoom_pct);
+    }
     EndControlExample();
 }
 
@@ -1045,29 +1161,35 @@ static void Page_Item_MenuFlyout()
 static void Page_Item_AppBarButton()
 {
     PageHeader("AppBarButton", "Toolbar button with icon-above-label.");
-    BeginControlExample("Toolbar");
+    if (BeginControlExample("Toolbar"))
+    {
     AppBarButton("Add",    ImFluentIcon_Add);    ImGui::SameLine();
     AppBarButton("Edit",   ImFluentIcon_Edit);   ImGui::SameLine();
     AppBarButton("Delete", ImFluentIcon_Delete); ImGui::SameLine();
     AppBarSeparator();                            ImGui::SameLine();
     AppBarButton("Share",  ImFluentIcon_Share);
+    }
     EndControlExample();
 
-    BeginControlExample("AppBarToggleButton");
+    if (BeginControlExample("AppBarToggleButton"))
+    {
     static bool bold = true, italic = false, under = false;
     AppBarToggleButton("Bold",      "B", &bold);   ImGui::SameLine();
     AppBarToggleButton("Italic",    "I", &italic); ImGui::SameLine();
     AppBarToggleButton("Underline", "U", &under);
     ControlExampleOutput("B=%d I=%d U=%d", bold ? 1 : 0, italic ? 1 : 0, under ? 1 : 0);
+    }
     EndControlExample();
 
-    BeginControlExample("LabelPosition: Bottom (default), Right, Collapsed");
+    if (BeginControlExample("LabelPosition: Bottom (default), Right, Collapsed"))
+    {
     SetNextAppBarLabelPosition(ImFluentAppBarLabelPosition_Bottom);
     AppBarButton("Add",     ImFluentIcon_Add);     ImGui::SameLine();
     SetNextAppBarLabelPosition(ImFluentAppBarLabelPosition_Right);
     AppBarButton("Refresh", ImFluentIcon_Refresh); ImGui::SameLine();
     SetNextAppBarLabelPosition(ImFluentAppBarLabelPosition_Collapsed);
     AppBarButton("Share",   ImFluentIcon_Share);
+    }
     EndControlExample();
 }
 
@@ -1076,32 +1198,38 @@ static void Page_Item_AppBarButton()
 static void Page_Item_DatePicker()
 {
     PageHeader("DatePicker", "Pick a date.");
-    BeginControlExample("Date");
+    if (BeginControlExample("Date"))
+    {
     static ImFluentDate d = { 2026, 5, 9 };
     DatePicker("##dp", &d);
     ControlExampleOutput("Date: %04d-%02d-%02d", d.Year, d.Month, d.Day);
+    }
     EndControlExample();
 }
 
 static void Page_Item_TimePicker()
 {
     PageHeader("TimePicker", "Pick a time.");
-    BeginControlExample("Time");
+    if (BeginControlExample("Time"))
+    {
     static ImFluentTime t = { 9, 30 };
     TimePicker("##tp", &t);
     ControlExampleOutput("Time: %02d:%02d", t.Hour, t.Minute);
+    }
     EndControlExample();
 }
 
 static void Page_Item_CalendarDatePicker()
 {
     PageHeader("CalendarDatePicker", "Drop-down calendar.");
-    BeginControlExample("Calendar");
+    if (BeginControlExample("Calendar"))
+    {
     static ImFluentDate d = { 2026, 5, 9 };
     ImGui::PushItemWidth(220.f);
     CalendarDatePicker("##cdp", &d);
     ImGui::PopItemWidth();
     ControlExampleOutput("Date: %04d-%02d-%02d", d.Year, d.Month, d.Day);
+    }
     EndControlExample();
 }
 
@@ -1111,23 +1239,29 @@ static void Page_Item_PersonPicture()
 {
     PageHeader("PersonPicture", "Circular avatar with deterministic tint and initials, optional glyph override.");
 
-    BeginControlExample("Initials");
+    if (BeginControlExample("Initials"))
+    {
     PersonPicture("Alex Johnson", 48.f);   ImGui::SameLine();
     PersonPicture("Maria Lopez",  48.f);   ImGui::SameLine();
     PersonPicture("Kenji Tanaka", 48.f);   ImGui::SameLine();
     PersonPicture("Sasha Patel",  48.f);
+    }
     EndControlExample();
 
-    BeginControlExample("Sizes");
+    if (BeginControlExample("Sizes"))
+    {
     PersonPicture("Alex Johnson", 24.f); ImGui::SameLine();
     PersonPicture("Alex Johnson", 32.f); ImGui::SameLine();
     PersonPicture("Alex Johnson", 48.f); ImGui::SameLine();
     PersonPicture("Alex Johnson", 64.f);
+    }
     EndControlExample();
 
-    BeginControlExample("Glyph override / fallback");
+    if (BeginControlExample("Glyph override / fallback"))
+    {
     PersonPicture("Group",        48.f, ImFluentIcon_People);  ImGui::SameLine();
     PersonPicture(NULL,           48.f);
+    }
     EndControlExample();
 }
 
@@ -1137,7 +1271,8 @@ static void Page_Item_CommandBar()
 {
     PageHeader("CommandBar", "Toolbar with primary commands on the left and secondary commands collapsed into an overflow flyout on the right.");
 
-    BeginControlExample("Primary + overflow");
+    if (BeginControlExample("Primary + overflow"))
+    {
     static int format_clicks = 0;
     if (BeginCommandBar("##cmdbar"))
     {
@@ -1159,6 +1294,7 @@ static void Page_Item_CommandBar()
         EndCommandBar();
     }
     ControlExampleOutput("Primary clicks: %d", format_clicks);
+    }
     EndControlExample();
 }
 
@@ -1168,16 +1304,19 @@ static void Page_Item_SettingsCard()
 {
     PageHeader("SettingsCard", "Card row with glyph + header + description on the left and a control on the right. The standard layout for settings pages.");
 
-    BeginControlExample("Toggle");
+    if (BeginControlExample("Toggle"))
+    {
     static bool wifi = true;
     if (BeginSettingsCard("##sc-wifi", "Wi-Fi", "Connect to wireless networks.", ImFluentIcon_GlobalNavButton))
     {
         ToggleSwitch("##wifi", &wifi);
         EndSettingsCard();
     }
+    }
     EndControlExample();
 
-    BeginControlExample("ComboBox");
+    if (BeginControlExample("ComboBox"))
+    {
     static int theme = 0;
     if (BeginSettingsCard("##sc-theme", "App theme", "Choose Light, Dark, or High Contrast.", ImFluentIcon_Color))
     {
@@ -1185,9 +1324,11 @@ static void Page_Item_SettingsCard()
         ComboBox("##theme", &theme, themes, IM_ARRAYSIZE(themes));
         EndSettingsCard();
     }
+    }
     EndControlExample();
 
-    BeginControlExample("Button (action card)");
+    if (BeginControlExample("Button (action card)"))
+    {
     static int clear_count = 0;
     if (BeginSettingsCard("##sc-clear", "Clear cache", "Free disk space used by cached assets.", ImFluentIcon_Delete))
     {
@@ -1195,6 +1336,7 @@ static void Page_Item_SettingsCard()
         EndSettingsCard();
     }
     ControlExampleOutput("Clicks: %d", clear_count);
+    }
     EndControlExample();
 }
 
@@ -1202,21 +1344,25 @@ static void Page_Item_StackPanel()
 {
     PageHeader("StackPanel", "Linear container that stacks children with a uniform spacing. Use horizontal for toolbars/inline groups, vertical for forms.");
 
-    BeginControlExample("Horizontal");
+    if (BeginControlExample("Horizontal"))
+    {
     BeginStackPanelHorizontal();
     Button("Save");
     Button("Discard");
     AccentButton("Continue");
     EndStackPanel();
+    }
     EndControlExample();
 
-    BeginControlExample("Vertical (16 dpx spacing)");
+    if (BeginControlExample("Vertical (16 dpx spacing)"))
+    {
     BeginStackPanelVertical(FluentDpx(16.f));
     static bool a = true, b = false, c = true;
     Checkbox("Enable telemetry", &a);
     Checkbox("Send crash reports", &b);
     Checkbox("Receive newsletters", &c);
     EndStackPanel();
+    }
     EndControlExample();
 }
 
@@ -1224,7 +1370,8 @@ static void Page_Item_WrapPanel()
 {
     PageHeader("WrapPanel", "Lays children out left-to-right and wraps onto a new row when the content region is exhausted.");
 
-    BeginControlExample("Pill row");
+    if (BeginControlExample("Pill row"))
+    {
     static const char* tags[] = {
         "Productivity", "Design", "Networking", "Storage", "Security",
         "Accessibility", "Performance", "Privacy", "Sync", "Themes"
@@ -1237,6 +1384,7 @@ static void Page_Item_WrapPanel()
         Button(tags[i], ImVec2(item_w, 0));
     }
     EndWrapPanel();
+    }
     EndControlExample();
 }
 
@@ -1258,7 +1406,8 @@ static void Page_Item_TeachingTip()
         }
     };
 
-    BeginControlExample("All four placements");
+    if (BeginControlExample("All four placements"))
+    {
     tip_block("Top",    "##tt-top",    ImFluentTeachingTipPlacement_Top,    "I appear above the trigger.");
     ImGui::SameLine();
     tip_block("Bottom", "##tt-bot",    ImFluentTeachingTipPlacement_Bottom, "I appear below the trigger.");
@@ -1266,6 +1415,7 @@ static void Page_Item_TeachingTip()
     tip_block("Left",   "##tt-left",   ImFluentTeachingTipPlacement_Left,   "I appear to the left of the trigger.");
     ImGui::SameLine();
     tip_block("Right",  "##tt-right",  ImFluentTeachingTipPlacement_Right,  "I appear to the right of the trigger.");
+    }
     EndControlExample();
 }
 
@@ -1275,7 +1425,8 @@ static void Page_Item_TitleBar()
 {
     PageHeader("TitleBar", "Custom title-bar shell that hosts navigation chevrons, search, and inline actions. Drop into the top of your application window.");
 
-    BeginControlExample("Chevrons + title + search");
+    if (BeginControlExample("Chevrons + title + search"))
+    {
     if (BeginTitleBar("ImFluent App"))
     {
         AppBarButton("Back",    ImFluentIcon_BackArrow); ImGui::SameLine();
@@ -1287,6 +1438,7 @@ static void Page_Item_TitleBar()
         ImGui::PopItemWidth();
         EndTitleBar();
     }
+    }
     EndControlExample();
 }
 
@@ -1296,24 +1448,29 @@ static void Page_Item_StyleStack()
 {
     PageHeader("Style stack", "Push/pop Fluent tokens (colors and sizing vars) to scope visual overrides without mutating the global ImFluentStyle.");
 
-    BeginControlExample("PushStyleColor");
+    if (BeginControlExample("PushStyleColor"))
+    {
     Button("Default button");
     ImGui::SameLine();
     PushStyleColor(ImFluentCol_ControlFillDefault, IM_COL32(255, 80, 90, 64));
     PushStyleColor(ImFluentCol_ControlFillSecondary, IM_COL32(255, 80, 90, 96));
     Button("Custom-tinted");
     PopStyleColor(2);
+    }
     EndControlExample();
 
-    BeginControlExample("PushStyleVar");
+    if (BeginControlExample("PushStyleVar"))
+    {
     Button("Default radius", ImVec2(180, 36));
     ImGui::SameLine();
     PushStyleVar(ImFluentStyleVar_ControlCornerRadius, 18.f);
     Button("Pill button", ImVec2(180, 36));
     PopStyleVar();
+    }
     EndControlExample();
 
-    BeginControlExample("BeginDisabled scope");
+    if (BeginControlExample("BeginDisabled scope"))
+    {
     static bool disable_ui = true;
     Checkbox("Disable controls below", &disable_ui);
     BeginDisabled(disable_ui);
@@ -1322,6 +1479,7 @@ static void Page_Item_StyleStack()
     static char text[64] = "";
     TextBox("##d-tb", text, sizeof(text), "Disabled");
     EndDisabled();
+    }
     EndControlExample();
 }
 
@@ -1424,11 +1582,13 @@ static void Page_Settings()
     TextBlock("App theme", ImFluentTextStyle_Subtitle);
     ImGui::Dummy(ImVec2(0, FluentDpx(8.f)));
     ImFluentThemePreset cur = ImFluent::GetThemePreset();
-    BeginSelectorBar("##theme");
+    if (BeginSelectorBar("##theme"))
+    {
     if (SelectorBarItem("Light",         cur == ImFluentThemePreset_Light))         ImFluent::SetThemePreset(ImFluentThemePreset_Light);
     if (SelectorBarItem("Dark",          cur == ImFluentThemePreset_Dark))          ImFluent::SetThemePreset(ImFluentThemePreset_Dark);
     if (SelectorBarItem("High contrast", cur == ImFluentThemePreset_HighContrast))  ImFluent::SetThemePreset(ImFluentThemePreset_HighContrast);
-    EndSelectorBar();
+        EndSelectorBar();
+    }
 
     ImGui::Dummy(ImVec2(0, FluentDpx(16.f)));
     TextBlock("About", ImFluentTextStyle_Subtitle);
