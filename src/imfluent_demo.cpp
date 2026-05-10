@@ -1358,31 +1358,38 @@ static void Page_Home()
 
 static void Page_AllControls()
 {
-    PageHeader("All controls", "Every widget shipped with ImFluent.");
+    PageHeader("All controls", "Every widget shipped with ImFluent, rendered inline.");
     static char filter[64] = {};
     ImGui::PushItemWidth(FluentDpx(280.f));
     TextBox("##filter", filter, sizeof(filter), "Filter controls...");
     ImGui::PopItemWidth();
-    ImGui::Dummy(ImVec2(0, FluentDpx(8.f)));
+    ImGui::Dummy(ImVec2(0, FluentDpx(16.f)));
 
-    int idx = 0;
+    int shown = 0;
     for (int i = 0; i < g_ControlsCount; ++i)
     {
         const ControlInfo& c = g_Controls[i];
+        if (!c.PageFn) continue;
         if (filter[0] && !std::strstr(c.Title, filter)) continue;
-        ImGui::PushID(i);
-        if (GridViewItem(c.Title, false, ImVec2(FluentDpx(220.f), FluentDpx(96.f))))
+        if (shown > 0)
         {
-            const char* p; const char* p_end;
-            ImFormatStringToTempBuffer(&p, &p_end, "Item_%s", c.UniqueId);
-            (void)p_end;
-            Navigate(p);
+            ImGui::Dummy(ImVec2(0, FluentDpx(24.f)));
+            ImFluent::Separator();
+            ImGui::Dummy(ImVec2(0, FluentDpx(16.f)));
         }
+        // Each demo page goes into its own NavFlattened child window so its
+        // ID stack, item rect, and any unbalanced Begin/End calls stay
+        // scoped — we never reach the AllControls window's IDStack root.
+        ImGui::PushID(i);
+        ImGui::BeginChild(c.UniqueId, ImVec2(-FLT_MIN, 0),
+                          ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        c.PageFn();
+        ImGui::EndChild();
         ImGui::PopID();
-        if ((idx % 3) != 2) ImGui::SameLine();
-        ++idx;
+        ++shown;
     }
-    if (idx == 0) TextBlock("(no matches)", ImFluentTextStyle_Caption);
+    if (shown == 0) TextBlock("(no matches)", ImFluentTextStyle_Caption);
 }
 
 static void Page_Section(const char* groupId)
