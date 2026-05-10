@@ -217,7 +217,7 @@ static void PageHeader(const char* title, const char* subtitle = nullptr)
     TextBlock(title, ImFluentTextStyle_TitleLarge);
     if (subtitle && *subtitle)
     {
-        const ImFluentStyle& T = ImFluent::GetStyle();
+        const ImFluentStyle& style = ImFluent::GetStyle();
         TextBlockColored(subtitle, GetColorU32(ImFluentCol_TextSecondary), ImFluentTextStyle_Body);
     }
     ImGui::Dummy(ImVec2(0.f, FluentDpx(8.f)));
@@ -1118,7 +1118,7 @@ static void RenderCurrentPage()
 // ============================================================================
 static void DrawTitleBar(bool* p_open)
 {
-    const ImFluentStyle& T = ImFluent::GetStyle();
+    const ImFluentStyle& style = ImFluent::GetStyle();
     const float h = FluentDpx(40.f);
     const float closeW = p_open ? FluentDpx(40.f) : 0.f;
 

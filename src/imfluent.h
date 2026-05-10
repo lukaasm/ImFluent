@@ -163,6 +163,49 @@ struct ImFluentStyle
     float       NavPaneOpenWidth;
     ImVec2      ControlContentPadding;
 
+    float       SpacingXSmall;
+    float       SpacingSmall;
+    float       SpacingMedium;
+    float       SpacingLarge;
+    float       SpacingXLarge;
+    float       SpacingXXLarge;
+
+    float       StrokeThin;
+    float       StrokeMedium;
+    float       StrokeThick;
+
+    float       ChevronGlyphSize;
+    float       StandardIconSize;
+
+    float       CheckboxSize;
+    float       RadioButtonDiameter;
+    float       ToggleSwitchWidth;
+    float       ToggleSwitchHeight;
+    float       ToggleSwitchThumbRadiusOff;
+    float       ToggleSwitchThumbRadiusOn;
+    float       SliderTrackHeight;
+    float       SliderThumbRadius;
+    float       SliderThumbInnerRadius;
+    float       ProgressBarHeight;
+    float       ProgressRingThickness;
+    float       RatingStarSize;
+
+    float       NavItemHeight;
+    float       MenuItemHeight;
+    float       ListItemHeight;
+    float       TitleBarHeight;
+    float       AppBarButtonWidth;
+    float       AppBarButtonHeight;
+    float       SpinButtonWidth;
+    float       RevealButtonWidth;
+    float       BadgeHeight;
+    float       PipDotSize;
+
+    float       SeverityBarThickness;
+    float       SelectionIndicatorThickness;
+    float       SelectionIndicatorInset;
+    float       TextInputAccentLineThickness;
+
     IMGUI_API   ImFluentStyle();
 
     ImVec4      Colors[ImFluentCol_COUNT];

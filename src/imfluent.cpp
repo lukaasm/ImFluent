@@ -33,18 +33,59 @@ namespace
 
     static void FillCommon( ImFluentStyle & s )
     {
+        s.ControlCornerRadius        = 4.f;
+        s.OverlayCornerRadius        = 8.f;
+        s.ControlHeight              = 32.f;
+        s.ControlMinWidth            = 120.f;
+        s.FocusStrokeThicknessOuter  = 2.f;
+        s.FocusStrokeThicknessInner  = 1.f;
+        s.CardPadding                = 16.f;
+        s.NavPaneCompactWidth        = 48.f;
+        s.NavPaneOpenWidth           = 320.f;
+        s.ControlContentPadding      = ImVec2( 12.f, 5.f );
 
-        s.ControlCornerRadius = 4.f;
-        s.OverlayCornerRadius = 8.f;
-        s.ControlHeight = 32.f;
-        s.ControlMinWidth = 120.f;
-        s.FocusStrokeThicknessOuter = 2.f;
-        s.FocusStrokeThicknessInner = 1.f;
-        s.CardPadding = 16.f;
-        s.NavPaneCompactWidth = 48.f;
-        s.NavPaneOpenWidth = 320.f;
-        s.ControlContentPadding = ImVec2( 12.f, 5.f );
+        s.SpacingXSmall              = 2.f;
+        s.SpacingSmall               = 4.f;
+        s.SpacingMedium              = 8.f;
+        s.SpacingLarge               = 12.f;
+        s.SpacingXLarge              = 16.f;
+        s.SpacingXXLarge             = 24.f;
 
+        s.StrokeThin                 = 1.f;
+        s.StrokeMedium               = 1.5f;
+        s.StrokeThick                = 2.f;
+
+        s.ChevronGlyphSize           = 4.f;
+        s.StandardIconSize           = 16.f;
+
+        s.CheckboxSize               = 20.f;
+        s.RadioButtonDiameter        = 20.f;
+        s.ToggleSwitchWidth          = 40.f;
+        s.ToggleSwitchHeight         = 20.f;
+        s.ToggleSwitchThumbRadiusOff = 6.f;
+        s.ToggleSwitchThumbRadiusOn  = 7.f;
+        s.SliderTrackHeight          = 4.f;
+        s.SliderThumbRadius          = 10.f;
+        s.SliderThumbInnerRadius     = 5.f;
+        s.ProgressBarHeight          = 4.f;
+        s.ProgressRingThickness      = 3.f;
+        s.RatingStarSize             = 20.f;
+
+        s.NavItemHeight              = 40.f;
+        s.MenuItemHeight             = 32.f;
+        s.ListItemHeight             = 36.f;
+        s.TitleBarHeight             = 40.f;
+        s.AppBarButtonWidth          = 64.f;
+        s.AppBarButtonHeight         = 56.f;
+        s.SpinButtonWidth            = 28.f;
+        s.RevealButtonWidth          = 32.f;
+        s.BadgeHeight                = 16.f;
+        s.PipDotSize                 = 8.f;
+
+        s.SeverityBarThickness       = 4.f;
+        s.SelectionIndicatorThickness= 3.f;
+        s.SelectionIndicatorInset    = 2.f;
+        s.TextInputAccentLineThickness = 2.f;
     }
 
     static void BuildDarkPalette( ImFluentStyle & s )
@@ -465,8 +506,9 @@ namespace ImFluentInternal
     void DrawAndConsumePendingHeader()
     {
         if ( !g_NextItem.HasHeader ) return;
+        const ImFluentStyle & style = ImFluent::GetStyle();
         ImFluent::TextBlock( g_NextItem.Header, ImFluentTextStyle_Body );
-        ImGui::Dummy( ImVec2( 0.f, ImFluent::FluentDpx( 2.f ) ) );
+        ImGui::Dummy( ImVec2( 0.f, ImFluent::FluentDpx( style.SpacingXSmall ) ) );
         g_NextItem.Header = NULL;
         g_NextItem.HasHeader = false;
     }
@@ -474,7 +516,8 @@ namespace ImFluentInternal
     void DrawAndConsumePendingDescription()
     {
         if ( !g_NextItem.HasDescription ) return;
-        ImGui::Dummy( ImVec2( 0.f, ImFluent::FluentDpx( 2.f ) ) );
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        ImGui::Dummy( ImVec2( 0.f, ImFluent::FluentDpx( style.SpacingXSmall ) ) );
         ImFluent::TextBlockColored( g_NextItem.Description,
                                     ImFluent::GetColorU32( ImFluentCol_TextSecondary ),
                                     ImFluentTextStyle_Caption );
@@ -540,9 +583,9 @@ namespace ImFluentInternal
 
     void DrawFocusRing( ImDrawList * dl, const ImRect & bb, float rounding )
     {
-        const ImFluentStyle & T = ImFluent::GetStyle();
-        const float outer = ImFluent::FluentDpx( T.FocusStrokeThicknessOuter );
-        const float inner = ImFluent::FluentDpx( T.FocusStrokeThicknessInner );
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float outer = ImFluent::FluentDpx( style.FocusStrokeThicknessOuter );
+        const float inner = ImFluent::FluentDpx( style.FocusStrokeThicknessInner );
         const float pad = outer;
 
         dl->AddRect( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_FocusStrokeInner ), rounding, 0, inner );
@@ -569,7 +612,7 @@ namespace ImFluentInternal
         for ( int i = 0; i < layers; ++i )
         {
             const float k = ( float )(i + 1);
-            const float pad = ImFluent::FluentDpx( 2.f * k );
+            const float pad = ImFluent::FluentDpx( ImFluent::GetStyle().SpacingXSmall * k );
             const ImU32 col = IM_COL32( 0, 0, 0, ( int )(40.f / k) );
             dl->AddRectFilled( ImVec2( bb.Min.x - pad, bb.Min.y - pad + k ),
                                ImVec2( bb.Max.x + pad, bb.Max.y + pad + k ),
@@ -647,33 +690,34 @@ namespace ImFluentInternal
 
     void DrawSelectionIndicator( ImDrawList * dl, const ImRect & bb, ImGuiDir side, ImU32 col, float length_frac )
     {
-        const float thickness = ImFluent::FluentDpx( 3.f );
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float thickness = ImFluent::FluentDpx( style.SelectionIndicatorThickness );
+        const float inset     = ImFluent::FluentDpx( style.SelectionIndicatorInset );
+        const float corner    = ImFluent::FluentDpx( style.SpacingXSmall );
         if ( side == ImGuiDir_Left || side == ImGuiDir_Right )
         {
-            const float h = bb.GetHeight() * length_frac;
+            const float h  = bb.GetHeight() * length_frac;
             const float cy = (bb.Min.y + bb.Max.y) * 0.5f;
-            const float x = (side == ImGuiDir_Left) ? bb.Min.x + ImFluent::FluentDpx( 2.f )
-                : bb.Max.x - ImFluent::FluentDpx( 2.f ) - thickness;
-            dl->AddRectFilled( ImVec2( x, cy - h * 0.5f ), ImVec2( x + thickness, cy + h * 0.5f ),
-                               col, ImFluent::FluentDpx( 2.f ) );
+            const float x  = (side == ImGuiDir_Left) ? bb.Min.x + inset
+                                                     : bb.Max.x - inset - thickness;
+            dl->AddRectFilled( ImVec2( x, cy - h * 0.5f ), ImVec2( x + thickness, cy + h * 0.5f ), col, corner );
         }
         else
         {
-            const float w = bb.GetWidth() * length_frac;
+            const float w  = bb.GetWidth() * length_frac;
             const float cx = (bb.Min.x + bb.Max.x) * 0.5f;
-            const float y = (side == ImGuiDir_Up) ? bb.Min.y + ImFluent::FluentDpx( 2.f )
-                : bb.Max.y - ImFluent::FluentDpx( 2.f ) - thickness;
-            dl->AddRectFilled( ImVec2( cx - w * 0.5f, y ), ImVec2( cx + w * 0.5f, y + thickness ),
-                               col, ImFluent::FluentDpx( 2.f ) );
+            const float y  = (side == ImGuiDir_Up) ? bb.Min.y + inset
+                                                   : bb.Max.y - inset - thickness;
+            dl->AddRectFilled( ImVec2( cx - w * 0.5f, y ), ImVec2( cx + w * 0.5f, y + thickness ), col, corner );
         }
     }
 
     void PushControlFrameStyle( float h )
     {
         using namespace ImFluent;
-        const ImFluentStyle & T = GetStyle();
-        ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( T.ControlCornerRadius ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( 12.f ), (h - ImGui::GetFontSize()) * 0.5f ) );
+        const ImFluentStyle & style = GetStyle();
+        ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingLarge ), (h - ImGui::GetFontSize()) * 0.5f ) );
         ImGui::PushStyleColor( ImGuiCol_FrameBg, GetColorU32( ImFluentCol_ControlFillDefault ) );
         ImGui::PushStyleColor( ImGuiCol_FrameBgHovered, GetColorU32( ImFluentCol_ControlFillSecondary ) );
         ImGui::PushStyleColor( ImGuiCol_FrameBgActive, GetColorU32( ImFluentCol_ControlFillInputActive ) );
@@ -689,10 +733,10 @@ namespace ImFluentInternal
     void PushOverlayWindowStyle( float padding_x, float padding_y )
     {
         using namespace ImFluent;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( T.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( padding_x ), FluentDpx( padding_y ) ) );
     }
 
@@ -758,11 +802,11 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
 
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float pad_x = FluentDpx( T.ControlContentPadding.x );
-        const float pad_y = FluentDpx( T.ControlContentPadding.y );
-        const float min_h = FluentDpx( T.ControlHeight );
+        const float pad_x = FluentDpx( style.ControlContentPadding.x );
+        const float pad_y = FluentDpx( style.ControlContentPadding.y );
+        const float min_h = FluentDpx( style.ControlHeight );
         const ImVec2 sz = CalcButtonSize( label, size_arg, min_h, pad_x, pad_y );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + sz.x, pos.y + sz.y ) );
@@ -780,7 +824,7 @@ namespace ImFluent
         else               fillTarget = fillRest;
 
         const ImU32 fillAnim = AnimateColorU32( id, fillTarget );
-        const float r = FluentDpx( T.ControlCornerRadius );
+        const float r = FluentDpx( style.ControlCornerRadius );
         ImDrawList * dl = w->DrawList;
 
         dl->AddRectFilled( bb.Min, bb.Max, fillAnim, r );
@@ -797,7 +841,7 @@ namespace ImFluent
 
     bool Button( const char * label, const ImVec2 & size )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         return ButtonExStyled( label, size,
                                GetColorU32( ImFluentCol_ControlFillDefault ), GetColorU32( ImFluentCol_ControlFillSecondary ), GetColorU32( ImFluentCol_ControlFillTertiary ), GetColorU32( ImFluentCol_ControlFillDisabled ),
                                GetColorU32( ImFluentCol_TextPrimary ), GetColorU32( ImFluentCol_TextDisabled ),
@@ -806,7 +850,7 @@ namespace ImFluent
 
     bool AccentButton( const char * label, const ImVec2 & size )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         return ButtonExStyled( label, size,
                                GetColorU32( ImFluentCol_AccentFillDefault ), GetColorU32( ImFluentCol_AccentFillSecondary ), GetColorU32( ImFluentCol_AccentFillTertiary ), GetColorU32( ImFluentCol_AccentFillDisabled ),
                                GetColorU32( ImFluentCol_TextOnAccentPrimary ), GetColorU32( ImFluentCol_TextOnAccentDisabled ),
@@ -815,7 +859,7 @@ namespace ImFluent
 
     bool RepeatButton( const char * label, const ImVec2 & size )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushItemFlag( ImGuiItemFlags_ButtonRepeat, true );
         const bool pressed = ButtonExStyled( label, size,
                                              GetColorU32( ImFluentCol_ControlFillDefault ), GetColorU32( ImFluentCol_ControlFillSecondary ), GetColorU32( ImFluentCol_ControlFillTertiary ), GetColorU32( ImFluentCol_ControlFillDisabled ),
@@ -829,10 +873,10 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
         const ImVec2 ts = ImGui::CalcTextSize( label, NULL, true );
-        const float pad_y = FluentDpx( 2.f );
+        const float pad_y = FluentDpx( style.SpacingXSmall );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + ts.x, pos.y + ts.y + pad_y * 2.f ) );
         ImGui::ItemSize( bb );
@@ -846,13 +890,13 @@ namespace ImFluent
         dl->AddText( ImVec2( bb.Min.x, bb.Min.y + pad_y ), anim, label );
         if ( hovered )
             dl->AddLine( ImVec2( bb.Min.x, bb.Max.y - 1.f ), ImVec2( bb.Min.x + ts.x, bb.Max.y - 1.f ), anim, 1.f );
-        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( T.ControlCornerRadius ) );
+        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
         return pressed;
     }
 
     bool ToggleButton( const char * label, bool * v, const ImVec2 & size )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         bool pressed;
         if ( v && *v )
         {
@@ -879,11 +923,11 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
 
-        const ImFluentStyle & T = GetStyle();
-        const float pad_x = FluentDpx( T.ControlContentPadding.x );
-        const float pad_y = FluentDpx( T.ControlContentPadding.y );
-        const float min_h = FluentDpx( T.ControlHeight );
-        const float chev_w = FluentDpx( 28.f );
+        const ImFluentStyle & style = GetStyle();
+        const float pad_x = FluentDpx( style.ControlContentPadding.x );
+        const float pad_y = FluentDpx( style.ControlContentPadding.y );
+        const float min_h = FluentDpx( style.ControlHeight );
+        const float chev_w = FluentDpx( style.SpinButtonWidth );
         const ImVec2 ts = ImGui::CalcTextSize( label, NULL, true );
         const float total_w = (size.x > 0.f ? size.x : ts.x + pad_x * 2.f + chev_w);
         const float total_h = (size.y > 0.f ? size.y : ImMax( min_h, ts.y + pad_y * 2.f ));
@@ -930,7 +974,7 @@ namespace ImFluent
         };
         const ImU32 mainTarget = pickFill( main_hovered, main_held );
         const ImU32 mainAnim = AnimateColorU32( id_main, mainTarget );
-        const float r = FluentDpx( T.ControlCornerRadius );
+        const float r = FluentDpx( style.ControlCornerRadius );
 
         ImDrawList * dl = w->DrawList;
         if ( split )
@@ -942,8 +986,8 @@ namespace ImFluent
             const ImU32 chevAnim = AnimateColorU32( id_chev, chevTarget );
             dl->AddRectFilled( bb_chev.Min, bb_chev.Max, chevAnim, r,
                                ImDrawFlags_RoundCornersRight );
-            dl->AddLine( ImVec2( bb_main.Max.x, bb_main.Min.y + FluentDpx( 6.f ) ),
-                         ImVec2( bb_main.Max.x, bb_main.Max.y - FluentDpx( 6.f ) ),
+            dl->AddLine( ImVec2( bb_main.Max.x, bb_main.Min.y + FluentDpx( style.SpacingMedium ) ),
+                         ImVec2( bb_main.Max.x, bb_main.Max.y - FluentDpx( style.SpacingMedium ) ),
                          GetColorU32( ImFluentCol_DividerStrokeDefault ), 1.f );
             if ( !disabled )
                 DrawElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
@@ -967,7 +1011,7 @@ namespace ImFluent
             const ImVec2 cen( (split ? bb_chev.Min.x + bb_chev.GetWidth() * 0.5f
                               : bb_main.Max.x - chev_w * 0.5f),
                               (bb_total.Min.y + bb_total.Max.y) * 0.5f );
-            DrawChevron( dl, cen, ImGuiDir_Down, disabled ? textDisabled : textCol, FluentDpx( 4.f ) );
+            DrawChevron( dl, cen, ImGuiDir_Down, disabled ? textDisabled : textCol, FluentDpx( style.ChevronGlyphSize ) );
         }
 
         if ( IsItemFocused( id_main ) ) DrawFocusRing( dl, bb_total, r );
@@ -998,10 +1042,10 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
 
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float box = FluentDpx( 20.f );
-        const float gap = FluentDpx( 8.f );
+        const float box = FluentDpx( style.CheckboxSize );
+        const float gap = FluentDpx( style.SpacingMedium );
         const ImVec2 ts = ImGui::CalcTextSize( label, NULL, true );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect box_bb( pos, ImVec2( pos.x + box, pos.y + box ) );
@@ -1024,7 +1068,7 @@ namespace ImFluent
         const bool disabled = (ImGui::GetCurrentContext()->CurrentItemFlags & ImGuiItemFlags_Disabled) != 0;
 
         ImDrawList * dl = w->DrawList;
-        const float r = FluentDpx( T.ControlCornerRadius );
+        const float r = FluentDpx( style.ControlCornerRadius );
 
         ImU32 boxFill, boxStroke;
         if ( disabled ) { boxFill = GetColorU32( ImFluentCol_ControlFillDisabled );        boxStroke = GetColorU32( ImFluentCol_ControlStrongStrokeDisabled ); }
@@ -1053,15 +1097,15 @@ namespace ImFluent
             const ImVec2 a( box_bb.Min.x + box * 0.22f, box_bb.Min.y + box * 0.52f );
             const ImVec2 b( box_bb.Min.x + box * 0.42f, box_bb.Min.y + box * 0.72f );
             const ImVec2 c( box_bb.Min.x + box * 0.78f, box_bb.Min.y + box * 0.32f );
-            dl->AddLine( a, b, mark, FluentDpx( 1.5f ) );
-            dl->AddLine( b, c, mark, FluentDpx( 1.5f ) );
+            dl->AddLine( a, b, mark, FluentDpx( style.StrokeMedium ) );
+            dl->AddLine( b, c, mark, FluentDpx( style.StrokeMedium ) );
         }
         else if ( indet )
         {
             const ImU32 mark = disabled ? GetColorU32( ImFluentCol_TextOnAccentDisabled ) : GetColorU32( ImFluentCol_TextOnAccentPrimary );
             dl->AddRectFilled( ImVec2( box_bb.Min.x + box * 0.25f, box_bb.Min.y + box * 0.45f ),
                                ImVec2( box_bb.Max.x - box * 0.25f, box_bb.Max.y - box * 0.45f ),
-                               mark, FluentDpx( 1.f ) );
+                               mark, FluentDpx( style.StrokeThin ) );
         }
 
         if ( ts.x > 0 )
@@ -1080,10 +1124,10 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float D = FluentDpx( 20.f );
-        const float gap = FluentDpx( 8.f );
+        const float D = FluentDpx( style.CheckboxSize );
+        const float gap = FluentDpx( style.SpacingMedium );
         const ImVec2 ts = ImGui::CalcTextSize( label, NULL, true );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect ring_bb( pos, ImVec2( pos.x + D, pos.y + D ) );
@@ -1119,7 +1163,7 @@ namespace ImFluent
             const ImU32 lc = disabled ? GetColorU32( ImFluentCol_TextDisabled ) : GetColorU32( ImFluentCol_TextPrimary );
             dl->AddText( ImVec2( ring_bb.Max.x + gap, pos.y + (D - ts.y) * 0.5f ), lc, label );
         }
-        if ( IsItemFocused( id ) ) DrawFocusRing( dl, ring_bb, ring_r + FluentDpx( 1.f ) );
+        if ( IsItemFocused( id ) ) DrawFocusRing( dl, ring_bb, ring_r + FluentDpx( style.StrokeThin ) );
         return pressed;
     }
 
@@ -1138,11 +1182,11 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float W = FluentDpx( 40.f );
-        const float H = FluentDpx( 20.f );
-        const float gap = FluentDpx( 12.f );
+        const float W = FluentDpx( style.ToggleSwitchWidth );
+        const float H = FluentDpx( style.ToggleSwitchHeight );
+        const float gap = FluentDpx( style.SpacingLarge );
         const ImVec2 lab_size = ImGui::CalcTextSize( label, NULL, true );
         const char * state_text = (v && *v) ? on_text : off_text;
         const ImVec2 state_size = state_text ? ImGui::CalcTextSize( state_text, NULL, true ) : ImVec2( 0, 0 );
@@ -1173,11 +1217,11 @@ namespace ImFluent
         if ( !on )
             dl->AddRect( track_bb.Min, track_bb.Max, GetColorU32( ImFluentCol_ControlStrongStrokeDefault ), H * 0.5f, 0, 1.f );
 
-        const float pad = FluentDpx( 4.f );
-        const float thumb_r_target = on ? FluentDpx( 7.f ) : FluentDpx( 6.f );
+        const float pad = FluentDpx( style.SpacingSmall );
+        const float thumb_r_target = on ? FluentDpx( style.ToggleSwitchThumbRadiusOn ) : FluentDpx( style.ToggleSwitchThumbRadiusOff );
         const float thumb_r = AnimateFloat( id ^ 0xA1A1, thumb_r_target, 0.083f );
-        const float cx_off = track_bb.Min.x + pad + FluentDpx( 6.f );
-        const float cx_on = track_bb.Max.x - pad - FluentDpx( 6.f );
+        const float cx_off = track_bb.Min.x + pad + FluentDpx( style.ToggleSwitchThumbRadiusOff );
+        const float cx_on = track_bb.Max.x - pad - FluentDpx( style.ToggleSwitchThumbRadiusOff );
         const float t_anim = AnimateFloat( id ^ 0xB2B2, on ? 1.f : 0.f, 0.083f );
         const float cx = cx_off + (cx_on - cx_off) * t_anim;
         const float cy = (track_bb.Min.y + track_bb.Max.y) * 0.5f;
@@ -1204,10 +1248,10 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float star = FluentDpx( 20.f );
-        const float gap = FluentDpx( 4.f );
+        const float star = FluentDpx( style.RatingStarSize );
+        const float gap = FluentDpx( style.SpacingSmall );
         const ImVec2 pos = w->DC.CursorPos;
         const float total_w = max_stars * star + (max_stars - 1) * gap;
         const ImRect bb( pos, ImVec2( pos.x + total_w, pos.y + star ) );
@@ -1244,7 +1288,7 @@ namespace ImFluent
                 dl->PopClipRect();
             }
         }
-        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( T.ControlCornerRadius ) );
+        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
         return changed;
     }
 
@@ -1253,9 +1297,9 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         DrawAndConsumePendingHeader();
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float h = FluentDpx( T.ControlHeight );
+        const float h = FluentDpx( style.ControlHeight );
         const float w_avail = ImGui::CalcItemWidth();
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect frame_bb( pos, ImVec2( pos.x + w_avail, pos.y + h ) );
@@ -1281,7 +1325,7 @@ namespace ImFluent
         const bool active = ImGui::IsItemActive();
 
         ImDrawList * dl = w->DrawList;
-        const float track_h = FluentDpx( 4.f );
+        const float track_h = FluentDpx( style.SliderTrackHeight );
         const ImVec2 track_min( frame_bb.Min.x, (frame_bb.Min.y + frame_bb.Max.y) * 0.5f - track_h * 0.5f );
         const ImVec2 track_max( frame_bb.Max.x, track_min.y + track_h );
         dl->AddRectFilled( track_min, track_max, GetColorU32( ImFluentCol_ControlStrongFillDefault ), track_h * 0.5f );
@@ -1289,14 +1333,14 @@ namespace ImFluent
         if ( thumb_cx > track_min.x )
             dl->AddRectFilled( track_min, ImVec2( thumb_cx, track_max.y ), GetColorU32( ImFluentCol_AccentFillDefault ), track_h * 0.5f );
 
-        const float thumb_r_target = active ? FluentDpx( 8.f ) : (hovered ? FluentDpx( 11.f ) : FluentDpx( 10.f ));
+        const float thumb_r_target = active ? FluentDpx( style.SliderThumbRadius - 2.f ) : (hovered ? FluentDpx( style.SliderThumbRadius + 1.f ) : FluentDpx( style.SliderThumbRadius ));
         const float thumb_r = AnimateFloat( id ^ 0xC110, thumb_r_target, 0.083f );
         const float inner_r = thumb_r * 0.5f;
         const ImVec2 c( thumb_cx, (track_min.y + track_max.y) * 0.5f );
         dl->AddCircleFilled( c, thumb_r, GetColorU32( ImFluentCol_AccentFillDefault ), 32 );
         dl->AddCircleFilled( c, inner_r, GetColorU32( ImFluentCol_TextOnAccentPrimary ), 24 );
 
-        if ( IsItemFocused( id ) ) DrawFocusRing( dl, frame_bb, FluentDpx( T.ControlCornerRadius ) );
+        if ( IsItemFocused( id ) ) DrawFocusRing( dl, frame_bb, FluentDpx( style.ControlCornerRadius ) );
         DrawAndConsumePendingDescription();
         return changed;
     }
@@ -1314,9 +1358,9 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
 
-        const float h = (size_arg.y > 0 ? size_arg.y : FluentDpx( 4.f ));
+        const float h = (size_arg.y > 0 ? size_arg.y : FluentDpx( style.ProgressBarHeight ));
         const float W = (size_arg.x < 0.f) ? ImGui::GetContentRegionAvail().x
             : (size_arg.x > 0.f) ? size_arg.x
             : ImGui::CalcItemWidth();
@@ -1338,7 +1382,7 @@ namespace ImFluent
         if ( overlay )
         {
             const ImVec2 ts = ImGui::CalcTextSize( overlay );
-            dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f, bb.Max.y + FluentDpx( 4.f ) ),
+            dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f, bb.Max.y + FluentDpx( style.SpacingSmall ) ),
                          GetColorU32( ImFluentCol_TextSecondary ), overlay );
         }
     }
@@ -1347,7 +1391,7 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const float D = FluentDpx( diameter_dpx );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + D, pos.y + D ) );
@@ -1355,8 +1399,8 @@ namespace ImFluent
         if ( !ImGui::ItemAdd( bb, 0 ) ) return;
         ImDrawList * dl = w->DrawList;
         const ImVec2 c( pos.x + D * 0.5f, pos.y + D * 0.5f );
-        const float radius = D * 0.5f - FluentDpx( 2.f );
-        const float thickness = FluentDpx( 3.f );
+        const float radius = D * 0.5f - FluentDpx( style.SpacingXSmall );
+        const float thickness = FluentDpx( style.ProgressRingThickness );
         if ( fraction < 0.f )
         {
 
@@ -1396,8 +1440,8 @@ namespace ImFluent
         if ( w->SkipItems ) return false;
         DrawAndConsumePendingHeader();
 
-        const ImFluentStyle & T = GetStyle();
-        PushControlFrameStyle( FluentDpx( T.ControlHeight ) );
+        const ImFluentStyle & style = GetStyle();
+        PushControlFrameStyle( FluentDpx( style.ControlHeight ) );
 
         bool changed = hint ? ImGui::InputTextWithHint( label, hint, buf, buf_size, extra_flags )
             : ImGui::InputText( label, buf, buf_size, extra_flags );
@@ -1408,9 +1452,9 @@ namespace ImFluent
         {
             ImDrawList * dl = w->DrawList;
             const ImRect & last = ImGui::GetCurrentContext()->LastItemData.Rect;
-            const float t = FluentDpx( 2.f );
-            dl->AddRectFilled( ImVec2( last.Min.x + FluentDpx( T.ControlCornerRadius ), last.Max.y - t ),
-                               ImVec2( last.Max.x - FluentDpx( T.ControlCornerRadius ), last.Max.y ),
+            const float t = FluentDpx( style.SpacingXSmall );
+            dl->AddRectFilled( ImVec2( last.Min.x + FluentDpx( style.ControlCornerRadius ), last.Max.y - t ),
+                               ImVec2( last.Max.x - FluentDpx( style.ControlCornerRadius ), last.Max.y ),
                                GetColorU32( ImFluentCol_ElevationTextControlFocusedBottom ) );
         }
         DrawAndConsumePendingDescription();
@@ -1428,14 +1472,14 @@ namespace ImFluent
 
         DrawAndConsumePendingHeader();
 
-        const ImFluentStyle & T = GetStyle();
-        const float h = FluentDpx( T.ControlHeight );
+        const ImFluentStyle & style = GetStyle();
+        const float h = FluentDpx( style.ControlHeight );
 
         const ImVec2 cursor          = w->DC.CursorPos;
         const float  full_w          = ImGui::CalcItemWidth();
         const ImRect input_predicted = ImRect( cursor, ImVec2( cursor.x + full_w, cursor.y + h ) );
-        const float  reveal_w        = FluentDpx( 32.f );
-        const float  inset           = FluentDpx( 2.f );
+        const float  reveal_w        = FluentDpx( style.RevealButtonWidth );
+        const float  inset           = FluentDpx( style.SpacingXSmall );
         const ImRect btn_pred(
             ImVec2( input_predicted.Max.x - reveal_w - inset, input_predicted.Min.y + inset ),
             ImVec2( input_predicted.Max.x - inset,            input_predicted.Max.y - inset ) );
@@ -1462,9 +1506,9 @@ namespace ImFluent
         if ( input_active )
         {
             ImDrawList * dl0 = w->DrawList;
-            const float t  = FluentDpx( 2.f );
-            dl0->AddRectFilled( ImVec2( input_rect.Min.x + FluentDpx( T.ControlCornerRadius ), input_rect.Max.y - t ),
-                                ImVec2( input_rect.Max.x - FluentDpx( T.ControlCornerRadius ), input_rect.Max.y ),
+            const float t  = FluentDpx( style.SpacingXSmall );
+            dl0->AddRectFilled( ImVec2( input_rect.Min.x + FluentDpx( style.ControlCornerRadius ), input_rect.Max.y - t ),
+                                ImVec2( input_rect.Max.x - FluentDpx( style.ControlCornerRadius ), input_rect.Max.y ),
                                 GetColorU32( ImFluentCol_ElevationTextControlFocusedBottom ) );
         }
 
@@ -1473,7 +1517,7 @@ namespace ImFluent
             ImVec2( input_rect.Max.x - inset,            input_rect.Max.y - inset ) );
 
         ImDrawList * dl = w->DrawList;
-        const float  r  = FluentDpx( T.ControlCornerRadius );
+        const float  r  = FluentDpx( style.ControlCornerRadius );
         if ( hov || held )
         {
             const ImU32 frame_bg = input_active ? GetColorU32( ImFluentCol_ControlFillInputActive )
@@ -1503,8 +1547,8 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
 
-        const ImFluentStyle & T = GetStyle();
-        const float h = FluentDpx( T.ControlHeight );
+        const ImFluentStyle & style = GetStyle();
+        const float h = FluentDpx( style.ControlHeight );
 
         PushControlFrameStyle( h );
 
@@ -1517,8 +1561,8 @@ namespace ImFluent
         const ImRect input_rect   = ImGui::GetCurrentContext()->LastItemData.Rect;
         const ImGuiID input_id    = ImGui::GetCurrentContext()->LastItemData.ID;
 
-        const float  spin_w = FluentDpx( 28.f );
-        const float  inset  = FluentDpx( 2.f );
+        const float  spin_w = FluentDpx( style.SpinButtonWidth );
+        const float  inset  = FluentDpx( style.SpacingXSmall );
         const ImRect spin_area(
             ImVec2( input_rect.Max.x - spin_w - inset, input_rect.Min.y + inset ),
             ImVec2( input_rect.Max.x - inset,           input_rect.Max.y - inset ) );
@@ -1527,7 +1571,7 @@ namespace ImFluent
         const ImRect dn_bb( ImVec2( spin_area.Min.x, spin_area.Max.y - btn_h ), spin_area.Max );
 
         ImDrawList * dl = w->DrawList;
-        const float  r  = FluentDpx( T.ControlCornerRadius );
+        const float  r  = FluentDpx( style.ControlCornerRadius );
 
         ImGui::PushItemFlag( ImGuiItemFlags_ButtonRepeat, true );
 
@@ -1577,11 +1621,11 @@ namespace ImFluent
             {
                 const ImU32 hi = held ? GetColorU32( ImFluentCol_SubtleFillTertiary )
                                       : GetColorU32( ImFluentCol_SubtleFillSecondary );
-                dl->AddRectFilled( b.bb.Min, b.bb.Max, hi, FluentDpx( T.ControlCornerRadius ) );
+                dl->AddRectFilled( b.bb.Min, b.bb.Max, hi, FluentDpx( style.ControlCornerRadius ) );
             }
             const ImVec2 c( ( b.bb.Min.x + b.bb.Max.x ) * 0.5f,
                             ( b.bb.Min.y + b.bb.Max.y ) * 0.5f );
-            DrawChevron( dl, c, b.dir, GetColorU32( ImFluentCol_TextSecondary ), FluentDpx( 3.f ) );
+            DrawChevron( dl, c, b.dir, GetColorU32( ImFluentCol_TextSecondary ), FluentDpx( style.ChevronGlyphSize - 1.f ) );
         }
 
         ImGui::PopItemFlag();
@@ -1592,8 +1636,9 @@ namespace ImFluent
     bool RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size, ImGuiInputTextFlags flags )
     {
         DrawAndConsumePendingHeader();
+        const ImFluentStyle & style = GetStyle();
 
-        PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( 16.f ) );
+        PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
         const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags );
         PopControlFrameStyle();
         DrawAndConsumePendingDescription();
@@ -1603,6 +1648,7 @@ namespace ImFluent
     bool AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index, const char * hint, ImGuiInputTextFlags flags )
     {
         DrawAndConsumePendingHeader();
+        const ImFluentStyle & style = GetStyle();
         bool changed = TextBoxImpl( label, buf, buf_size, hint, flags );
 
         const ImGuiID input_id        = ImGui::GetCurrentContext()->LastItemData.ID;
@@ -1616,7 +1662,7 @@ namespace ImFluent
 
         if ( items_count > 0 )
         {
-            ImGui::SetNextWindowPos ( ImVec2( input_rect.Min.x, input_rect.Max.y + FluentDpx( 2.f ) ) );
+            ImGui::SetNextWindowPos ( ImVec2( input_rect.Min.x, input_rect.Max.y + FluentDpx( style.SpacingXSmall ) ) );
             ImGui::SetNextWindowSize( ImVec2( input_rect.GetWidth(), 0.f ) );
             PushOverlayWindowStyle( 4.f, 4.f );
 
@@ -1677,7 +1723,7 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const float thickness = 1.f;
         const ImVec2 pos = w->DC.CursorPos;
         const float W = ImGui::GetContentRegionAvail().x;
@@ -1696,11 +1742,11 @@ namespace ImFluent
         ImFormatStringV( buf, IM_ARRAYSIZE( buf ), fmt, ap );
         va_end( ap );
 
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( T.OverlayCornerRadius ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 12.f ), FluentDpx( 8.f ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingLarge ), FluentDpx( style.SpacingMedium ) ) );
         if ( ImGui::BeginTooltip() )
         {
             ImGui::TextUnformatted( buf );
@@ -1710,16 +1756,16 @@ namespace ImFluent
         ImGui::PopStyleColor( 2 );
     }
 
-    bool BeginCard( const char * id, const ImVec2 & size, ImFluentCardStyle style )
+    bool BeginCard( const char * id, const ImVec2 & size, ImFluentCardStyle card_style )
     {
-        const ImFluentStyle & T = GetStyle();
-        const ImU32 bg = (style == ImFluentCardStyle_Outlined) ? GetColorU32( ImFluentCol_SubtleFillTransparent ) : GetColorU32( ImFluentCol_CardBgDefault );
+        const ImFluentStyle & style = GetStyle();
+        const ImU32 bg = (card_style == ImFluentCardStyle_Outlined) ? GetColorU32( ImFluentCol_SubtleFillTransparent ) : GetColorU32( ImFluentCol_CardBgDefault );
         const ImU32 stroke = GetColorU32( ImFluentCol_CardStrokeDefault );
         ImGui::PushStyleColor( ImGuiCol_ChildBg, bg );
         ImGui::PushStyleColor( ImGuiCol_Border, stroke );
-        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( T.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 1.f );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( T.CardPadding ), FluentDpx( T.CardPadding ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.CardPadding ), FluentDpx( style.CardPadding ) ) );
         return ImGui::BeginChild( id, size, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY );
     }
 
@@ -1734,9 +1780,9 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float row_h = FluentDpx( T.ControlHeight );
+        const float row_h = FluentDpx( style.ControlHeight );
         const float W = ImGui::GetContentRegionAvail().x;
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + W, pos.y + row_h ) );
@@ -1749,7 +1795,7 @@ namespace ImFluent
         if ( pressed && open ) *open = !*open;
         const bool isOpen = open && *open;
 
-        const float r = FluentDpx( T.ControlCornerRadius );
+        const float r = FluentDpx( style.ControlCornerRadius );
         ImU32 fill = ResolveControlFillState( false , held, hovered );
         fill = AnimateColorU32( id, fill );
         ImDrawList * dl = w->DrawList;
@@ -1758,24 +1804,24 @@ namespace ImFluent
 
         const float t_anim = AnimateFloat( id ^ 0xEEEE, isOpen ? 1.f : 0.f, 0.20f );
         const float ang = -IM_PI * 0.5f + t_anim * IM_PI;
-        const float cx = bb.Max.x - FluentDpx( 20.f );
+        const float cx = bb.Max.x - FluentDpx( style.CheckboxSize );
         const float cy = (bb.Min.y + bb.Max.y) * 0.5f;
-        const float L = FluentDpx( 5.f );
+        const float L = FluentDpx( style.ChevronGlyphSize + 1.f );
         const ImVec2 a( cx - L, cy + L * 0.5f - t_anim * L );
         const ImVec2 b( cx, cy - L * 0.5f + t_anim * L );
         const ImVec2 c( cx + L, cy + L * 0.5f - t_anim * L );
-        dl->AddLine( a, b, GetColorU32( ImFluentCol_TextPrimary ), 1.5f );
-        dl->AddLine( b, c, GetColorU32( ImFluentCol_TextPrimary ), 1.5f );
+        dl->AddLine( a, b, GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
+        dl->AddLine( b, c, GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
         ( void )ang;
 
-        dl->AddText( ImVec2( bb.Min.x + FluentDpx( 16.f ), cy - ImGui::GetFontSize() * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), label );
+        dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingXLarge ), cy - ImGui::GetFontSize() * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), label );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
 
         if ( isOpen )
         {
             ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_CardBgSecondary ) );
             ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, r );
-            ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 16.f ), FluentDpx( 12.f ) ) );
+            ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingLarge ) ) );
             ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders );
             return true;
         }
@@ -1791,9 +1837,9 @@ namespace ImFluent
 
     bool BeginScrollView( const char * id, const ImVec2 & size )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_SubtleFillTransparent ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( T.ControlCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.ControlCornerRadius ) );
         return ImGui::BeginChild( id, size, ImGuiChildFlags_None,
                                   ImGuiWindowFlags_HorizontalScrollbar );
     }
@@ -1807,13 +1853,13 @@ namespace ImFluent
 
     bool BeginTabView( const char * id )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_Tab, GetColorU32( ImFluentCol_SubtleFillTransparent ) );
         ImGui::PushStyleColor( ImGuiCol_TabHovered, GetColorU32( ImFluentCol_SubtleFillSecondary ) );
         ImGui::PushStyleColor( ImGuiCol_TabSelected, GetColorU32( ImFluentCol_LayerFillAlt ) );
         ImGui::PushStyleColor( ImGuiCol_TabDimmed, GetColorU32( ImFluentCol_SubtleFillTransparent ) );
         ImGui::PushStyleColor( ImGuiCol_TabDimmedSelected, GetColorU32( ImFluentCol_LayerFillAlt ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, FluentDpx( T.ControlCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, FluentDpx( style.ControlCornerRadius ) );
         if ( ImGui::BeginTabBar( id, ImGuiTabBarFlags_None ) )
             return true;
         ImGui::PopStyleVar();
@@ -1836,11 +1882,11 @@ namespace ImFluent
 
     bool BeginSelectorBar( const char * id )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushID( id );
         ImGui::BeginGroup();
-        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( 2.f ), 0.f ) );
-        ( void )T;
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingXSmall ), 0.f ) );
+        ( void )style;
         return true;
     }
 
@@ -1849,13 +1895,13 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         char buf[256];
         if ( glyph ) ImFormatString( buf, IM_ARRAYSIZE( buf ), "%s  %s", glyph, label );
         else       ImFormatString( buf, IM_ARRAYSIZE( buf ), "%s", label );
         const ImGuiID id = w->GetID( label );
-        const float pad_x = FluentDpx( 16.f );
-        const float pad_y = FluentDpx( 6.f );
+        const float pad_x = FluentDpx( style.SpacingXLarge );
+        const float pad_y = FluentDpx( style.SpacingMedium - 2.f );
         const ImVec2 ts = ImGui::CalcTextSize( buf, NULL, true );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + ts.x + pad_x * 2.f, pos.y + ts.y + pad_y * 2.f ) );
@@ -1867,17 +1913,17 @@ namespace ImFluent
         ImU32 fillTarget;
         fillTarget = ResolveSubtleFillState( selected, held, hovered );
         const ImU32 fillAnim = AnimateColorU32( id, fillTarget );
-        dl->AddRectFilled( bb.Min, bb.Max, fillAnim, FluentDpx( T.ControlCornerRadius ) );
+        dl->AddRectFilled( bb.Min, bb.Max, fillAnim, FluentDpx( style.ControlCornerRadius ) );
         dl->AddText( ImVec2( bb.Min.x + pad_x, bb.Min.y + pad_y ), GetColorU32( ImFluentCol_TextPrimary ), buf );
         if ( selected )
         {
-            const float bar_w = FluentDpx( 16.f );
+            const float bar_w = FluentDpx( style.SpacingXLarge );
             const float bx = (bb.Min.x + bb.Max.x) * 0.5f;
-            dl->AddRectFilled( ImVec2( bx - bar_w * 0.5f, bb.Max.y - FluentDpx( 2.f ) ),
+            dl->AddRectFilled( ImVec2( bx - bar_w * 0.5f, bb.Max.y - FluentDpx( style.SpacingXSmall ) ),
                                ImVec2( bx + bar_w * 0.5f, bb.Max.y ),
-                               GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( 1.f ) );
+                               GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( style.StrokeThin ) );
         }
-        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( T.ControlCornerRadius ) );
+        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
         ImGui::SameLine();
         return pressed;
     }
@@ -1905,22 +1951,22 @@ namespace ImFluent
 
     bool BeginNavigationView( const char * id, ImFluentNavViewMode * mode_io )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         g_NavView.Mode = mode_io ? *mode_io : ImFluentNavViewMode_LeftCompact;
         const float target_w = (g_NavView.Mode == ImFluentNavViewMode_LeftOpen)
-            ? FluentDpx( T.NavPaneOpenWidth ) : FluentDpx( T.NavPaneCompactWidth );
+            ? FluentDpx( style.NavPaneOpenWidth ) : FluentDpx( style.NavPaneCompactWidth );
         g_NavView.CurrentWidth = AnimateFloat( ImGui::GetID( id ), target_w, 0.20f );
 
         ImGui::PushID( id );
         ImGui::BeginGroup();
         ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_LayerFillDefault ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 4.f ), FluentDpx( 4.f ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
         ImGui::BeginChild( "##nav-pane", ImVec2( g_NavView.CurrentWidth, 0.f ),
                            ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
 
-        const float row_h = FluentDpx( 40.f );
-        if ( ImGui::InvisibleButton( "##nav-toggle", ImVec2( g_NavView.CurrentWidth - FluentDpx( 8.f ), row_h ) ) )
+        const float row_h = FluentDpx( style.NavItemHeight );
+        if ( ImGui::InvisibleButton( "##nav-toggle", ImVec2( g_NavView.CurrentWidth - FluentDpx( style.SpacingMedium ), row_h ) ) )
         {
             if ( mode_io )
                 *mode_io = (g_NavView.Mode == ImFluentNavViewMode_LeftOpen)
@@ -1930,15 +1976,15 @@ namespace ImFluent
             const ImRect bb = ImGui::GetCurrentContext()->LastItemData.Rect;
             ImDrawList * dl = ImGui::GetWindowDrawList();
             const bool hov = ImGui::IsItemHovered();
-            if ( hov ) dl->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_SubtleFillSecondary ), FluentDpx( T.ControlCornerRadius ) );
+            if ( hov ) dl->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_SubtleFillSecondary ), FluentDpx( style.ControlCornerRadius ) );
 
-            const float cx = bb.Min.x + FluentDpx( 24.f );
+            const float cx = bb.Min.x + FluentDpx( style.SpacingXXLarge );
             const float cy = (bb.Min.y + bb.Max.y) * 0.5f;
-            const float lw = FluentDpx( 14.f );
+            const float lw = FluentDpx( style.StandardIconSize - 2.f );
             for ( int i = -1; i <= 1; ++i )
-                dl->AddLine( ImVec2( cx - lw * 0.5f, cy + ( float )i * FluentDpx( 5.f ) ),
-                             ImVec2( cx + lw * 0.5f, cy + ( float )i * FluentDpx( 5.f ) ),
-                             GetColorU32( ImFluentCol_TextPrimary ), 1.5f );
+                dl->AddLine( ImVec2( cx - lw * 0.5f, cy + ( float )i * FluentDpx( style.SpacingSmall + 1.f ) ),
+                             ImVec2( cx + lw * 0.5f, cy + ( float )i * FluentDpx( style.SpacingSmall + 1.f ) ),
+                             GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
         }
         return true;
     }
@@ -1948,9 +1994,9 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float row_h = FluentDpx( 40.f );
+        const float row_h = FluentDpx( style.NavItemHeight );
         const float W = ImGui::GetContentRegionAvail().x;
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + W, pos.y + row_h ) );
@@ -1958,7 +2004,7 @@ namespace ImFluent
         if ( !ImGui::ItemAdd( bb, id ) ) return false;
         bool hovered = false, held = false;
         const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
-        const float r = FluentDpx( T.ControlCornerRadius );
+        const float r = FluentDpx( style.ControlCornerRadius );
 
         ImU32 fillTarget;
         fillTarget = ResolveSubtleFillState( selected, held, hovered );
@@ -1968,17 +2014,17 @@ namespace ImFluent
         if ( selected )
         {
 
-            const float bx = bb.Min.x + FluentDpx( 2.f );
+            const float bx = bb.Min.x + FluentDpx( style.SpacingXSmall );
             const float bh = row_h * 0.5f;
             dl->AddRectFilled( ImVec2( bx, (bb.Min.y + bb.Max.y - bh) * 0.5f ),
-                               ImVec2( bx + FluentDpx( 3.f ), (bb.Min.y + bb.Max.y + bh) * 0.5f ),
-                               GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( 2.f ) );
+                               ImVec2( bx + FluentDpx( style.SelectionIndicatorThickness ), (bb.Min.y + bb.Max.y + bh) * 0.5f ),
+                               GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( style.SpacingXSmall ) );
         }
-        const float icon_x = bb.Min.x + FluentDpx( 14.f );
-        const float text_x = bb.Min.x + FluentDpx( 44.f );
+        const float icon_x = bb.Min.x + FluentDpx( style.StandardIconSize - 2.f );
+        const float text_x = bb.Min.x + FluentDpx( style.NavPaneCompactWidth - 4.f );
         const float cy = (bb.Min.y + bb.Max.y - ImGui::GetFontSize()) * 0.5f;
         if ( glyph ) dl->AddText( ImVec2( icon_x, cy ), GetColorU32( ImFluentCol_TextPrimary ), glyph );
-        if ( g_NavView.CurrentWidth > FluentDpx( 64.f ) )
+        if ( g_NavView.CurrentWidth > FluentDpx( style.AppBarButtonWidth ) )
             dl->AddText( ImVec2( text_x, cy ), GetColorU32( ImFluentCol_TextPrimary ), label );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
         return pressed;
@@ -1986,11 +2032,11 @@ namespace ImFluent
 
     void NavSubHeader( const char * text )
     {
-        if ( g_NavView.CurrentWidth < ImFluent::FluentDpx( 96.f ) ) return;
-        const ImFluentStyle & T = GetStyle();
-        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
+        const ImFluentStyle & style = GetStyle();
+        if ( g_NavView.CurrentWidth < ImFluent::FluentDpx( style.AppBarButtonWidth + style.SpacingXXLarge + style.SpacingMedium ) ) return;
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( style.SpacingMedium ) ) );
         ImGui::PushStyleColor( ImGuiCol_Text, GetColorU32( ImFluentCol_TextSecondary ) );
-        ImGui::SetCursorPosX( FluentDpx( 14.f ) );
+        ImGui::SetCursorPosX( FluentDpx( style.StandardIconSize - 2.f ) );
         ImGui::TextUnformatted( text );
         ImGui::PopStyleColor();
     }
@@ -2007,9 +2053,9 @@ namespace ImFluent
 
     void NavigationViewBeginContent()
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 24.f ), FluentDpx( 24.f ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXXLarge ), FluentDpx( style.SpacingXXLarge ) ) );
         ImGui::BeginChild( "##nav-content", ImVec2( 0, 0 ), ImGuiChildFlags_AlwaysUseWindowPadding );
         g_NavView.ContentStarted = true;
     }
@@ -2026,10 +2072,10 @@ namespace ImFluent
     bool ComboBox( const char * label, int * current_item, const char * const items[], int items_count )
     {
         DrawAndConsumePendingHeader();
-        const ImFluentStyle & T = GetStyle();
-        const float h = FluentDpx( T.ControlHeight );
-        ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( T.ControlCornerRadius ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( 12.f ), (h - ImGui::GetFontSize()) * 0.5f ) );
+        const ImFluentStyle & style = GetStyle();
+        const float h = FluentDpx( style.ControlHeight );
+        ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingLarge ), (h - ImGui::GetFontSize()) * 0.5f ) );
         ImGui::PushStyleColor( ImGuiCol_FrameBg, GetColorU32( ImFluentCol_ControlFillDefault ) );
         ImGui::PushStyleColor( ImGuiCol_FrameBgHovered, GetColorU32( ImFluentCol_ControlFillSecondary ) );
         ImGui::PushStyleColor( ImGuiCol_FrameBgActive, GetColorU32( ImFluentCol_ControlFillTertiary ) );
@@ -2062,11 +2108,11 @@ namespace ImFluent
 
     bool ListBox( const char * label, int * current_item, const char * const items[], int items_count, int height_in_items )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_FrameBg, GetColorU32( ImFluentCol_LayerFillDefault ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( T.ControlCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
         bool changed = false;
-        const ImVec2 sz( 0, FluentDpx( ( float )height_in_items * T.ControlHeight ) );
+        const ImVec2 sz( 0, FluentDpx( ( float )height_in_items * style.ControlHeight ) );
         if ( ImGui::BeginListBox( label, sz ) )
         {
 
@@ -2074,7 +2120,7 @@ namespace ImFluent
             for ( int i = 0; i < items_count; ++i )
             {
                 const bool sel = (current_item && *current_item == i);
-                if ( ImGui::Selectable( items[i], sel, 0, ImVec2( 0, FluentDpx( T.ControlHeight ) ) ) )
+                if ( ImGui::Selectable( items[i], sel, 0, ImVec2( 0, FluentDpx( style.ControlHeight ) ) ) )
                 {
                     if ( current_item ) *current_item = i;
                     changed = true;
@@ -2093,9 +2139,9 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float h = FluentDpx( T.ControlHeight + 4.f );
+        const float h = FluentDpx( style.ControlHeight + 4.f );
         const float W = ImGui::GetContentRegionAvail().x;
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
@@ -2104,21 +2150,21 @@ namespace ImFluent
         bool hovered = false, held = false;
         const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
         ImDrawList * dl = w->DrawList;
-        const float r = FluentDpx( T.ControlCornerRadius );
+        const float r = FluentDpx( style.ControlCornerRadius );
         ImU32 fillTarget;
         fillTarget = ResolveSubtleFillState( selected, held, hovered );
         dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fillTarget ), r );
         if ( selected )
         {
-            const float bx = bb.Min.x + FluentDpx( 4.f );
+            const float bx = bb.Min.x + FluentDpx( style.SpacingSmall );
             const float bh = h * 0.5f;
             dl->AddRectFilled( ImVec2( bx, (bb.Min.y + bb.Max.y - bh) * 0.5f ),
-                               ImVec2( bx + FluentDpx( 3.f ), (bb.Min.y + bb.Max.y + bh) * 0.5f ),
-                               GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( 2.f ) );
+                               ImVec2( bx + FluentDpx( style.SelectionIndicatorThickness ), (bb.Min.y + bb.Max.y + bh) * 0.5f ),
+                               GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( style.SpacingXSmall ) );
         }
-        const float text_x = bb.Min.x + FluentDpx( glyph ? 44.f : 16.f );
+        const float text_x = bb.Min.x + FluentDpx( glyph ? style.NavPaneCompactWidth - 4.f : style.SpacingXLarge );
         const float cy = (bb.Min.y + bb.Max.y - ImGui::GetFontSize()) * 0.5f;
-        if ( glyph ) dl->AddText( ImVec2( bb.Min.x + FluentDpx( 14.f ), cy ), GetColorU32( ImFluentCol_TextPrimary ), glyph );
+        if ( glyph ) dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.StandardIconSize - 2.f ), cy ), GetColorU32( ImFluentCol_TextPrimary ), glyph );
         dl->AddText( ImVec2( text_x, cy ), GetColorU32( ImFluentCol_TextPrimary ), label );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
         return pressed;
@@ -2128,9 +2174,9 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float   h  = FluentDpx( T.ControlHeight );
+        const float   h  = FluentDpx( style.ControlHeight );
         const float   W  = ImGui::GetContentRegionAvail().x;
         const ImVec2  pos = w->DC.CursorPos;
         const ImRect  bb ( pos, ImVec2( pos.x + W, pos.y + h ) );
@@ -2139,13 +2185,13 @@ namespace ImFluent
 
         ImGui::ItemSize( bb );
 
-        const float pad           = FluentDpx( 8.f );
-        const float check_w       = FluentDpx( 20.f );
-        const float check_gap     = FluentDpx( 8.f );
-        const float chevron_w     = FluentDpx( 16.f );
-        const float chevron_gap   = FluentDpx( 8.f );
-        const float glyph_w       = FluentDpx( 18.f );
-        const float glyph_gap     = FluentDpx( 8.f );
+        const float pad           = FluentDpx( style.SpacingMedium );
+        const float check_w       = FluentDpx( style.CheckboxSize );
+        const float check_gap     = FluentDpx( style.SpacingMedium );
+        const float chevron_w     = FluentDpx( style.SpacingXLarge );
+        const float chevron_gap   = FluentDpx( style.SpacingMedium );
+        const float glyph_w       = FluentDpx( style.StandardIconSize + 2.f );
+        const float glyph_gap     = FluentDpx( style.SpacingMedium );
 
         float x = bb.Min.x + pad;
         ImRect check_bb;
@@ -2182,7 +2228,7 @@ namespace ImFluent
         const bool selected = p_checked && *p_checked;
 
         ImDrawList * dl = w->DrawList;
-        const float r   = FluentDpx( T.ControlCornerRadius );
+        const float r   = FluentDpx( style.ControlCornerRadius );
         const float cy  = ( bb.Min.y + bb.Max.y ) * 0.5f;
 
         const ImU32 fill = ResolveSubtleFillState( selected, held, hovered );
@@ -2194,7 +2240,7 @@ namespace ImFluent
 
         if ( p_checked )
         {
-            const float box_r = FluentDpx( T.ControlCornerRadius );
+            const float box_r = FluentDpx( style.ControlCornerRadius );
             ImU32 box_fill, box_stroke;
             if ( *p_checked )
             {
@@ -2216,14 +2262,14 @@ namespace ImFluent
                 const ImVec2 a  ( check_bb.Min.x + check_w * 0.22f, check_bb.Min.y + check_w * 0.52f );
                 const ImVec2 mid( check_bb.Min.x + check_w * 0.42f, check_bb.Min.y + check_w * 0.72f );
                 const ImVec2 c  ( check_bb.Min.x + check_w * 0.78f, check_bb.Min.y + check_w * 0.32f );
-                dl->AddLine( a,   mid, mark, FluentDpx( 1.5f ) );
-                dl->AddLine( mid, c,   mark, FluentDpx( 1.5f ) );
+                dl->AddLine( a,   mid, mark, FluentDpx( style.StrokeMedium ) );
+                dl->AddLine( mid, c,   mark, FluentDpx( style.StrokeMedium ) );
             }
         }
 
         DrawChevron( dl, ImVec2( chevron_cx, cy ),
                      isOpen ? ImGuiDir_Down : ImGuiDir_Right,
-                     GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( 4.f ) );
+                     GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.ChevronGlyphSize ) );
 
         if ( glyph )
             dl->AddText( ImVec2( glyph_x, cy - ImGui::GetFontSize() * 0.5f ),
@@ -2233,22 +2279,22 @@ namespace ImFluent
                      GetColorU32( ImFluentCol_TextPrimary ), label );
 
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
-        if ( isOpen ) ImGui::Indent( FluentDpx( 20.f ) );
+        if ( isOpen ) ImGui::Indent( FluentDpx( style.CheckboxSize ) );
         return isOpen;
     }
 
     bool TreeNode( const char * label, bool * p_open ) { return TreeNodeImpl( label, p_open, NULL ); }
     bool TreeNode( const char * label, bool * p_open, bool * p_checked ) { return TreeNodeImpl( label, p_open, p_checked ); }
 
-    void TreePop() { ImGui::Unindent( FluentDpx( 20.f ) ); }
+    void TreePop() { ImGui::Unindent( FluentDpx( GetStyle().CheckboxSize ) ); }
 
     bool GridViewItem( const char * label, bool selected, const ImVec2 & size )
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const ImVec2 sz = (size.x > 0 && size.y > 0) ? size : ImVec2( FluentDpx( 160.f ), FluentDpx( 120.f ) );
+        const ImVec2 sz = (size.x > 0 && size.y > 0) ? size : ImVec2( FluentDpx( style.ControlMinWidth + style.SpacingXXLarge + style.SpacingXLarge ), FluentDpx( style.ControlMinWidth ) );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + sz.x, pos.y + sz.y ) );
         ImGui::ItemSize( bb );
@@ -2256,7 +2302,7 @@ namespace ImFluent
         bool hovered = false, held = false;
         const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
         ImDrawList * dl = w->DrawList;
-        const float r = FluentDpx( T.OverlayCornerRadius );
+        const float r = FluentDpx( style.OverlayCornerRadius );
         ImU32 fill = selected ? GetColorU32( ImFluentCol_AccentFillSecondary )
             : held ? GetColorU32( ImFluentCol_ControlFillTertiary )
             : hovered ? GetColorU32( ImFluentCol_ControlFillSecondary )
@@ -2264,7 +2310,7 @@ namespace ImFluent
         dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
         dl->AddRect( bb.Min, bb.Max, GetColorU32( ImFluentCol_CardStrokeDefault ), r, 0, 1.f );
         const ImVec2 ts = ImGui::CalcTextSize( label );
-        dl->AddText( ImVec2( bb.Min.x + (sz.x - ts.x) * 0.5f, bb.Max.y - ts.y - FluentDpx( 12.f ) ),
+        dl->AddText( ImVec2( bb.Min.x + (sz.x - ts.x) * 0.5f, bb.Max.y - ts.y - FluentDpx( style.SpacingLarge ) ),
                      selected ? GetColorU32( ImFluentCol_TextOnAccentPrimary ) : GetColorU32( ImFluentCol_TextPrimary ), label );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
         return pressed;
@@ -2274,9 +2320,9 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
-        const ImFluentStyle & T = GetStyle(); ( void )T;
-        const float dot = FluentDpx( 8.f );
-        const float gap = FluentDpx( 8.f );
+        const ImFluentStyle & style = GetStyle(); ( void )style;
+        const float dot = FluentDpx( style.SpacingMedium );
+        const float gap = FluentDpx( style.SpacingMedium );
         const float total_w = total_pages * dot + (total_pages - 1) * gap;
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + total_w, pos.y + dot ) );
@@ -2337,7 +2383,7 @@ namespace ImFluent
             const ImGuiID pid = ImGui::GetID( str_id );
             const ImRect * anchor = FindPopupAnchor( pid );
             if ( !anchor ) return;
-            const ImVec2 pos( anchor->Min.x, anchor->Max.y + ImFluent::FluentDpx( 2.f ) );
+            const ImVec2 pos( anchor->Min.x, anchor->Max.y + ImFluent::FluentDpx( ImFluent::GetStyle().SpacingXSmall ) );
             ImGui::SetNextWindowPos( pos, ImGuiCond_Appearing );
         }
     }
@@ -2351,11 +2397,11 @@ namespace ImFluent
 
     bool BeginFlyout( const char * id )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( T.OverlayCornerRadius ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 16.f ), FluentDpx( 16.f ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingXLarge ) ) );
         ApplyPopupAnchor( id );
         if ( ImGui::BeginPopup( id ) )
             return true;
@@ -2371,11 +2417,11 @@ namespace ImFluent
 
         if ( ImGuiWindow * w = ImGui::GetCurrentWindow() )
         {
-            const ImFluentStyle & T = GetStyle();
+            const ImFluentStyle & style = GetStyle();
             const ImRect bb( w->Pos, ImVec2( w->Pos.x + w->Size.x, w->Pos.y + w->Size.y ) );
 
             ImDrawList * fg = ImGui::GetForegroundDrawList( w );
-            ImFluentInternal::DrawElevationShadow( fg, bb, FluentDpx( T.OverlayCornerRadius ), 4 );
+            ImFluentInternal::DrawElevationShadow( fg, bb, FluentDpx( style.OverlayCornerRadius ), 4 );
         }
         ImGui::EndPopup();
         ImGui::PopStyleVar( 2 );
@@ -2391,13 +2437,13 @@ namespace ImFluent
 
     bool BeginMenuFlyout( const char * id )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleColor( ImGuiCol_HeaderHovered, GetColorU32( ImFluentCol_SubtleFillSecondary ) );
         ImGui::PushStyleColor( ImGuiCol_HeaderActive, GetColorU32( ImFluentCol_SubtleFillTertiary ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( T.OverlayCornerRadius ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 4.f ), FluentDpx( 4.f ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
         ApplyPopupAnchor( id );
         if ( ImGui::BeginPopup( id ) )
@@ -2412,14 +2458,14 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float h = FluentDpx( 32.f );
-        const float min_w = FluentDpx( 180.f );
+        const float h = FluentDpx( style.MenuItemHeight );
+        const float min_w = FluentDpx( style.NavPaneCompactWidth * 3.75f );
         const ImVec2 ts = ImGui::CalcTextSize( label );
         const ImVec2 ss = shortcut ? ImGui::CalcTextSize( shortcut ) : ImVec2( 0, 0 );
         const ImVec2 pos = w->DC.CursorPos;
-        const float W = ImMax( min_w, ts.x + ss.x + FluentDpx( 64.f ) );
+        const float W = ImMax( min_w, ts.x + ss.x + FluentDpx( style.AppBarButtonWidth ) );
         const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
         ImGui::ItemSize( bb );
         if ( !ImGui::ItemAdd( bb, id ) ) return false;
@@ -2429,27 +2475,27 @@ namespace ImFluent
         if ( hov || selected )
         {
             const ImU32 bg = held ? GetColorU32( ImFluentCol_SubtleFillTertiary ) : GetColorU32( ImFluentCol_SubtleFillSecondary );
-            dl->AddRectFilled( bb.Min, bb.Max, bg, FluentDpx( T.ControlCornerRadius ) );
+            dl->AddRectFilled( bb.Min, bb.Max, bg, FluentDpx( style.ControlCornerRadius ) );
         }
         const float cy = (bb.Min.y + bb.Max.y - ts.y) * 0.5f;
         if ( glyph )
-            dl->AddText( ImVec2( bb.Min.x + FluentDpx( 12.f ), cy ), enabled ? GetColorU32( ImFluentCol_TextPrimary ) : GetColorU32( ImFluentCol_TextDisabled ), glyph );
-        dl->AddText( ImVec2( bb.Min.x + FluentDpx( 40.f ), cy ), enabled ? GetColorU32( ImFluentCol_TextPrimary ) : GetColorU32( ImFluentCol_TextDisabled ), label );
+            dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingLarge ), cy ), enabled ? GetColorU32( ImFluentCol_TextPrimary ) : GetColorU32( ImFluentCol_TextDisabled ), glyph );
+        dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.NavItemHeight ), cy ), enabled ? GetColorU32( ImFluentCol_TextPrimary ) : GetColorU32( ImFluentCol_TextDisabled ), label );
         if ( shortcut )
-            dl->AddText( ImVec2( bb.Max.x - FluentDpx( 12.f ) - ss.x, cy ), GetColorU32( ImFluentCol_TextSecondary ), shortcut );
+            dl->AddText( ImVec2( bb.Max.x - FluentDpx( style.SpacingLarge ) - ss.x, cy ), GetColorU32( ImFluentCol_TextSecondary ), shortcut );
         return pressed;
     }
 
     void MenuFlyoutSeparator()
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return;
         const ImVec2 pos = w->DC.CursorPos;
         const float W = ImGui::GetContentRegionAvail().x;
-        const float pad = FluentDpx( 4.f );
+        const float pad = FluentDpx( style.SpacingSmall );
         const ImRect bb( ImVec2( pos.x + pad, pos.y + 2.f ), ImVec2( pos.x + W - pad, pos.y + 3.f ) );
-        ImGui::ItemSize( ImVec2( W, FluentDpx( 6.f ) ) );
+        ImGui::ItemSize( ImVec2( W, FluentDpx( style.SpacingMedium - 2.f ) ) );
         if ( !ImGui::ItemAdd( bb, 0 ) ) return;
         w->DrawList->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_DividerStrokeDefault ) );
     }
@@ -2468,17 +2514,17 @@ namespace ImFluent
 
     bool BeginContentDialog( const char * id, const char * title )
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeDefault ) );
         ImGui::PushStyleColor( ImGuiCol_ModalWindowDimBg, GetColorU32( ImFluentCol_SmokeFill ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( T.OverlayCornerRadius ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 24.f ), FluentDpx( 24.f ) ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXXLarge ), FluentDpx( style.SpacingXXLarge ) ) );
         const ImVec2 vp_size = ImGui::GetMainViewport()->WorkSize;
         const ImVec2 vp_pos = ImGui::GetMainViewport()->WorkPos;
         ImGui::SetNextWindowPos( ImVec2( vp_pos.x + vp_size.x * 0.5f, vp_pos.y + vp_size.y * 0.5f ),
                                  ImGuiCond_Always, ImVec2( 0.5f, 0.5f ) );
-        ImGui::SetNextWindowSize( ImVec2( FluentDpx( 480.f ), 0.f ), ImGuiCond_Always );
+        ImGui::SetNextWindowSize( ImVec2( FluentDpx( style.ControlMinWidth * 4.f ), 0.f ), ImGuiCond_Always );
         bool open = ImGui::BeginPopupModal( id, NULL,
                                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar );
         if ( !open )
@@ -2488,15 +2534,16 @@ namespace ImFluent
             return false;
         }
         ImFluent::TextBlock( title, ImFluentTextStyle_Subtitle );
-        ImGui::Dummy( ImVec2( 0, FluentDpx( 8.f ) ) );
+        ImGui::Dummy( ImVec2( 0, FluentDpx( style.SpacingMedium ) ) );
         return true;
     }
 
     int EndContentDialog( const char * primary, const char * secondary, const char * close_text )
     {
+        const ImFluentStyle & style = GetStyle();
         int result = 0;
-        ImGui::Dummy( ImVec2( 0, FluentDpx( 16.f ) ) );
-        const float gap = FluentDpx( 8.f );
+        ImGui::Dummy( ImVec2( 0, FluentDpx( style.SpacingXLarge ) ) );
+        const float gap = FluentDpx( style.SpacingMedium );
         const float w = ImGui::GetContentRegionAvail().x;
         int btn_count = (primary ? 1 : 0) + (secondary ? 1 : 0) + (close_text ? 1 : 0);
         if ( btn_count == 0 ) btn_count = 1;
@@ -2504,7 +2551,7 @@ namespace ImFluent
         int placed = 0;
         if ( primary )
         {
-            if ( ImFluent::AccentButton( primary, ImVec2( btn_w, FluentDpx( 32.f ) ) ) )
+            if ( ImFluent::AccentButton( primary, ImVec2( btn_w, FluentDpx( style.ControlHeight ) ) ) )
             {
                 result = 1;
                 ImGui::CloseCurrentPopup();
@@ -2513,7 +2560,7 @@ namespace ImFluent
         }
         if ( secondary )
         {
-            if ( ImFluent::Button( secondary, ImVec2( btn_w, FluentDpx( 32.f ) ) ) )
+            if ( ImFluent::Button( secondary, ImVec2( btn_w, FluentDpx( style.ControlHeight ) ) ) )
             {
                 result = 2;
                 ImGui::CloseCurrentPopup();
@@ -2522,7 +2569,7 @@ namespace ImFluent
         }
         if ( close_text )
         {
-            if ( ImFluent::Button( close_text, ImVec2( btn_w, FluentDpx( 32.f ) ) ) )
+            if ( ImFluent::Button( close_text, ImVec2( btn_w, FluentDpx( style.ControlHeight ) ) ) )
             {
                 result = 3;
                 ImGui::CloseCurrentPopup();
@@ -2537,7 +2584,7 @@ namespace ImFluent
     void InfoBar( ImFluentInfoSeverity sev, const char * title, const char * msg, bool * is_open, const char * glyph_override )
     {
         if ( is_open && !*is_open ) return;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
 
         ImU32 sevCol; const char * glyph;
         switch ( sev )
@@ -2558,19 +2605,19 @@ namespace ImFluent
         if ( w->SkipItems ) return;
 
         const float W       = ImGui::GetContentRegionAvail().x;
-        const float pad_x   = FluentDpx( 16.f );
-        const float pad_y   = FluentDpx( 12.f );
-        const float icon_w  = FluentDpx( 28.f );
-        const float close_w = is_open ? FluentDpx( 32.f ) : 0.f;
+        const float pad_x   = FluentDpx( style.SpacingXLarge );
+        const float pad_y   = FluentDpx( style.SpacingLarge );
+        const float icon_w  = FluentDpx( style.SpinButtonWidth );
+        const float close_w = is_open ? FluentDpx( style.ControlHeight ) : 0.f;
         const float text_x  = pad_x + icon_w;
         const float text_avail = ImMax( 1.f, W - text_x - close_w - pad_x );
 
         const float font_h   = ImGui::GetFontSize();
         const ImVec2 title_sz = title && *title ? ImGui::CalcTextSize( title, NULL, false, text_avail ) : ImVec2( 0, 0 );
         const ImVec2 msg_sz   = msg   && *msg   ? ImGui::CalcTextSize( msg,   NULL, false, text_avail ) : ImVec2( 0, 0 );
-        const float gap      = ( title_sz.y > 0 && msg_sz.y > 0 ) ? FluentDpx( 2.f ) : 0.f;
+        const float gap      = ( title_sz.y > 0 && msg_sz.y > 0 ) ? FluentDpx( style.SpacingXSmall ) : 0.f;
         const float text_h   = title_sz.y + gap + msg_sz.y;
-        const float min_h    = FluentDpx( 48.f );
+        const float min_h    = FluentDpx( style.NavPaneCompactWidth );
         const float h        = ImMax( min_h, text_h + pad_y * 2.f );
 
         const ImVec2 pos = w->DC.CursorPos;
@@ -2579,15 +2626,15 @@ namespace ImFluent
         if ( !ImGui::ItemAdd( bb, 0 ) ) return;
 
         ImDrawList * dl = w->DrawList;
-        const float r = FluentDpx( T.OverlayCornerRadius );
+        const float r = FluentDpx( style.OverlayCornerRadius );
 
         dl->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_CardBgDefault ), r );
         if ( bgTint ) dl->AddRectFilled( bb.Min, bb.Max, bgTint, r );
         dl->AddRect      ( bb.Min, bb.Max, GetColorU32( ImFluentCol_CardStrokeDefault ), r, 0, 1.f );
 
-        dl->AddRectFilled( bb.Min, ImVec2( bb.Min.x + FluentDpx( 4.f ), bb.Max.y ), sevCol, r );
+        dl->AddRectFilled( bb.Min, ImVec2( bb.Min.x + FluentDpx( style.SeverityBarThickness ), bb.Max.y ), sevCol, r );
 
-        dl->AddText( ImVec2( bb.Min.x + FluentDpx( 16.f ), bb.Min.y + pad_y ), sevCol, glyph );
+        dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingXLarge ), bb.Min.y + pad_y ), sevCol, glyph );
 
         const float text_left = bb.Min.x + text_x;
         float       text_y    = bb.Min.y + pad_y;
@@ -2610,9 +2657,9 @@ namespace ImFluent
 
         if ( is_open )
         {
-            const float close_sz = FluentDpx( 24.f );
-            const float cx_min   = bb.Max.x - close_sz - FluentDpx( 8.f );
-            const float cy_min   = bb.Min.y + FluentDpx( 8.f );
+            const float close_sz = FluentDpx( style.SpacingXXLarge );
+            const float cx_min   = bb.Max.x - close_sz - FluentDpx( style.SpacingMedium );
+            const float cy_min   = bb.Min.y + FluentDpx( style.SpacingMedium );
             const ImRect close_bb( ImVec2( cx_min, cy_min ),
                                    ImVec2( cx_min + close_sz, cy_min + close_sz ) );
             const ImGuiID cid = w->GetID( ( const void * )is_open );
@@ -2622,11 +2669,11 @@ namespace ImFluent
                 const bool pr = ImGui::ButtonBehavior( close_bb, cid, &hov, &held );
                 if ( pr ) *is_open = false;
             }
-            if ( hov ) dl->AddRectFilled( close_bb.Min, close_bb.Max, GetColorU32( ImFluentCol_SubtleFillSecondary ), FluentDpx( T.ControlCornerRadius ) );
+            if ( hov ) dl->AddRectFilled( close_bb.Min, close_bb.Max, GetColorU32( ImFluentCol_SubtleFillSecondary ), FluentDpx( style.ControlCornerRadius ) );
             const ImVec2 cc( ( close_bb.Min.x + close_bb.Max.x ) * 0.5f, ( close_bb.Min.y + close_bb.Max.y ) * 0.5f );
-            const float L = FluentDpx( 5.f );
-            dl->AddLine( ImVec2( cc.x - L, cc.y - L ), ImVec2( cc.x + L, cc.y + L ), GetColorU32( ImFluentCol_TextPrimary ), 1.5f );
-            dl->AddLine( ImVec2( cc.x - L, cc.y + L ), ImVec2( cc.x + L, cc.y - L ), GetColorU32( ImFluentCol_TextPrimary ), 1.5f );
+            const float L = FluentDpx( style.ChevronGlyphSize + 1.f );
+            dl->AddLine( ImVec2( cc.x - L, cc.y - L ), ImVec2( cc.x + L, cc.y + L ), GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
+            dl->AddLine( ImVec2( cc.x - L, cc.y + L ), ImVec2( cc.x + L, cc.y - L ), GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
         }
     }
 
@@ -2634,11 +2681,11 @@ namespace ImFluent
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return;
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const bool dot = (count < 0 && !glyph);
         if ( dot )
         {
-            const float D = FluentDpx( 8.f );
+            const float D = FluentDpx( style.SpacingMedium );
             const ImVec2 pos = w->DC.CursorPos;
             const ImRect bb( pos, ImVec2( pos.x + D, pos.y + D ) );
             ImGui::ItemSize( bb );
@@ -2654,8 +2701,8 @@ namespace ImFluent
         }
         const char * text = glyph ? glyph : buf;
         const ImVec2 ts = ImGui::CalcTextSize( text );
-        const float pad_x = FluentDpx( 6.f );
-        const float h = FluentDpx( 16.f );
+        const float pad_x = FluentDpx( style.SpacingMedium - 2.f );
+        const float h = FluentDpx( style.BadgeHeight );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + ImMax( ts.x + pad_x * 2.f, h ), pos.y + h ) );
         ImGui::ItemSize( bb );
@@ -2668,7 +2715,7 @@ namespace ImFluent
 
     bool BeginMenuBar()
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushStyleColor( ImGuiCol_MenuBarBg, GetColorU32( ImFluentCol_LayerFillDefault ) );
         return ImGui::BeginMainMenuBar();
     }
@@ -2683,10 +2730,10 @@ namespace ImFluent
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         const ImGuiID id = w->GetID( label );
-        const float W = (size_arg.x > 0 ? size_arg.x : FluentDpx( 64.f ));
-        const float H = (size_arg.y > 0 ? size_arg.y : FluentDpx( 56.f ));
+        const float W = (size_arg.x > 0 ? size_arg.x : FluentDpx( style.AppBarButtonWidth ));
+        const float H = (size_arg.y > 0 ? size_arg.y : FluentDpx( style.AppBarButtonHeight ));
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + W, pos.y + H ) );
         ImGui::ItemSize( bb );
@@ -2694,30 +2741,30 @@ namespace ImFluent
         bool hov = false, held = false;
         const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
         ImDrawList * dl = w->DrawList;
-        const float r = FluentDpx( T.ControlCornerRadius );
+        const float r = FluentDpx( style.ControlCornerRadius );
         ImU32 fill = ResolveSubtleFillState( false , held, hov );
         dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
         if ( glyph )
         {
             const ImVec2 gs = ImGui::CalcTextSize( glyph );
-            dl->AddText( ImVec2( bb.Min.x + (W - gs.x) * 0.5f, bb.Min.y + FluentDpx( 8.f ) ), GetColorU32( ImFluentCol_TextPrimary ), glyph );
+            dl->AddText( ImVec2( bb.Min.x + (W - gs.x) * 0.5f, bb.Min.y + FluentDpx( style.SpacingMedium ) ), GetColorU32( ImFluentCol_TextPrimary ), glyph );
         }
         const ImVec2 ts = ImGui::CalcTextSize( label );
-        dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f, bb.Max.y - ts.y - FluentDpx( 6.f ) ), GetColorU32( ImFluentCol_TextPrimary ), label );
+        dl->AddText( ImVec2( bb.Min.x + (W - ts.x) * 0.5f, bb.Max.y - ts.y - FluentDpx( style.SpacingMedium - 2.f ) ), GetColorU32( ImFluentCol_TextPrimary ), label );
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
         return pressed;
     }
 
     void AppBarSeparator()
     {
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems ) return;
-        const float H = FluentDpx( 40.f );
+        const float H = FluentDpx( style.NavItemHeight );
         const ImVec2 pos = w->DC.CursorPos;
-        const ImRect bb( ImVec2( pos.x + FluentDpx( 4.f ), pos.y + FluentDpx( 8.f ) ),
-                         ImVec2( pos.x + FluentDpx( 5.f ), pos.y + H - FluentDpx( 8.f ) ) );
-        ImGui::ItemSize( ImVec2( FluentDpx( 9.f ), H ) );
+        const ImRect bb( ImVec2( pos.x + FluentDpx( style.SpacingSmall ), pos.y + FluentDpx( style.SpacingMedium ) ),
+                         ImVec2( pos.x + FluentDpx( style.SpacingSmall + 1.f ), pos.y + H - FluentDpx( style.SpacingMedium ) ) );
+        ImGui::ItemSize( ImVec2( FluentDpx( style.SpacingMedium + 1.f ), H ) );
         if ( !ImGui::ItemAdd( bb, 0 ) ) return;
         w->DrawList->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_DividerStrokeDefault ) );
     }
@@ -2742,10 +2789,11 @@ namespace ImFluent
     bool DatePicker( const char * label, ImFluentDate * date )
     {
         if ( !date ) return false;
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushID( label );
         bool changed = false;
         int dim = DaysInMonth( date->Year, date->Month );
-        ImGui::PushItemWidth( FluentDpx( 120.f ) );
+        ImGui::PushItemWidth( FluentDpx( style.ControlMinWidth ) );
         int day = date->Day, month = date->Month, year = date->Year;
         if ( ImGui::DragInt( "##day", &day, 0.1f, 1, dim, "Day %d" ) ) { date->Day = day;   changed = true; }
         ImGui::SameLine();
@@ -2764,10 +2812,11 @@ namespace ImFluent
     bool TimePicker( const char * label, ImFluentTime * time )
     {
         if ( !time ) return false;
+        const ImFluentStyle & style = GetStyle();
         ImGui::PushID( label );
         bool changed = false;
         int h = time->Hour, m = time->Minute;
-        ImGui::PushItemWidth( FluentDpx( 96.f ) );
+        ImGui::PushItemWidth( FluentDpx( style.NavPaneCompactWidth * 2.f ) );
         if ( ImGui::DragInt( "##hour", &h, 0.1f, 0, 23, "%02d h" ) ) { time->Hour = h; changed = true; }
         ImGui::SameLine();
         if ( ImGui::DragInt( "##minute", &m, 0.5f, 0, 59, "%02d min" ) ) { time->Minute = m; changed = true; }
@@ -2784,8 +2833,8 @@ namespace ImFluent
         if ( date->Year > 0 )
             ImFormatString( preview, IM_ARRAYSIZE( preview ), "%04d-%02d-%02d", date->Year, date->Month, date->Day );
         bool changed = false;
-        const ImFluentStyle & T = GetStyle();
-        const float h = FluentDpx( T.ControlHeight );
+        const ImFluentStyle & style = GetStyle();
+        const float h = FluentDpx( style.ControlHeight );
         const float w = ImGui::CalcItemWidth();
         ImGui::PushID( label );
         if ( ImFluent::Button( preview[0] ? preview : (hint ? hint : "Pick a date"), ImVec2( w, h ) ) )
@@ -2802,7 +2851,7 @@ namespace ImFluent
             ImGui::Separator();
 
             const int dim = DaysInMonth( date->Year, date->Month );
-            const float cell = FluentDpx( 32.f );
+            const float cell = FluentDpx( style.ControlHeight );
             for ( int d = 1; d <= dim; ++d )
             {
                 char buf[8]; ImFormatString( buf, IM_ARRAYSIZE( buf ), "%2d", d );
@@ -2831,7 +2880,7 @@ namespace ImFluent
         int clicked = -1;
         ImGui::PushID( id );
         ImGui::BeginGroup();
-        const ImFluentStyle & T = GetStyle();
+        const ImFluentStyle & style = GetStyle();
         for ( int i = 0; i < items_count; ++i )
         {
             const bool last = (i == items_count - 1);
