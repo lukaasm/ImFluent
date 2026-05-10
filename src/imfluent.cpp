@@ -890,7 +890,7 @@ namespace ImFluentInternal
     {
         using namespace ImFluent;
         const ImFluentStyle & style = GetStyle();
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_AcrylicFill ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( padding_x ), FluentDpx( padding_y ) ) );
@@ -1236,8 +1236,8 @@ namespace ImFluent
         }
         else
         {
-            boxFill = held ? GetColorU32( ImFluentCol_ControlAltFillTertiary )
-                : hovered ? GetColorU32( ImFluentCol_ControlAltFillSecondary )
+            boxFill = held ? GetColorU32( ImFluentCol_ControlAltFillQuarternary )
+                : hovered ? GetColorU32( ImFluentCol_ControlAltFillTertiary )
                 : GetColorU32( ImFluentCol_ControlAltFillSecondary );
             boxStroke = GetColorU32( ImFluentCol_ControlStrongStrokeDefault );
         }
@@ -1525,7 +1525,6 @@ namespace ImFluent
         const float inner_r = AnimateFloat( id ^ 0xC110, inner_target, 0.083f );
         const ImVec2 c( thumb_cx, (track_min.y + track_max.y) * 0.5f );
         dl->AddCircleFilled( c, thumb_r, GetColorU32( ImFluentCol_ControlSolidFillDefault ), 32 );
-        dl->AddCircle      ( c, thumb_r, GetColorU32( ImFluentCol_ControlStrokeDefault    ), 32, FluentDpx( style.StrokeThin ) );
         dl->AddCircleFilled( c, inner_r, GetColorU32( ImFluentCol_AccentFillDefault       ), 24 );
 
         if ( IsItemFocused( id ) ) DrawFocusRing( dl, frame_bb, FluentDpx( style.ControlCornerRadius ) );
@@ -1661,7 +1660,7 @@ namespace ImFluent
                                                                             : GetColorU32( ImFluentCol_AccentFillDefault );
 
         ImDrawList * dl = w->DrawList;
-        dl->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_ControlStrongStrokeDisabled ), h * 0.5f );
+        dl->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_ControlStrongFillDefault, 0.20f ), h * 0.5f );
         if ( fraction > 0.f )
             dl->AddRectFilled( bb.Min, ImVec2( bb.Min.x + W * fraction, bb.Max.y ), fill_col, h * 0.5f );
         if ( overlay )
@@ -1707,7 +1706,7 @@ namespace ImFluent
             if ( fraction > 1.f ) fraction = 1.f;
             const int segs = 64;
 
-            dl->AddCircle( c, radius, GetColorU32( ImFluentCol_ControlStrongStrokeDisabled ), segs, thickness );
+            dl->AddCircle( c, radius, GetColorU32( ImFluentCol_ControlStrongFillDefault, 0.20f ), segs, thickness );
             if ( fraction > 0.f )
             {
                 const float a0 = -IM_PI * 0.5f;
@@ -2022,7 +2021,7 @@ namespace ImFluent
     {
         if ( !ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) ) return;
         const ImFluentStyle & style = GetStyle();
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_AcrylicFill ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingLarge ), FluentDpx( style.SpacingMedium ) ) );
@@ -2037,7 +2036,7 @@ namespace ImFluent
     bool BeginCard( const char * id, const ImVec2 & size, ImFluentCardStyle card_style )
     {
         const ImFluentStyle & style = GetStyle();
-        const ImU32 bg = (card_style == ImFluentCardStyle_Outlined) ? GetColorU32( ImFluentCol_SubtleFillTransparent ) : GetColorU32( ImFluentCol_CardBgDefault );
+        const ImU32 bg = (card_style == ImFluentCardStyle_Outlined) ? GetColorU32( ImFluentCol_CardBgSecondary ) : GetColorU32( ImFluentCol_CardBgDefault );
         const ImU32 stroke = GetColorU32( ImFluentCol_CardStrokeDefault );
         ImGui::PushStyleColor( ImGuiCol_ChildBg, bg );
         ImGui::PushStyleColor( ImGuiCol_Border, stroke );
@@ -2220,7 +2219,7 @@ namespace ImFluent
 
         if ( isOpen )
         {
-            ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_CardBgSecondary ) );
+            ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_CardBgDefault ) );
             ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, r );
             ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingLarge ) ) );
             ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders );
@@ -2871,7 +2870,7 @@ namespace ImFluent
     bool BeginFlyout( const char * id )
     {
         const ImFluentStyle & style = GetStyle();
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_AcrylicFill ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXLarge ), FluentDpx( style.SpacingXLarge ) ) );
@@ -2911,7 +2910,7 @@ namespace ImFluent
     bool BeginMenuFlyout( const char * id )
     {
         const ImFluentStyle & style = GetStyle();
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_AcrylicFill ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleColor( ImGuiCol_HeaderHovered, GetColorU32( ImFluentCol_SubtleFillSecondary ) );
         ImGui::PushStyleColor( ImGuiCol_HeaderActive, GetColorU32( ImFluentCol_SubtleFillTertiary ) );
@@ -3028,7 +3027,7 @@ namespace ImFluent
                      enabled ? GetColorU32( ImFluentCol_TextSecondary ) : GetColorU32( ImFluentCol_TextDisabled ),
                      FluentDpx( style.ChevronGlyphSize ) );
 
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_AcrylicFill ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleColor( ImGuiCol_HeaderHovered, GetColorU32( ImFluentCol_SubtleFillSecondary ) );
         ImGui::PushStyleColor( ImGuiCol_HeaderActive, GetColorU32( ImFluentCol_SubtleFillTertiary ) );
@@ -3079,7 +3078,7 @@ namespace ImFluent
     bool BeginContentDialog( const char * id, const char * title )
     {
         const ImFluentStyle & style = GetStyle();
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_SolidBgBase ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeDefault ) );
         ImGui::PushStyleColor( ImGuiCol_ModalWindowDimBg, GetColorU32( ImFluentCol_SmokeFill ) );
         ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
@@ -3155,7 +3154,7 @@ namespace ImFluent
             case ImFluentInfoSeverity_Warning:  sevCol = GetColorU32( ImFluentCol_SystemFillCaution );     glyph = "\xEE\x9D\xA3" ; break;
             case ImFluentInfoSeverity_Critical: sevCol = GetColorU32( ImFluentCol_SystemFillCritical );    glyph = "\xEE\xA3\x83" ; break;
             case ImFluentInfoSeverity_Informational:
-            default:                            sevCol = GetColorU32( ImFluentCol_SystemFillAttention );   glyph = "\xEE\xA5\x86" ; break;
+            default:                            sevCol = GetColorU32( ImFluentCol_SystemFillNeutral );     glyph = "\xEE\xA5\x86" ; break;
         }
         if ( glyph_override ) glyph = glyph_override;
 
@@ -3371,7 +3370,7 @@ namespace ImFluent
     bool BeginTeachingTip( const char * id, const char * title, ImFluentTeachingTipPlacement placement )
     {
         const ImFluentStyle & style = GetStyle();
-        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_LayerFillAlt ) );
+        ImGui::PushStyleColor( ImGuiCol_PopupBg, GetColorU32( ImFluentCol_AcrylicFill ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
         ImGui::PushStyleVar( ImGuiStyleVar_PopupRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding,
@@ -3689,9 +3688,10 @@ namespace ImFluent
         const float r = FluentDpx( style.ControlCornerRadius );
         ImU32 fill;
         if ( on )
-            fill = held ? GetColorU32( ImFluentCol_AccentFillTertiary )
-                 : hov  ? GetColorU32( ImFluentCol_AccentFillSecondary )
-                 :        GetColorU32( ImFluentCol_AccentFillDefault );
+            // WinUI AppBarToggleButtonBackgroundChecked uses softer accent than AccentButton.
+            fill = held ? GetColorU32( ImFluentCol_AccentFillDisabled )
+                 : hov  ? GetColorU32( ImFluentCol_AccentFillTertiary )
+                 :        GetColorU32( ImFluentCol_AccentFillSecondary );
         else
             fill = ResolveSubtleFillState( false , held, hov );
         dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
