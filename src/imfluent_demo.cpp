@@ -13,6 +13,7 @@
 #include "imfluent_icons.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <cstdarg>
 #include <cstdio>
@@ -286,8 +287,9 @@ static void ControlExampleOutput(const char* fmt, ...)
     va_end(ap);
     ImGui::Dummy(ImVec2(0.f, FluentDpx(8.f)));
     ImFluent::Separator();
-    char line[576];
-    std::snprintf(line, sizeof(line), "Output: %s", g_CE.Output);
+    const char* line; const char* line_end;
+    ImFormatStringToTempBuffer(&line, &line_end, "Output: %s", g_CE.Output);
+    (void)line_end;
     TextBlock(line, ImFluentTextStyle_Caption);
 }
 
@@ -773,7 +775,9 @@ static void Page_Item_GridView()
     static int s = 0;
     for (int i = 0; i < 8; ++i)
     {
-        char buf[16]; std::snprintf(buf, sizeof(buf), "Tile %d", i + 1);
+        const char* buf; const char* buf_end;
+        ImFormatStringToTempBuffer(&buf, &buf_end, "Tile %d", i + 1);
+        (void)buf_end;
         if (GridViewItem(buf, s == i, ImVec2(140.f, 100.f))) s = i;
         if ((i % 4) != 3) ImGui::SameLine();
     }
@@ -897,7 +901,9 @@ static void Page_Item_NavigationView()
     ImGui::SameLine();
     ImGui::BeginGroup();
     TextBlock("(toggle the pane with the menu icon)", ImFluentTextStyle_Caption);
-    char line[64]; std::snprintf(line, sizeof(line), "Back clicks: %d", back_clicks);
+    const char* line; const char* line_end;
+    ImFormatStringToTempBuffer(&line, &line_end, "Back clicks: %d", back_clicks);
+    (void)line_end;
     TextBlock(line, ImFluentTextStyle_Caption);
     ImGui::EndGroup();
     EndControlExample();
@@ -1395,7 +1401,9 @@ static void Page_AllControls()
         ImGui::PushID(i);
         if (GridViewItem(c.Title, false, ImVec2(FluentDpx(220.f), FluentDpx(96.f))))
         {
-            char p[128]; std::snprintf(p, sizeof(p), "Item_%s", c.UniqueId);
+            const char* p; const char* p_end;
+            ImFormatStringToTempBuffer(&p, &p_end, "Item_%s", c.UniqueId);
+            (void)p_end;
             Navigate(p);
         }
         ImGui::PopID();
@@ -1419,7 +1427,9 @@ static void Page_Section(const char* groupId)
         ImGui::PushID(i);
         if (GridViewItem(c.Title, false, ImVec2(FluentDpx(220.f), FluentDpx(96.f))))
         {
-            char p[128]; std::snprintf(p, sizeof(p), "Item_%s", c.UniqueId);
+            const char* p; const char* p_end;
+            ImFormatStringToTempBuffer(&p, &p_end, "Item_%s", c.UniqueId);
+            (void)p_end;
             Navigate(p);
         }
         ImGui::PopID();
@@ -1443,8 +1453,9 @@ static void Page_Settings()
     ImGui::Dummy(ImVec2(0, FluentDpx(16.f)));
     TextBlock("About", ImFluentTextStyle_Subtitle);
     TextBlock("ImFluent — Dear ImGui port of the Fluent 2 design system.", ImFluentTextStyle_Body);
-    char ver[64];
-    std::snprintf(ver, sizeof(ver), "DPI scale: %.0f%%", ImGui::GetStyle().FontScaleDpi * 100.f);
+    const char* ver; const char* ver_end;
+    ImFormatStringToTempBuffer(&ver, &ver_end, "DPI scale: %.0f%%", ImGui::GetStyle().FontScaleDpi * 100.f);
+    (void)ver_end;
     TextBlockColored(ver, ImFluent::GetColorU32(ImFluentCol_TextSecondary), ImFluentTextStyle_Caption);
 }
 
@@ -1531,7 +1542,9 @@ static void DrawNavigationPane()
     for (int g = 0; g < g_GroupsCount; ++g)
     {
         const GroupInfo& gi = g_Groups[g];
-        char pid[64]; std::snprintf(pid, sizeof(pid), "Section_%s", gi.GroupId);
+        const char* pid; const char* pid_end;
+        ImFormatStringToTempBuffer(&pid, &pid_end, "Section_%s", gi.GroupId);
+        (void)pid_end;
         const bool sel = (std::strcmp(CurrentPageId(), pid) == 0) || (g_State.ExpandedGroup == g);
         if (NavItem(gi.Title, sel, gi.Glyph))
         {
@@ -1544,7 +1557,9 @@ static void DrawNavigationPane()
             {
                 const ControlInfo& c = g_Controls[i];
                 if (std::strcmp(c.GroupId, gi.GroupId) != 0) continue;
-                char ipid[128]; std::snprintf(ipid, sizeof(ipid), "Item_%s", c.UniqueId);
+                const char* ipid; const char* ipid_end;
+                ImFormatStringToTempBuffer(&ipid, &ipid_end, "Item_%s", c.UniqueId);
+                (void)ipid_end;
                 ImGui::Indent(ImFluent::FluentDpx(12.f));
                 if (NavItem(c.Title, std::strcmp(CurrentPageId(), ipid) == 0, c.Glyph))
                     Navigate(ipid);

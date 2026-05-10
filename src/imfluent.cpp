@@ -1611,15 +1611,15 @@ namespace ImFluent
 
         if ( format && *format )
         {
-            char buf[64];
-            ImFormatString( buf, IM_ARRAYSIZE( buf ), format, *v_min );
+            const char * txt; const char * txt_end;
+            ImFormatStringToTempBuffer( &txt, &txt_end, format, *v_min );
             ImGui::SameLine();
-            ImGui::TextUnformatted( buf );
+            ImGui::TextUnformatted( txt, txt_end );
             ImGui::SameLine();
             ImGui::TextUnformatted( "\xe2\x80\x93" );
             ImGui::SameLine();
-            ImFormatString( buf, IM_ARRAYSIZE( buf ), format, *v_max );
-            ImGui::TextUnformatted( buf );
+            ImFormatStringToTempBuffer( &txt, &txt_end, format, *v_max );
+            ImGui::TextUnformatted( txt, txt_end );
         }
 
         DrawAndConsumePendingDescription();
@@ -2301,13 +2301,13 @@ namespace ImFluent
         if ( w->SkipItems ) return false;
         glyph = ConsumePendingGlyph( glyph );
         const ImFluentStyle & style = GetStyle();
-        char buf[256];
-        if ( glyph ) ImFormatString( buf, IM_ARRAYSIZE( buf ), "%s  %s", glyph, label );
-        else       ImFormatString( buf, IM_ARRAYSIZE( buf ), "%s", label );
+        const char * txt; const char * txt_end;
+        if ( glyph ) ImFormatStringToTempBuffer( &txt, &txt_end, "%s  %s", glyph, label );
+        else         ImFormatStringToTempBuffer( &txt, &txt_end, "%s", label );
         const ImGuiID id = w->GetID( label );
         const float pad_x = FluentDpx( style.SpacingXLarge );
         const float pad_y = FluentDpx( style.SpacingMedium - 2.f );
-        const ImVec2 ts = ImGui::CalcTextSize( buf, NULL, true );
+        const ImVec2 ts = ImGui::CalcTextSize( txt, txt_end, true );
         const ImVec2 pos = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + ts.x + pad_x * 2.f, pos.y + ts.y + pad_y * 2.f ) );
         ImGui::ItemSize( bb );
@@ -2319,7 +2319,9 @@ namespace ImFluent
         fillTarget = ResolveSubtleFillState( selected, held, hovered );
         const ImU32 fillAnim = AnimateColorU32( id, fillTarget );
         dl->AddRectFilled( bb.Min, bb.Max, fillAnim, FluentDpx( style.ControlCornerRadius ) );
-        dl->AddText( ImVec2( bb.Min.x + pad_x, bb.Min.y + pad_y ), GetColorU32( ImFluentCol_TextPrimary ), buf );
+        dl->AddText( ImGui::GetFont(), ImGui::GetFontSize(),
+                     ImVec2( bb.Min.x + pad_x, bb.Min.y + pad_y ),
+                     GetColorU32( ImFluentCol_TextPrimary ), txt, txt_end );
         if ( selected )
         {
             const float bar_w = FluentDpx( style.SpacingXLarge );
@@ -3324,14 +3326,15 @@ namespace ImFluent
             w->DrawList->AddCircleFilled( ImVec2( pos.x + D * 0.5f, pos.y + D * 0.5f ), D * 0.5f, GetColorU32( ImFluentCol_AccentFillDefault ), 16 );
             return;
         }
-        char buf[16] = "";
-        if ( count >= 0 )
+        const char * text     = glyph;
+        const char * text_end = NULL;
+        if ( !glyph && count >= 0 )
         {
-            if ( count > 99 ) ImFormatString( buf, IM_ARRAYSIZE( buf ), "99+" );
-            else            ImFormatString( buf, IM_ARRAYSIZE( buf ), "%d", count );
+            if ( count > 99 ) ImFormatStringToTempBuffer( &text, &text_end, "99+" );
+            else              ImFormatStringToTempBuffer( &text, &text_end, "%d", count );
         }
-        const char * text = glyph ? glyph : buf;
-        const ImVec2 ts = ImGui::CalcTextSize( text );
+        if ( !text ) text = "";
+        const ImVec2 ts = ImGui::CalcTextSize( text, text_end );
         const float pad_x = FluentDpx( style.SpacingMedium - 2.f );
         const float h = FluentDpx( style.BadgeHeight );
         const ImVec2 pos = w->DC.CursorPos;
@@ -3339,9 +3342,10 @@ namespace ImFluent
         ImGui::ItemSize( bb );
         if ( !ImGui::ItemAdd( bb, 0 ) ) return;
         w->DrawList->AddRectFilled( bb.Min, bb.Max, GetColorU32( ImFluentCol_AccentFillDefault ), h * 0.5f );
-        w->DrawList->AddText( ImVec2( bb.Min.x + (bb.GetWidth() - ts.x) * 0.5f,
-                              bb.Min.y + (h - ts.y) * 0.5f ),
-                              GetColorU32( ImFluentCol_TextOnAccentPrimary ), text );
+        w->DrawList->AddText( ImGui::GetFont(), ImGui::GetFontSize(),
+                              ImVec2( bb.Min.x + (bb.GetWidth() - ts.x) * 0.5f,
+                                      bb.Min.y + (h - ts.y) * 0.5f ),
+                              GetColorU32( ImFluentCol_TextOnAccentPrimary ), text, text_end );
     }
 
     void OpenTeachingTip( const char * id )
@@ -3763,23 +3767,29 @@ namespace ImFluent
     bool CalendarDatePicker( const char * label, ImFluentDate * date, const char * hint )
     {
         if ( !date ) return false;
-        char preview[64] = "";
+        const char * preview     = NULL;
+        const char * preview_end = NULL;
         if ( date->Year > 0 )
-            ImFormatString( preview, IM_ARRAYSIZE( preview ), "%04d-%02d-%02d", date->Year, date->Month, date->Day );
+            ImFormatStringToTempBuffer( &preview, &preview_end, "%04d-%02d-%02d", date->Year, date->Month, date->Day );
         bool changed = false;
         const ImFluentStyle & style = GetStyle();
         const float h = FluentDpx( style.ControlHeight );
         const float w = ImGui::CalcItemWidth();
         ImGui::PushID( label );
-        if ( ImFluent::Button( preview[0] ? preview : (hint ? hint : LocalizeGetMsg( ImFluentLocKey_DatePickerPickADate )), ImVec2( w, h ) ) )
+        const char * btn_label = preview ? preview
+                                         : ( hint ? hint : LocalizeGetMsg( ImFluentLocKey_DatePickerPickADate ) );
+        if ( ImFluent::Button( btn_label, ImVec2( w, h ) ) )
             ImGui::OpenPopup( "##cal" );
         if ( ImGui::BeginPopup( "##cal" ) )
         {
 
             if ( ImFluent::Button( "<" ) ) { date->Month--; if ( date->Month < 1 ) { date->Month = 12; date->Year--; } }
             ImGui::SameLine();
-            char hdr[32]; ImFormatString( hdr, IM_ARRAYSIZE( hdr ), "%s %d", LocalizeGetMsg( ( ImFluentLocKey )( ImFluentLocKey_MonthJanuary + date->Month - 1 ) ), date->Year );
-            ImGui::TextUnformatted( hdr );
+            const char * hdr; const char * hdr_end;
+            ImFormatStringToTempBuffer( &hdr, &hdr_end, "%s %d",
+                                        LocalizeGetMsg( ( ImFluentLocKey )( ImFluentLocKey_MonthJanuary + date->Month - 1 ) ),
+                                        date->Year );
+            ImGui::TextUnformatted( hdr, hdr_end );
             ImGui::SameLine();
             if ( ImFluent::Button( ">" ) ) { date->Month++; if ( date->Month > 12 ) { date->Month = 1; date->Year++; } }
             ImGui::Separator();
@@ -3788,7 +3798,9 @@ namespace ImFluent
             const float cell = FluentDpx( style.ControlHeight );
             for ( int d = 1; d <= dim; ++d )
             {
-                char buf[8]; ImFormatString( buf, IM_ARRAYSIZE( buf ), "%2d", d );
+                const char * buf; const char * buf_end;
+                ImFormatStringToTempBuffer( &buf, &buf_end, "%2d", d );
+                ( void )buf_end;
                 const bool sel = (d == date->Day);
                 ImGui::PushID( d );
                 if ( sel ) ImGui::PushStyleColor( ImGuiCol_Button, GetColorU32( ImFluentCol_AccentFillDefault ) );
