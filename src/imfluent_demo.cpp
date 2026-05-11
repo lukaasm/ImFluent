@@ -39,54 +39,55 @@ struct GroupInfo
     const char* Glyph;
 };
 
-static void Page_Item_Button         ();
+static void Page_Item_Button();
 static void Page_Item_HyperlinkButton();
-static void Page_Item_DropDownButton ();
-static void Page_Item_SplitButton    ();
-static void Page_Item_ToggleButton   ();
-static void Page_Item_RepeatButton   ();
-static void Page_Item_CheckBox       ();
-static void Page_Item_RadioButton    ();
-static void Page_Item_ToggleSwitch   ();
-static void Page_Item_RatingControl  ();
-static void Page_Item_Slider         ();
-static void Page_Item_ProgressBar    ();
-static void Page_Item_ProgressRing   ();
-static void Page_Item_TextBox        ();
-static void Page_Item_PasswordBox    ();
-static void Page_Item_NumberBox      ();
-static void Page_Item_AutoSuggestBox ();
-static void Page_Item_RichEditBox    ();
-static void Page_Item_TextBlock      ();
-static void Page_Item_ComboBox       ();
-static void Page_Item_ListBox        ();
-static void Page_Item_ListView       ();
-static void Page_Item_TreeView       ();
-static void Page_Item_GridView       ();
-static void Page_Item_PipsPager      ();
-static void Page_Item_BreadcrumbBar  ();
-static void Page_Item_Card           ();
-static void Page_Item_Expander       ();
-static void Page_Item_TabView        ();
-static void Page_Item_NavigationView ();
-static void Page_Item_SelectorBar    ();
-static void Page_Item_InfoBar        ();
-static void Page_Item_InfoBadge      ();
-static void Page_Item_ToolTip        ();
-static void Page_Item_ContentDialog  ();
-static void Page_Item_Flyout         ();
-static void Page_Item_MenuFlyout     ();
-static void Page_Item_AppBarButton   ();
-static void Page_Item_DatePicker     ();
-static void Page_Item_TimePicker     ();
+static void Page_Item_DropDownButton();
+static void Page_Item_SplitButton();
+static void Page_Item_ToggleButton();
+static void Page_Item_RepeatButton();
+static void Page_Item_CheckBox();
+static void Page_Item_RadioButton();
+static void Page_Item_ToggleSwitch();
+static void Page_Item_RatingControl();
+static void Page_Item_Slider();
+static void Page_Item_ProgressBar();
+static void Page_Item_ProgressRing();
+static void Page_Item_TextBox();
+static void Page_Item_PasswordBox();
+static void Page_Item_NumberBox();
+static void Page_Item_AutoSuggestBox();
+static void Page_Item_RichEditBox();
+static void Page_Item_TextBlock();
+static void Page_Item_ComboBox();
+static void Page_Item_ListBox();
+static void Page_Item_ListView();
+static void Page_Item_TreeView();
+static void Page_Item_GridView();
+static void Page_Item_PipsPager();
+static void Page_Item_BreadcrumbBar();
+static void Page_Item_Card();
+static void Page_Item_Expander();
+static void Page_Item_TabView();
+static void Page_Item_NavigationView();
+static void Page_Item_SelectorBar();
+static void Page_Item_InfoBar();
+static void Page_Item_InfoBadge();
+static void Page_Item_ToolTip();
+static void Page_Item_ContentDialog();
+static void Page_Item_Flyout();
+static void Page_Item_MenuFlyout();
+static void Page_Item_AppBarButton();
+static void Page_Item_DatePicker();
+static void Page_Item_TimePicker();
 static void Page_Item_CalendarDatePicker();
-static void Page_Item_SettingsCard   ();
-static void Page_Item_StackPanel     ();
-static void Page_Item_WrapPanel      ();
-static void Page_Item_TeachingTip    ();
-static void Page_Item_TitleBar       ();
-static void Page_Item_StyleStack     ();
-static void Page_Item_CommandBar     ();
+static void Page_Item_SettingsCard();
+static void Page_Item_StackPanel();
+static void Page_Item_WrapPanel();
+static void Page_Item_TeachingTip();
+static void Page_Item_TitleBar();
+static void Page_Item_StyleStack();
+static void Page_Item_CommandBar();
+static void Page_Item_ColorPicker();
 
 static const ControlInfo g_Controls[] = {
     { "Button",          "BasicInput",  "Button",            "A control that responds to user input and raises a Click event.", ImFluentIcon_Add,           &Page_Item_Button },
@@ -146,6 +147,7 @@ static const ControlInfo g_Controls[] = {
     { "CalendarDatePicker", "DateTime", "CalendarDatePicker", "Drop-down calendar for picking a date.",                            ImFluentIcon_Calendar,    &Page_Item_CalendarDatePicker },
 
     { "StyleStack",         "Design",   "Style stack",        "Push/pop Fluent color and sizing tokens for scoped overrides.",     ImFluentIcon_Color,       &Page_Item_StyleStack },
+    { "ColorPicker",        "Design",   "ColorPicker",        "Pick a color via hue/saturation rect, sliders, hex, or palette swatch.", ImFluentIcon_Color, &Page_Item_ColorPicker },
 };
 static const int g_ControlsCount = (int)(sizeof(g_Controls) / sizeof(g_Controls[0]));
 
@@ -1554,6 +1556,57 @@ static void Page_Item_StyleStack()
     EndControlExample();
 }
 
+// [SECTION] ColorPicker
+
+static void Page_Item_ColorPicker()
+{
+    PageHeader("ColorPicker", "Pick a color via the saturation/value rect, hue slider, alpha slider, and hex/RGB inputs.");
+
+    if (BeginControlExample("Inline picker (RGB)"))
+    {
+    static float col[4] = { 0.30f, 0.60f, 0.95f, 1.00f };
+    ImGui::PushItemWidth(FluentDpx(320.f));
+    ColorPicker("##cp-rgb", col, ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview);
+    ImGui::PopItemWidth();
+    ControlExampleOutput("RGBA: (%.2f, %.2f, %.2f, %.2f)", col[0], col[1], col[2], col[3]);
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Compact edit + popup"))
+    {
+    static float c1[4] = { 0.96f, 0.45f, 0.25f, 1.00f };
+    static float c2[4] = { 0.45f, 0.85f, 0.60f, 1.00f };
+    static float c3[4] = { 0.55f, 0.40f, 0.90f, 1.00f };
+    ColorEdit("Primary",   c1);
+    ColorEdit("Success",   c2);
+    ColorEdit("Highlight", c3);
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Color swatches"))
+    {
+    static const ImU32 swatches[] = {
+        IM_COL32( 99, 102, 241, 255), IM_COL32( 16, 185, 129, 255), IM_COL32(244, 114, 182, 255),
+        IM_COL32(245, 158,  11, 255), IM_COL32(  6, 182, 212, 255), IM_COL32(168,  85, 247, 255),
+        IM_COL32(239,  68,  68, 255), IM_COL32( 14, 165, 233, 255),
+    };
+    static int picked = 0;
+    for (int i = 0; i < IM_ARRAYSIZE(swatches); ++i)
+    {
+        ImGui::PushID(i);
+        if (ColorButton("##swatch", ImColor(swatches[i]).Value,
+                         ImGuiColorEditFlags_NoBorder | ImGuiColorEditFlags_NoTooltip,
+                         ImVec2(FluentDpx(28.f), FluentDpx(28.f))))
+            picked = i;
+        ImGui::PopID();
+        ImGui::SameLine();
+    }
+    ImGui::NewLine();
+    ControlExampleOutput("Picked swatch #%d", picked);
+    }
+    EndControlExample();
+}
+
 // [SECTION] Top-level pages
 static void Page_Home()
 {
@@ -1806,7 +1859,7 @@ static void ShowDemoWindowImpl(bool* p_open)
     if (ImGui::IsKeyPressed(ImGuiKey_F3, false)) ImFluent::SetThemePreset(ImFluentThemePreset_HighContrast);
 
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos (vp->WorkPos);
+    ImGui::SetNextWindowPos(vp->WorkPos);
     ImGui::SetNextWindowSize(vp->WorkSize);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f);

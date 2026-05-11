@@ -359,6 +359,10 @@ namespace ImFluent
     IMGUI_API bool      Slider( const char * label, float * v, float v_min, float v_max, const char * format = "%.2f", ImGuiSliderFlags flags = 0 );
     IMGUI_API bool      SliderInt( const char * label, int * v, int v_min, int v_max, const char * format = "%d", ImGuiSliderFlags flags = 0 );
     IMGUI_API bool      RangeSlider( const char * label, float * v_min, float * v_max, float v_lo, float v_hi, const char * format = "%.2f" );
+
+    IMGUI_API bool      ColorPicker( const char * label, float col[4], ImGuiColorEditFlags flags = 0 );
+    IMGUI_API bool      ColorEdit( const char * label, float col[4], ImGuiColorEditFlags flags = 0 );
+    IMGUI_API bool      ColorButton( const char * desc_id, const ImVec4 & col, ImGuiColorEditFlags flags = 0, const ImVec2 & size = ImVec2( 0, 0 ) );
     IMGUI_API void      ProgressBar( float fraction, const ImVec2 & size_arg = ImVec2( -1.f, 0 ), const char * overlay = NULL, ImFluentProgressBarState state = ImFluentProgressBarState_Running );
     IMGUI_API void      ProgressRing( float diameter_dpx = 32.f, float fraction = -1.f );
 

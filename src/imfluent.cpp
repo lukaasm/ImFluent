@@ -1911,6 +1911,86 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
     return changed;
 }
 
+bool ImFluent::ColorPicker( const char * label, float col[4], ImGuiColorEditFlags flags )
+{
+    DrawAndConsumePendingHeader();
+    const ImFluentStyle & style = ImFluent::GetStyle();
+
+    ImFluentStackGuard g;
+    g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
+    g.PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingLarge ),
+                                                       (FluentDpx( style.ControlHeight ) - ImGui::GetFontSize()) * 0.5f ) );
+    g.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingMedium ),
+                                                      FluentDpx( style.SpacingSmall ) ) );
+    g.PushStyleColor( ImGuiCol_FrameBg, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
+    g.PushStyleColor( ImGuiCol_FrameBgHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
+    g.PushStyleColor( ImGuiCol_FrameBgActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
+    g.PushStyleColor( ImGuiCol_Button, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
+    g.PushStyleColor( ImGuiCol_ButtonHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
+    g.PushStyleColor( ImGuiCol_ButtonActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
+    g.PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ) );
+
+    const bool changed = ImGui::ColorPicker4( label, col, flags );
+
+    DrawAndConsumePendingDescription();
+    return changed;
+}
+
+bool ImFluent::ColorEdit( const char * label, float col[4], ImGuiColorEditFlags flags )
+{
+    DrawAndConsumePendingHeader();
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const float h = FluentDpx( style.ControlHeight );
+
+    ImFluentStackGuard g;
+    g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
+    g.PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingLarge ), (h - ImGui::GetFontSize()) * 0.5f ) );
+    g.PushStyleColor( ImGuiCol_FrameBg, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
+    g.PushStyleColor( ImGuiCol_FrameBgHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
+    g.PushStyleColor( ImGuiCol_FrameBgActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
+    g.PushStyleColor( ImGuiCol_Button, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
+    g.PushStyleColor( ImGuiCol_ButtonHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
+    g.PushStyleColor( ImGuiCol_ButtonActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
+    g.PushStyleColor( ImGuiCol_PopupBg, ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary ) );
+    g.PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_SurfaceStrokeFlyout ) );
+
+    const bool changed = ImGui::ColorEdit4( label, col, flags );
+
+    const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
+    DrawAndConsumePendingDescription();
+    DrawAndConsumePendingError( input_rect );
+    return changed;
+}
+
+bool ImFluent::ColorButton( const char * desc_id, const ImVec4 & col, ImGuiColorEditFlags flags, const ImVec2 & size )
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    ImFluentStackGuard g;
+    g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
+    g.PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ) );
+    const float d = (size.x > 0.f && size.y > 0.f) ? 0.f : FluentDpx( style.ControlHeight );
+    const ImVec2 sz = (size.x > 0.f && size.y > 0.f) ? size : ImVec2( d, d );
+    const bool pressed = ImGui::ColorButton( desc_id, col, flags, sz );
+    g.Restore();
+
+    const ImGuiContext & gc = *ImGui::GetCurrentContext();
+    const ImRect bb = gc.LastItemData.Rect;
+    const ImGuiID id = gc.LastItemData.ID;
+    const bool hovered = ImGui::IsItemHovered();
+    const bool held    = ImGui::IsItemActive();
+    if ( hovered || held )
+    {
+        ImDrawList * dl = ImGui::GetWindowDrawList();
+        const float r = FluentDpx( style.ControlCornerRadius );
+        const float th = ImFluent::FluentDpx( held ? style.StrokeThick : style.StrokeMedium );
+        const ImU32 ring = ImFluent::AnimateColorU32( id ^ 0xCB17u,
+            held ? ImFluent::GetColorU32( ImFluentCol_AccentFillTertiary )
+                 : ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ) );
+        dl->AddRect( bb.Min, bb.Max, ring, r, 0, th );
+    }
+    return pressed;
+}
+
 void ImFluent::ProgressBar( float fraction, const ImVec2 & size_arg, const char * overlay, ImFluentProgressBarState state )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
