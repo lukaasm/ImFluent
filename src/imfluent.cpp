@@ -3195,7 +3195,7 @@ bool ImFluent::NavBackButton( bool enabled, bool visible )
         : ImFluent::GetColorU32( ImFluentCol_TextDisabled );
     const float cy = (bb.Min.y + bb.Max.y - ImGui::GetFontSize()) * 0.5f;
     dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.StandardIconSize - 2.f ), cy ),
-                 textCol, ImFluentIcon_BackArrow );
+                 textCol, ImFluentIcon_Back );
 
     if ( enabled && IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     return pressed;
@@ -3682,7 +3682,7 @@ bool ImFluent::MenuFlyoutItem( const char * label, const char * shortcut, const 
 bool ImFluent::ToggleMenuFlyoutItem( const char * label, bool * v, const char * shortcut, bool enabled )
 {
     const bool selected = v && *v;
-    const char * mark = selected ? ImFluentIcon_Check : NULL;
+    const char * mark = selected ? ImFluentIcon_CheckMark : NULL;
     if ( MenuFlyoutItem( label, shortcut, mark, false, enabled ) )
     {
         if ( v ) *v = !*v;
@@ -3694,7 +3694,7 @@ bool ImFluent::ToggleMenuFlyoutItem( const char * label, bool * v, const char * 
 bool ImFluent::RadioMenuFlyoutItem( const char * label, int * v, int v_button, const char * shortcut, bool enabled )
 {
     const bool selected = v && (*v == v_button);
-    const char * mark = selected ? ImFluentIcon_Check : NULL;
+    const char * mark = selected ? ImFluentIcon_CheckMark : NULL;
     if ( MenuFlyoutItem( label, shortcut, mark, false, enabled ) )
     {
         if ( v ) *v = v_button;
@@ -4199,7 +4199,7 @@ static bool TitleBarChromeButton( const char * id, const char * glyph, bool enab
 bool ImFluent::TitleBarBackButton( bool enabled, bool visible )
 {
     if ( !visible ) return false;
-    return TitleBarChromeButton( "##tb-back", ImFluentIcon_BackArrow, enabled );
+    return TitleBarChromeButton( "##tb-back", ImFluentIcon_Back, enabled );
 }
 
 bool ImFluent::TitleBarPaneToggleButton( bool enabled, bool visible )

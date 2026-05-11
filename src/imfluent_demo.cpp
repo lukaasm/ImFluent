@@ -94,13 +94,13 @@ static const ControlInfo g_Controls[] = {
     { "HyperlinkButton", "BasicInput",  "HyperlinkButton",   "A button that appears as hyperlink text and can navigate to a URI.", ImFluentIcon_Share,         &Page_Item_HyperlinkButton },
     { "DropDownButton",  "BasicInput",  "DropDownButton",    "A button with a chevron that opens a flyout when clicked.",        ImFluentIcon_ChevronDown,   &Page_Item_DropDownButton },
     { "SplitButton",     "BasicInput",  "SplitButton",       "A button with two parts: an action button and a chevron drop-down.", ImFluentIcon_ChevronDown,   &Page_Item_SplitButton },
-    { "ToggleButton",    "BasicInput",  "ToggleButton",      "A button that can be on, off, or indeterminate.",                  ImFluentIcon_CheckboxOn,    &Page_Item_ToggleButton },
+    { "ToggleButton",    "BasicInput",  "ToggleButton",      "A button that can be on, off, or indeterminate.",                  ImFluentIcon_CheckboxComposite,    &Page_Item_ToggleButton },
     { "RepeatButton",    "BasicInput",  "RepeatButton",      "A button that fires its Click event repeatedly while held.",       ImFluentIcon_Refresh,       &Page_Item_RepeatButton },
-    { "CheckBox",        "BasicInput",  "CheckBox",          "A control a user can select or clear.",                            ImFluentIcon_CheckboxOn,    &Page_Item_CheckBox },
+    { "CheckBox",        "BasicInput",  "CheckBox",          "A control a user can select or clear.",                            ImFluentIcon_CheckboxComposite,    &Page_Item_CheckBox },
     { "RadioButton",     "BasicInput",  "RadioButton",       "A control that allows a user to select one option from a group.",  ImFluentIcon_RadioBtnOn,    &Page_Item_RadioButton },
     { "ToggleSwitch",    "BasicInput",  "ToggleSwitch",      "A switch that can be toggled between two states.",                 ImFluentIcon_Settings,      &Page_Item_ToggleSwitch },
-    { "RatingControl",   "BasicInput",  "RatingControl",     "Lets users rate something on a 5-star scale.",                      ImFluentIcon_StarFilled,    &Page_Item_RatingControl },
-    { "Slider",          "BasicInput",  "Slider",            "A control that lets the user select from a range of values.",      ImFluentIcon_Spacing,       &Page_Item_Slider },
+    { "RatingControl",   "BasicInput",  "RatingControl",     "Lets users rate something on a 5-star scale.",                      ImFluentIcon_FavoriteStarFill,    &Page_Item_RatingControl },
+    { "Slider",          "BasicInput",  "Slider",            "A control that lets the user select from a range of values.",      ImFluentIcon_AlignCenter,       &Page_Item_Slider },
 
     { "ProgressBar",     "StatusAndInfo", "ProgressBar",     "Shows the progress of a long-running operation.",                  ImFluentIcon_Refresh,       &Page_Item_ProgressBar },
     { "ProgressRing",    "StatusAndInfo", "ProgressRing",    "Shows the progress of a long-running operation as a ring.",        ImFluentIcon_Refresh,       &Page_Item_ProgressRing },
@@ -108,7 +108,7 @@ static const ControlInfo g_Controls[] = {
     { "InfoBadge",       "StatusAndInfo", "InfoBadge",       "Small contextual indicator for new content or notifications.",     ImFluentIcon_Important,     &Page_Item_InfoBadge },
     { "ToolTip",         "StatusAndInfo", "ToolTip",         "Pops up additional info about an element on hover.",                ImFluentIcon_Info,          &Page_Item_ToolTip },
 
-    { "TextBlock",       "Text",        "TextBlock",         "Displays small amounts of read-only text.",                         ImFluentIcon_Typography,    &Page_Item_TextBlock },
+    { "TextBlock",       "Text",        "TextBlock",         "Displays small amounts of read-only text.",                         ImFluentIcon_Font,    &Page_Item_TextBlock },
     { "TextBox",         "Text",        "TextBox",           "A single-line plain-text input field.",                             ImFluentIcon_Edit,          &Page_Item_TextBox },
     { "PasswordBox",     "Text",        "PasswordBox",       "A control for entering passwords.",                                  ImFluentIcon_Hide,          &Page_Item_PasswordBox },
     { "NumberBox",       "Text",        "NumberBox",         "Numeric input with up/down spin buttons.",                          ImFluentIcon_Add,           &Page_Item_NumberBox },
@@ -116,22 +116,22 @@ static const ControlInfo g_Controls[] = {
     { "RichEditBox",     "Text",        "RichEditBox",       "Multi-line text input.",                                            ImFluentIcon_Document,      &Page_Item_RichEditBox },
 
     { "ComboBox",        "Collections", "ComboBox",          "A drop-down list of items.",                                        ImFluentIcon_ChevronDown,   &Page_Item_ComboBox },
-    { "ListBox",         "Collections", "ListBox",           "A control that lets users select from a list.",                     ImFluentIcon_AllControls,   &Page_Item_ListBox },
-    { "ListView",        "Collections", "ListView",          "A vertical list of items with selection.",                          ImFluentIcon_AllControls,   &Page_Item_ListView },
+    { "ListBox",         "Collections", "ListBox",           "A control that lets users select from a list.",                     ImFluentIcon_ViewAll,   &Page_Item_ListBox },
+    { "ListView",        "Collections", "ListView",          "A vertical list of items with selection.",                          ImFluentIcon_ViewAll,   &Page_Item_ListView },
     { "TreeView",        "Collections", "TreeView",          "A hierarchical list of items.",                                     ImFluentIcon_Folder,        &Page_Item_TreeView },
-    { "GridView",        "Collections", "GridView",          "A grid layout of selectable items.",                                ImFluentIcon_AllControls,   &Page_Item_GridView },
+    { "GridView",        "Collections", "GridView",          "A grid layout of selectable items.",                                ImFluentIcon_ViewAll,   &Page_Item_GridView },
     { "PipsPager",       "Collections", "PipsPager",         "A pager rendered as a row of dots.",                                ImFluentIcon_More,          &Page_Item_PipsPager },
 
     { "Card",            "Layout",      "Card",              "A surface that groups related content.",                            ImFluentIcon_Folder,        &Page_Item_Card },
     { "SettingsCard",    "Layout",      "SettingsCard",      "Card row used on settings pages: glyph + header + description + control slot.", ImFluentIcon_Settings, &Page_Item_SettingsCard },
     { "Expander",        "Layout",      "Expander",          "A control with a header that expands to reveal a body.",            ImFluentIcon_ChevronDown,   &Page_Item_Expander },
-    { "StackPanel",      "Layout",      "StackPanel",        "Linear container with uniform spacing; horizontal or vertical.",    ImFluentIcon_Spacing,       &Page_Item_StackPanel },
-    { "WrapPanel",       "Layout",      "WrapPanel",         "Lays children left-to-right and wraps to a new row when full.",     ImFluentIcon_Spacing,       &Page_Item_WrapPanel },
+    { "StackPanel",      "Layout",      "StackPanel",        "Linear container with uniform spacing; horizontal or vertical.",    ImFluentIcon_AlignCenter,       &Page_Item_StackPanel },
+    { "WrapPanel",       "Layout",      "WrapPanel",         "Lays children left-to-right and wraps to a new row when full.",     ImFluentIcon_AlignCenter,       &Page_Item_WrapPanel },
     { "TitleBar",        "Layout",      "TitleBar",          "Custom title-bar shell hosting nav chevrons, search, and actions.", ImFluentIcon_GlobalNavButton, &Page_Item_TitleBar },
 
-    { "TabView",         "Navigation",  "TabView",           "A control with multiple tabs the user can switch between.",         ImFluentIcon_AllControls,   &Page_Item_TabView },
+    { "TabView",         "Navigation",  "TabView",           "A control with multiple tabs the user can switch between.",         ImFluentIcon_ViewAll,   &Page_Item_TabView },
     { "NavigationView",  "Navigation",  "NavigationView",    "A side-pane navigation control.",                                   ImFluentIcon_GlobalNavButton, &Page_Item_NavigationView },
-    { "SelectorBar",     "Navigation",  "SelectorBar",       "A horizontal list of pill-shaped pivot items.",                     ImFluentIcon_AllControls,   &Page_Item_SelectorBar },
+    { "SelectorBar",     "Navigation",  "SelectorBar",       "A horizontal list of pill-shaped pivot items.",                     ImFluentIcon_ViewAll,   &Page_Item_SelectorBar },
     { "BreadcrumbBar",   "Navigation",  "BreadcrumbBar",     "A trail of clickable parent items showing the current location.",   ImFluentIcon_ChevronRight,  &Page_Item_BreadcrumbBar },
 
     { "ContentDialog",   "DialogsAndFlyouts", "ContentDialog","A modal dialog with title, body, and action buttons.",             ImFluentIcon_Important,     &Page_Item_ContentDialog },
@@ -153,7 +153,7 @@ static const int g_ControlsCount = (int)(sizeof(g_Controls) / sizeof(g_Controls[
 
 static const GroupInfo g_Groups[] = {
     { "BasicInput",         "Basic input",        ImFluentIcon_Add },
-    { "Collections",        "Collections",        ImFluentIcon_AllControls },
+    { "Collections",        "Collections",        ImFluentIcon_ViewAll },
     { "DateTime",           "Date & time",        ImFluentIcon_Calendar },
     { "Design",             "Design",             ImFluentIcon_Color },
     { "DialogsAndFlyouts",  "Dialogs & flyouts",  ImFluentIcon_Important },
@@ -161,7 +161,7 @@ static const GroupInfo g_Groups[] = {
     { "MenusAndToolbars",   "Menus & toolbars",   ImFluentIcon_More },
     { "Navigation",         "Navigation",         ImFluentIcon_GlobalNavButton },
     { "StatusAndInfo",      "Status & info",      ImFluentIcon_Info },
-    { "Text",               "Text",               ImFluentIcon_Typography },
+    { "Text",               "Text",               ImFluentIcon_Font },
 };
 static const int g_GroupsCount = (int)(sizeof(g_Groups) / sizeof(g_Groups[0]));
 
@@ -1618,11 +1618,11 @@ static void Page_Home()
     struct Tile { const char* page; const char* title; const char* subtitle; const char* glyph; };
     const Tile tiles[] = {
         { "Section_BasicInput",       "Basic input",      "Buttons, switches, sliders",  ImFluentIcon_Add },
-        { "Section_Collections",      "Collections",      "Lists, trees, grids",         ImFluentIcon_AllControls },
+        { "Section_Collections",      "Collections",      "Lists, trees, grids",         ImFluentIcon_ViewAll },
         { "Section_Layout",           "Layout",           "Cards, stacks, settings",     ImFluentIcon_Folder },
         { "Section_Navigation",       "Navigation",       "Tabs, nav pane, breadcrumbs", ImFluentIcon_GlobalNavButton },
         { "Section_DialogsAndFlyouts","Dialogs & flyouts","Dialogs, menus, tips",        ImFluentIcon_Important },
-        { "Section_Text",             "Text",             "Text input variants",         ImFluentIcon_Typography },
+        { "Section_Text",             "Text",             "Text input variants",         ImFluentIcon_Font },
         { "Section_StatusAndInfo",    "Status & info",    "Progress, badges, info bars", ImFluentIcon_Info },
         { "Section_Design",           "Design",           "Style stack, theming",        ImFluentIcon_Color },
     };
@@ -1773,7 +1773,7 @@ static void DrawTitleBar(bool* p_open)
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     ImGui::BeginDisabled(g_State.NavCursor <= 0);
-    if (AppBarButton(ImFluentIcon_BackArrow, nullptr, ImVec2(FluentDpx(40.f), FluentDpx(32.f))))
+    if (AppBarButton(ImFluentIcon_Back, nullptr, ImVec2(FluentDpx(40.f), FluentDpx(32.f))))
         NavigateBack();
     ImGui::EndDisabled();
     ImGui::SameLine();
@@ -1813,7 +1813,7 @@ static void DrawNavigationPane()
     BeginNavigationView("##gallery-nav", &g_State.NavMode);
     if (NavItem("Home", std::strcmp(CurrentPageId(), "Home") == 0, ImFluentIcon_Home))
         Navigate("Home");
-    if (NavItem("All controls", std::strcmp(CurrentPageId(), "AllControls") == 0, ImFluentIcon_AllControls))
+    if (NavItem("All controls", std::strcmp(CurrentPageId(), "AllControls") == 0, ImFluentIcon_ViewAll))
         Navigate("AllControls");
 
     NavSubHeader("Categories");
