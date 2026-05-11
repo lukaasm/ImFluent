@@ -407,6 +407,8 @@ namespace ImFluent
     IMGUI_API void      SetNextNavPaneToggleButtonVisible( bool visible );
     IMGUI_API bool      NavBackButton( bool enabled = true, bool visible = true );
     IMGUI_API bool      NavItem( const char * label, bool selected, const char * glyph = NULL );
+    IMGUI_API bool      BeginNavItem( const char * label, bool selected = false, const char * glyph = NULL );
+    IMGUI_API void      EndNavItem();
     IMGUI_API void      NavSubHeader( const char * text );
     IMGUI_API void      NavPaneTitle( const char * text );
     IMGUI_API bool      NavPaneAutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL );

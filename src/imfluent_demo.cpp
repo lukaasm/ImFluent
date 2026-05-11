@@ -1804,13 +1804,10 @@ static void DrawNavigationPane()
         const char* pid; const char* pid_end;
         ImFormatStringToTempBuffer(&pid, &pid_end, "Section_%s", gi.GroupId);
         (void)pid_end;
-        const bool sel = (std::strcmp(CurrentPageId(), pid) == 0) || (g_State.ExpandedGroup == g);
-        if (NavItem(gi.Title, sel, gi.Glyph))
-        {
-            g_State.ExpandedGroup = (g_State.ExpandedGroup == g ? -1 : g);
-            Navigate(pid);
-        }
-        if (g_State.ExpandedGroup == g && g_State.NavMode == ImFluentNavViewMode_LeftOpen)
+        const bool sel = (std::strcmp(CurrentPageId(), pid) == 0);
+        const bool open = BeginNavItem(gi.Title, sel, gi.Glyph);
+        if (ImGui::IsItemActivated()) Navigate(pid);
+        if (open)
         {
             for (int i = 0; i < g_ControlsCount; ++i)
             {
@@ -1819,11 +1816,10 @@ static void DrawNavigationPane()
                 const char* ipid; const char* ipid_end;
                 ImFormatStringToTempBuffer(&ipid, &ipid_end, "Item_%s", c.UniqueId);
                 (void)ipid_end;
-                ImGui::Indent(ImFluent::FluentDpx(12.f));
                 if (NavItem(c.Title, std::strcmp(CurrentPageId(), ipid) == 0, c.Glyph))
                     Navigate(ipid);
-                ImGui::Unindent(ImFluent::FluentDpx(12.f));
             }
+            EndNavItem();
         }
     }
 
