@@ -457,7 +457,6 @@ namespace ImFluent
     IMGUI_API bool      InfoBar( ImFluentInfoSeverity severity, const char * title, const char * message, bool * is_open = NULL, const char * glyph_override = NULL, bool show_icon = true, const char * action_label = NULL );
     IMGUI_API void      InfoBadge( int count = -1, const char * glyph = NULL );
 
-    IMGUI_API void      PersonPicture( const char * display_name, float diameter_dpx = 32.f, const char * glyph_override = NULL );
 
     IMGUI_API void      OpenTeachingTip( const char * id );
     IMGUI_API bool      BeginTeachingTip( const char * id, const char * title, ImFluentTeachingTipPlacement placement = ImFluentTeachingTipPlacement_Bottom );

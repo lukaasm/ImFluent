@@ -607,6 +607,19 @@ namespace ImFluent
                      ImFluent::GetColorU32( ImFluentCol_FocusStrokeOuter ), rounding + pad, 0, outer );
     }
 
+    static void DrawCenteredText( ImDrawList * dl, const ImVec2 & center, float font_size, ImU32 col, const char * text )
+    {
+        if ( !text || !*text ) return;
+        ImFont * font = ImGui::GetFont();
+        if ( !font ) return;
+        const float fs = (font_size > 0.f) ? font_size : ImGui::GetFontSize();
+        const ImVec2 ts = font->CalcTextSizeA( fs, FLT_MAX, 0.f, text );
+        const ImFontBaked * baked = font->GetFontBaked( fs );
+        const float descent = baked ? baked->Descent : fs * 0.22f;
+        const ImVec2 pos( center.x - ts.x * 0.5f, center.y - ts.y * 0.5f + descent * 0.5f );
+        dl->AddText( font, fs, pos, col, text );
+    }
+
     static void DrawElevationBorder( ImDrawList * dl, const ImRect & bb, float rounding,
                                      ImU32 sides, ImU32 bottom, float bottom_thickness )
     {
@@ -3761,7 +3774,7 @@ int ImFluent::EndContentDialog( const char * primary, const char * secondary, co
     return result;
 }
 
-// [SECTION] InfoBar / InfoBadge / PersonPicture
+// [SECTION] InfoBar / InfoBadge
 
 bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char * msg, bool * is_open, const char * glyph_override, bool show_icon, const char * action_label )
 {
@@ -3921,7 +3934,16 @@ void ImFluent::InfoBadge( int count, const char * glyph )
         else              ImFormatStringToTempBuffer( &text, &text_end, "%d", count );
     }
     if ( !text ) text = "";
-    const ImVec2 ts = ImGui::CalcTextSize( text, text_end );
+    char txt_buf[16];
+    if ( text_end )
+    {
+        const size_t n = (size_t)(text_end - text);
+        const size_t copy = n < sizeof( txt_buf ) - 1 ? n : sizeof( txt_buf ) - 1;
+        memcpy( txt_buf, text, copy );
+        txt_buf[copy] = 0;
+        text = txt_buf;
+    }
+    const ImVec2 ts = ImGui::CalcTextSize( text );
     const float pad_x = FluentDpx( style.SpacingMedium - 2.f );
     const float h = FluentDpx( style.BadgeHeight );
     const ImVec2 pos = w->DC.CursorPos;
@@ -3929,92 +3951,11 @@ void ImFluent::InfoBadge( int count, const char * glyph )
     ImGui::ItemSize( bb );
     if ( !ImGui::ItemAdd( bb, 0 ) ) return;
     w->DrawList->AddRectFilled( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), h * 0.5f );
-    w->DrawList->AddText( ImGui::GetFont(), ImGui::GetFontSize(),
-                          ImVec2( bb.Min.x + (bb.GetWidth() - ts.x) * 0.5f,
-                          bb.Min.y + (h - ts.y) * 0.5f ),
-                          ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), text, text_end );
-}
-
-static const ImU32 g_AvatarTints[] = {
-    IM_COL32( 99, 102, 241, 255 ),
-    IM_COL32( 16, 185, 129, 255 ),
-    IM_COL32( 244, 114, 182, 255 ),
-    IM_COL32( 245, 158, 11, 255 ),
-    IM_COL32( 6, 182, 212, 255 ),
-    IM_COL32( 168, 85, 247, 255 ),
-    IM_COL32( 239, 68, 68, 255 ),
-    IM_COL32( 14, 165, 233, 255 ),
-};
-
-static int InitialsFromName( const char * name, char out[5] )
-{
-    int n = 0;
-    const char * p = name;
-    bool at_word = true;
-    while ( *p && n < 4 )
-    {
-        if ( ( unsigned char )*p > ' ' )
-        {
-            if ( at_word )
-            {
-                char c = *p;
-                if ( c >= 'a' && c <= 'z' ) c = ( char )(c - 'a' + 'A');
-                out[n++] = c;
-                at_word = false;
-                if ( n >= 2 ) break;
-            }
-        }
-        else
-        {
-            at_word = true;
-        }
-        ++p;
-    }
-    out[n] = 0;
-    return n;
-}
-
-static ImU32 TintFromName( const char * name )
-{
-    unsigned int h = 5381u;
-    for ( const char * p = name; p && *p; ++p ) h = (h * 33u) ^ ( unsigned char )*p;
-    return g_AvatarTints[h % ( unsigned int )(sizeof( g_AvatarTints ) / sizeof( g_AvatarTints[0] ))];
-}
-
-void ImFluent::PersonPicture( const char * display_name, float diameter_dpx, const char * glyph_override )
-{
-    ImGuiWindow * w = ImGui::GetCurrentWindow();
-    if ( w->SkipItems ) return;
-    const float D = FluentDpx( diameter_dpx );
-    const ImVec2 pos = w->DC.CursorPos;
-    const ImRect bb( pos, ImVec2( pos.x + D, pos.y + D ) );
-    ImGui::ItemSize( bb );
-    if ( !ImGui::ItemAdd( bb, 0 ) ) return;
-    const ImVec2 c( pos.x + D * 0.5f, pos.y + D * 0.5f );
-    const ImU32 tint = (display_name && *display_name) ? TintFromName( display_name )
-        : ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
-    ImDrawList * dl = w->DrawList;
-    dl->AddCircleFilled( c, D * 0.5f, tint, 32 );
-    if ( glyph_override )
-    {
-        const ImVec2 gs = ImGui::CalcTextSize( glyph_override );
-        dl->AddText( ImVec2( c.x - gs.x * 0.5f, c.y - gs.y * 0.5f ),
-                     ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), glyph_override );
-    }
-    else if ( display_name && *display_name )
-    {
-        char initials[5];
-        InitialsFromName( display_name, initials );
-        const ImVec2 ts = ImGui::CalcTextSize( initials );
-        dl->AddText( ImVec2( c.x - ts.x * 0.5f, c.y - ts.y * 0.5f ),
-                     ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), initials );
-    }
-    else
-    {
-        dl->AddText( ImVec2( c.x - ImGui::CalcTextSize( ImFluentIcon_Contact ).x * 0.5f,
-                     c.y - ImGui::GetFontSize() * 0.5f ),
-                     ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), ImFluentIcon_Contact );
-    }
+    ImFluent::DrawCenteredText( w->DrawList,
+                                ImVec2( (bb.Min.x + bb.Max.x) * 0.5f, (bb.Min.y + bb.Max.y) * 0.5f ),
+                                ImGui::GetFontSize(),
+                                ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ),
+                                text );
 }
 
 // [SECTION] TeachingTip

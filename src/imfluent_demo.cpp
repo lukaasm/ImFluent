@@ -86,7 +86,6 @@ static void Page_Item_WrapPanel      ();
 static void Page_Item_TeachingTip    ();
 static void Page_Item_TitleBar       ();
 static void Page_Item_StyleStack     ();
-static void Page_Item_PersonPicture  ();
 static void Page_Item_CommandBar     ();
 
 static const ControlInfo g_Controls[] = {
@@ -106,7 +105,6 @@ static const ControlInfo g_Controls[] = {
     { "ProgressRing",    "StatusAndInfo", "ProgressRing",    "Shows the progress of a long-running operation as a ring.",        ImFluentIcon_Refresh,       &Page_Item_ProgressRing },
     { "InfoBar",         "StatusAndInfo", "InfoBar",         "Inline notification for app-wide status messages.",                 ImFluentIcon_Info,          &Page_Item_InfoBar },
     { "InfoBadge",       "StatusAndInfo", "InfoBadge",       "Small contextual indicator for new content or notifications.",     ImFluentIcon_Important,     &Page_Item_InfoBadge },
-    { "PersonPicture",   "StatusAndInfo", "PersonPicture",   "Circular avatar with deterministic tint and initials.",             ImFluentIcon_Contact,       &Page_Item_PersonPicture },
     { "ToolTip",         "StatusAndInfo", "ToolTip",         "Pops up additional info about an element on hover.",                ImFluentIcon_Info,          &Page_Item_ToolTip },
 
     { "TextBlock",       "Text",        "TextBlock",         "Displays small amounts of read-only text.",                         ImFluentIcon_Typography,    &Page_Item_TextBlock },
@@ -1317,38 +1315,6 @@ static void Page_Item_CalendarDatePicker()
     CalendarDatePicker("##cdp", &d);
     ImGui::PopItemWidth();
     ControlExampleOutput("Date: %04d-%02d-%02d", d.Year, d.Month, d.Day);
-    }
-    EndControlExample();
-}
-
-// [SECTION] Status & info (additions)
-
-static void Page_Item_PersonPicture()
-{
-    PageHeader("PersonPicture", "Circular avatar with deterministic tint and initials, optional glyph override.");
-
-    if (BeginControlExample("Initials"))
-    {
-    PersonPicture("Alex Johnson", 48.f);   ImGui::SameLine();
-    PersonPicture("Maria Lopez",  48.f);   ImGui::SameLine();
-    PersonPicture("Kenji Tanaka", 48.f);   ImGui::SameLine();
-    PersonPicture("Sasha Patel",  48.f);
-    }
-    EndControlExample();
-
-    if (BeginControlExample("Sizes"))
-    {
-    PersonPicture("Alex Johnson", 24.f); ImGui::SameLine();
-    PersonPicture("Alex Johnson", 32.f); ImGui::SameLine();
-    PersonPicture("Alex Johnson", 48.f); ImGui::SameLine();
-    PersonPicture("Alex Johnson", 64.f);
-    }
-    EndControlExample();
-
-    if (BeginControlExample("Glyph override / fallback"))
-    {
-    PersonPicture("Group",        48.f, ImFluentIcon_People);  ImGui::SameLine();
-    PersonPicture(NULL,           48.f);
     }
     EndControlExample();
 }
