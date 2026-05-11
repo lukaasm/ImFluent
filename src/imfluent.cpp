@@ -1922,19 +1922,38 @@ void ImFluent::ProgressRing( float diameter_dpx, float fraction )
     const float thickness = FluentDpx( style.ProgressRingThickness );
     if ( fraction < 0.f )
     {
+        const float t              = ( float )ImGui::GetTime();
+        const float period         = 1.333f;
+        const float sweep_per_half = IM_PI * 1.5f;
+        const int   cycle_index    = ( int )(t / period);
+        const float phase          = (t - cycle_index * period) / period;
+        const float base_rotation  = t * (IM_PI * 0.5f);
+        const float cycle_anchor   = cycle_index * sweep_per_half;
 
-        const float t = ( float )ImGui::GetTime();
-        const float period = 1.5f;
-        const float ang = (t / period) * IM_PI * 2.f;
-        const float arc_len = IM_PI * 0.6f;
-        const int   segs = 32;
-        dl->PathClear();
-        for ( int i = 0; i <= segs; ++i )
+        const float head_p_raw = ImClamp( phase * 2.f,           0.f, 1.f );
+        const float tail_p_raw = ImClamp( (phase - 0.5f) * 2.f,  0.f, 1.f );
+        const float head_p     = (head_p_raw < 0.5f)
+            ? 2.f * head_p_raw * head_p_raw
+            : 1.f - 2.f * (1.f - head_p_raw) * (1.f - head_p_raw);
+        const float tail_p     = (tail_p_raw < 0.5f)
+            ? 2.f * tail_p_raw * tail_p_raw
+            : 1.f - 2.f * (1.f - tail_p_raw) * (1.f - tail_p_raw);
+
+        const float tail_angle = base_rotation + cycle_anchor + tail_p * sweep_per_half;
+        const float head_angle = base_rotation + cycle_anchor + head_p * sweep_per_half;
+        const float arc_span   = head_angle - tail_angle;
+
+        if ( arc_span > 0.0005f )
         {
-            const float a = ang + (arc_len * ( float )i / ( float )segs);
-            dl->PathLineTo( ImVec2( c.x + cosf( a ) * radius, c.y + sinf( a ) * radius ) );
+            const int segs = 48;
+            dl->PathClear();
+            for ( int i = 0; i <= segs; ++i )
+            {
+                const float a = tail_angle + (arc_span * ( float )i / ( float )segs);
+                dl->PathLineTo( ImVec2( c.x + cosf( a ) * radius, c.y + sinf( a ) * radius ) );
+            }
+            dl->PathStroke( ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 0, thickness );
         }
-        dl->PathStroke( ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 0, thickness );
     }
     else
     {

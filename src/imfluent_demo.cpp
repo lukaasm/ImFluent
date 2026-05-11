@@ -534,10 +534,13 @@ static void Page_Item_ProgressBar()
 
 static void Page_Item_ProgressRing()
 {
-    PageHeader("ProgressRing", "Circular progress indicator.");
+    PageHeader("ProgressRing", "Circular progress indicator with ease-in-out indeterminate animation.");
     if (BeginControlExample("Indeterminate"))
     {
-    ProgressRing(40.f, -1.f);
+    ProgressRing(20.f, -1.f);  ImGui::SameLine(); ImGui::Dummy(ImVec2(FluentDpx(16.f), 0)); ImGui::SameLine();
+    ProgressRing(32.f, -1.f);  ImGui::SameLine(); ImGui::Dummy(ImVec2(FluentDpx(16.f), 0)); ImGui::SameLine();
+    ProgressRing(48.f, -1.f);  ImGui::SameLine(); ImGui::Dummy(ImVec2(FluentDpx(16.f), 0)); ImGui::SameLine();
+    ProgressRing(72.f, -1.f);
     }
     EndControlExample();
     if (BeginControlExample("Determinate"))
