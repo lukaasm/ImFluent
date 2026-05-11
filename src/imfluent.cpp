@@ -488,7 +488,7 @@ namespace ImFluent
             | (( ImU32 )((aa * it + ba * t8) >> 8) << 24);
     }
 
-    static void DrawAndConsumePendingHeader()
+    static void RenderAndConsumePendingHeader()
     {
         if ( !g_Ctx.NextItem.HasHeader ) return;
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -498,7 +498,7 @@ namespace ImFluent
         g_Ctx.NextItem.HasHeader = false;
     }
 
-    static void DrawAndConsumePendingDescription()
+    static void RenderAndConsumePendingDescription()
     {
         if ( !g_Ctx.NextItem.HasDescription ) return;
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -521,7 +521,7 @@ namespace ImFluent
 
     static bool HasPendingError() { return g_Ctx.NextItem.HasError; }
 
-    static void DrawAndConsumePendingError( const ImRect & item_bb )
+    static void RenderAndConsumePendingError( const ImRect & item_bb )
     {
         if ( !g_Ctx.NextItem.HasError ) return;
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -541,10 +541,10 @@ namespace ImFluent
         g_Ctx.NextItem.HasError = false;
     }
 
-    static void DrawAndConsumePendingError()
+    static void RenderAndConsumePendingError()
     {
         if ( !g_Ctx.NextItem.HasError ) return;
-        DrawAndConsumePendingError( ImGui::GetCurrentContext()->LastItemData.Rect );
+        RenderAndConsumePendingError( ImGui::GetCurrentContext()->LastItemData.Rect );
     }
 
     static const ImU32 kAnimSeed = 0xF1ECF1ECu;
@@ -593,7 +593,7 @@ namespace ImFluent
         return cur;
     }
 
-    static void DrawFocusRing( ImDrawList * dl, const ImRect & bb, float rounding )
+    static void RenderNavFocusRing( ImDrawList * dl, const ImRect & bb, float rounding )
     {
         const ImFluentStyle & style = ImFluent::GetStyle();
         const float outer = FluentDpx( style.FocusStrokeThicknessOuter );
@@ -607,7 +607,7 @@ namespace ImFluent
                      ImFluent::GetColorU32( ImFluentCol_FocusStrokeOuter ), rounding + pad, 0, outer );
     }
 
-    static void DrawCenteredText( ImDrawList * dl, const ImVec2 & center, float font_size, ImU32 col, const char * text )
+    static void RenderCenteredText( ImDrawList * dl, const ImVec2 & center, float font_size, ImU32 col, const char * text )
     {
         if ( !text || !*text ) return;
         ImFont * font = ImGui::GetFont();
@@ -620,7 +620,7 @@ namespace ImFluent
         dl->AddText( font, fs, pos, col, text );
     }
 
-    static void DrawElevationBorder( ImDrawList * dl, const ImRect & bb, float rounding,
+    static void RenderElevationBorder( ImDrawList * dl, const ImRect & bb, float rounding,
                                      ImU32 sides, ImU32 bottom, float bottom_thickness )
     {
         dl->AddRect( bb.Min, bb.Max, sides, rounding, 0, 1.f );
@@ -631,7 +631,7 @@ namespace ImFluent
                            bottom );
     }
 
-    static void DrawElevationShadow( ImDrawList * dl, const ImRect & bb, float rounding, int layers )
+    static void RenderElevationShadow( ImDrawList * dl, const ImRect & bb, float rounding, int layers )
     {
         if ( layers < 1 ) layers = 1;
         for ( int i = 0; i < layers; ++i )
@@ -645,7 +645,7 @@ namespace ImFluent
         }
     }
 
-    static void DrawAcrylicSurrogate( ImDrawList * dl, const ImRect & bb, float rounding, ImU32 base )
+    static void RenderAcrylicSurrogate( ImDrawList * dl, const ImRect & bb, float rounding, ImU32 base )
     {
         dl->AddRectFilled( bb.Min, bb.Max, base, rounding );
         dl->AddRectFilled( bb.Min, bb.Max, IM_COL32( 255, 255, 255, 8 ), rounding );
@@ -687,7 +687,7 @@ namespace ImFluent
         return                ImFluent::GetColorU32( ImFluentCol_ControlAltFillSecondary );
     }
 
-    static void DrawChevron( ImDrawList * dl, ImVec2 c, ImGuiDir dir, ImU32 col, float L, float th = 1.5f )
+    static void RenderChevron( ImDrawList * dl, ImVec2 c, ImGuiDir dir, ImU32 col, float L, float th = 1.5f )
     {
         switch ( dir )
         {
@@ -711,7 +711,7 @@ namespace ImFluent
         }
     }
 
-    static void DrawSelectionIndicator( ImDrawList * dl, const ImRect & bb, ImGuiDir side, ImU32 col, float length_frac = 0.5f )
+    static void RenderSelectionIndicator( ImDrawList * dl, const ImRect & bb, ImGuiDir side, ImU32 col, float length_frac = 0.5f )
     {
         const ImFluentStyle & style = ImFluent::GetStyle();
         const float thickness = FluentDpx( style.SelectionIndicatorThickness );
@@ -836,7 +836,7 @@ namespace ImFluent
         return v;
     }
 
-    static void DrawAppBarContent( ImDrawList * dl, const ImRect & bb,
+    static void RenderAppBarContent( ImDrawList * dl, const ImRect & bb,
                                    const char * label, const char * glyph, ImU32 textCol,
                                    ImFluentAppBarLabelPosition pos, const ImFluentStyle & style )
     {
@@ -884,7 +884,7 @@ namespace ImFluent
                        size_arg.y > 0.f ? size_arg.y : ImMax( min_height_dpx, ts.y + pad_y * 2.f ) );
     }
 
-    static void DrawButtonLabel( ImDrawList *, const ImRect & bb, const char * label, ImU32 col, float pad_x, float pad_y )
+    static void RenderButtonLabel( ImDrawList *, const ImRect & bb, const char * label, ImU32 col, float pad_x, float pad_y )
     {
         ImGui::PushStyleColor( ImGuiCol_Text, col );
         const ImVec2 ts = ImGui::CalcTextSize( label, NULL, true );
@@ -936,13 +936,13 @@ namespace ImFluent
 
         dl->AddRectFilled( bb.Min, bb.Max, fillAnim, r );
         if ( !held && !disabled )
-            DrawElevationBorder( dl, bb, r, stroke, strokeBottom, 1.f );
+            RenderElevationBorder( dl, bb, r, stroke, strokeBottom, 1.f );
         else
             dl->AddRect( bb.Min, bb.Max, stroke, r, 0, 1.f );
 
-        DrawButtonLabel( dl, bb, label, disabled ? textDisabled : textCol, pad_x, pad_y );
+        RenderButtonLabel( dl, bb, label, disabled ? textDisabled : textCol, pad_x, pad_y );
 
-        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+        if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
         return pressed;
     }
 }
@@ -1314,7 +1314,7 @@ bool ImFluent::HyperlinkButton( const char * label )
     dl->AddText( ImVec2( bb.Min.x, bb.Min.y + pad_y ), anim, label );
     if ( hovered )
         dl->AddLine( ImVec2( bb.Min.x, bb.Max.y - 1.f ), ImVec2( bb.Min.x + ts.x, bb.Max.y - 1.f ), anim, 1.f );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
     return pressed;
 }
 
@@ -1414,7 +1414,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state,
                      ImVec2( bb_main.Max.x, bb_main.Max.y - FluentDpx( style.SpacingMedium ) ),
                      ImFluent::GetColorU32( ImFluentCol_DividerStrokeDefault ), 1.f );
         if ( !disabled )
-            DrawElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
+            RenderElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
         else
             dl->AddRect( bb_total.Min, bb_total.Max, strokeCol, r, 0, 1.f );
     }
@@ -1422,12 +1422,12 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state,
     {
         dl->AddRectFilled( bb_total.Min, bb_total.Max, mainAnim, r );
         if ( !main_held && !disabled )
-            DrawElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
+            RenderElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
         else
             dl->AddRect( bb_total.Min, bb_total.Max, strokeCol, r, 0, 1.f );
     }
 
-    DrawButtonLabel( dl, ImRect( bb_main.Min,
+    RenderButtonLabel( dl, ImRect( bb_main.Min,
                      ImVec2( bb_main.Max.x - (split ? 0.f : chev_w), bb_main.Max.y ) ),
                      label, disabled ? textDisabled : textCol, pad_x, pad_y );
 
@@ -1435,10 +1435,10 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state,
         const ImVec2 cen( (split ? bb_chev.Min.x + bb_chev.GetWidth() * 0.5f
                           : bb_main.Max.x - chev_w * 0.5f),
                           (bb_total.Min.y + bb_total.Max.y) * 0.5f );
-        DrawChevron( dl, cen, ImGuiDir_Down, disabled ? textDisabled : textCol, FluentDpx( style.ChevronGlyphSize ) );
+        RenderChevron( dl, cen, ImGuiDir_Down, disabled ? textDisabled : textCol, FluentDpx( style.ChevronGlyphSize ) );
     }
 
-    if ( IsItemFocused( id_main ) ) DrawFocusRing( dl, bb_total, r );
+    if ( IsItemFocused( id_main ) ) RenderNavFocusRing( dl, bb_total, r );
 
     if ( dropdown_clicked ) *dropdown_clicked = split ? chev_pressed : false;
     if ( v_state && main_pressed && !split ) *v_state = !*v_state;
@@ -1514,8 +1514,9 @@ bool ImFluent::CheckboxEx( const char * label, int * v_tri, bool * v_bool )
     }
     const ImU32 fillAnim = AnimateColorU32( id, boxFill );
     const ImU32 strokeAnim = AnimateColorU32( id ^ 0xC1A0, boxStroke );
-    dl->AddRectFilled( box_bb.Min, box_bb.Max, fillAnim, r );
-    dl->AddRect( box_bb.Min, box_bb.Max, strokeAnim, r, 0, 1.f );
+    ImGui::PushStyleColor( ImGuiCol_Border, strokeAnim );
+    ImGui::RenderFrame( box_bb.Min, box_bb.Max, fillAnim, true, r );
+    ImGui::PopStyleColor();
 
     if ( checked )
     {
@@ -1537,9 +1538,13 @@ bool ImFluent::CheckboxEx( const char * label, int * v_tri, bool * v_bool )
     if ( ts.x > 0 )
     {
         const ImU32 lc = disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled ) : ImFluent::GetColorU32( ImFluentCol_TextPrimary );
-        dl->AddText( ImVec2( box_bb.Max.x + gap, pos.y + (box - ts.y) * 0.5f ), lc, label );
+        ImGui::PushStyleColor( ImGuiCol_Text, lc );
+        ImGui::RenderTextClipped( ImVec2( box_bb.Max.x + gap, pos.y ),
+                                  ImVec2( box_bb.Max.x + gap + ts.x, pos.y + box ),
+                                  label, NULL, &ts, ImVec2( 0.f, 0.5f ) );
+        ImGui::PopStyleColor();
     }
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, box_bb, r );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, box_bb, r );
     return pressed;
 }
 
@@ -1587,9 +1592,13 @@ bool ImFluent::RadioButton( const char * label, bool active )
     if ( ts.x > 0 )
     {
         const ImU32 lc = disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled ) : ImFluent::GetColorU32( ImFluentCol_TextPrimary );
-        dl->AddText( ImVec2( ring_bb.Max.x + gap, pos.y + (D - ts.y) * 0.5f ), lc, label );
+        ImGui::PushStyleColor( ImGuiCol_Text, lc );
+        ImGui::RenderTextClipped( ImVec2( ring_bb.Max.x + gap, pos.y ),
+                                  ImVec2( ring_bb.Max.x + gap + ts.x, pos.y + D ),
+                                  label, NULL, &ts, ImVec2( 0.f, 0.5f ) );
+        ImGui::PopStyleColor();
     }
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, ring_bb, ring_r + FluentDpx( style.StrokeThin ) );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, ring_bb, ring_r + FluentDpx( style.StrokeThin ) );
     return pressed;
 }
 
@@ -1612,7 +1621,7 @@ bool ImFluent::RadioButtons( const char * label, int * v, const char * const ite
     ImGui::PushID( label );
     if ( label && *label )
     {
-        DrawAndConsumePendingHeader();
+        RenderAndConsumePendingHeader();
         ImGui::TextUnformatted( label );
     }
     const int rows = (items_count + max_columns - 1) / max_columns;
@@ -1626,7 +1635,7 @@ bool ImFluent::RadioButtons( const char * label, int * v, const char * const ite
             if ( RadioButton( items[i], v, i ) ) changed = true;
         }
     }
-    DrawAndConsumePendingDescription();
+    RenderAndConsumePendingDescription();
     ImGui::PopID();
     return changed;
 }
@@ -1694,7 +1703,7 @@ bool ImFluent::ToggleSwitch( const char * label, bool * v, const char * on_text,
     if ( lab_size.x > 0 )
         dl->AddText( ImVec2( cursor_x, pos.y + (H - lab_size.y) * 0.5f ),
                      disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled ) : ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, track_bb, H * 0.5f );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, track_bb, H * 0.5f );
     return pressed;
 }
 
@@ -1742,7 +1751,7 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
             dl->PopClipRect();
         }
     }
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
     return changed;
 }
 
@@ -1752,7 +1761,7 @@ bool ImFluent::Slider( const char * label, ImGuiDataType dtype, void * v, const 
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
     const ImGuiID id = w->GetID( label );
     const float h = FluentDpx( style.ControlHeight );
@@ -1800,8 +1809,8 @@ bool ImFluent::Slider( const char * label, ImGuiDataType dtype, void * v, const 
     dl->AddCircleFilled( c, thumb_r, ImFluent::GetColorU32( ImFluentCol_ControlSolidFillDefault ), 32 );
     dl->AddCircleFilled( c, inner_r, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 24 );
 
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, frame_bb, FluentDpx( style.ControlCornerRadius ) );
-    DrawAndConsumePendingDescription();
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, frame_bb, FluentDpx( style.ControlCornerRadius ) );
+    RenderAndConsumePendingDescription();
     return changed;
 }
 
@@ -1819,7 +1828,7 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
     if ( !v_min || !v_max || v_hi <= v_lo ) return false;
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
     const ImGuiID id_lo = w->GetID( ImGui::GetID( label ) );
     const ImGuiID id_hi = w->GetID( ( const void * )(( intptr_t )id_lo + 1) );
@@ -1907,13 +1916,13 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
         ImGui::TextUnformatted( txt, txt_end );
     }
 
-    DrawAndConsumePendingDescription();
+    RenderAndConsumePendingDescription();
     return changed;
 }
 
 bool ImFluent::ColorPicker( const char * label, float col[4], ImGuiColorEditFlags flags )
 {
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
 
     ImFluentStackGuard g;
@@ -1932,13 +1941,13 @@ bool ImFluent::ColorPicker( const char * label, float col[4], ImGuiColorEditFlag
 
     const bool changed = ImGui::ColorPicker4( label, col, flags );
 
-    DrawAndConsumePendingDescription();
+    RenderAndConsumePendingDescription();
     return changed;
 }
 
 bool ImFluent::ColorEdit( const char * label, float col[4], ImGuiColorEditFlags flags )
 {
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
     const float h = FluentDpx( style.ControlHeight );
 
@@ -1957,8 +1966,8 @@ bool ImFluent::ColorEdit( const char * label, float col[4], ImGuiColorEditFlags 
     const bool changed = ImGui::ColorEdit4( label, col, flags );
 
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
-    DrawAndConsumePendingDescription();
-    DrawAndConsumePendingError( input_rect );
+    RenderAndConsumePendingDescription();
+    RenderAndConsumePendingError( input_rect );
     return changed;
 }
 
@@ -2063,13 +2072,9 @@ void ImFluent::ProgressRing( float diameter_dpx, float fraction )
 
         if ( arc_span > 0.0005f )
         {
-            const int segs = 48;
+            const int segs = ImMax( 8, ( int )(arc_span * 16.f) );
             dl->PathClear();
-            for ( int i = 0; i <= segs; ++i )
-            {
-                const float a = tail_angle + (arc_span * ( float )i / ( float )segs);
-                dl->PathLineTo( ImVec2( c.x + cosf( a ) * radius, c.y + sinf( a ) * radius ) );
-            }
+            dl->PathArcTo( c, radius, tail_angle, head_angle, segs );
             dl->PathStroke( ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 0, thickness );
         }
     }
@@ -2096,7 +2101,7 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
 
     const ImFluentStyle & style = ImFluent::GetStyle();
     PushControlFrameStyle( FluentDpx( style.ControlHeight ) );
@@ -2198,8 +2203,8 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
         ImFluent::PopFont();
     }
 
-    DrawAndConsumePendingDescription();
-    DrawAndConsumePendingError( input_bb );
+    RenderAndConsumePendingDescription();
+    RenderAndConsumePendingError( input_bb );
     return changed;
 }
 
@@ -2208,7 +2213,7 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
 
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
 
     const ImFluentStyle & style = ImFluent::GetStyle();
     const float h = FluentDpx( style.ControlHeight );
@@ -2270,14 +2275,14 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
                  btn_bb.Min.y + (btn_bb.GetHeight() - ts.y) * 0.5f ),
                  ImFluent::GetColorU32( ImFluentCol_TextSecondary ), eye_glyph );
 
-    DrawAndConsumePendingDescription();
-    DrawAndConsumePendingError( input_rect );
+    RenderAndConsumePendingDescription();
+    RenderAndConsumePendingError( input_rect );
     return changed;
 }
 
 bool ImFluent::NumberBox( const char * label, double * v, double step, double step_fast, const char * format, ImGuiInputTextFlags flags )
 {
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
 
@@ -2355,32 +2360,32 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
 
         const ImVec2 c( (b.bb.Min.x + b.bb.Max.x) * 0.5f,
                         (b.bb.Min.y + b.bb.Max.y) * 0.5f );
-        DrawChevron( dl, c, b.dir, ImFluent::GetColorU32( ImFluentCol_TextSecondary ), FluentDpx( style.ChevronGlyphSize - 1.f ) );
+        RenderChevron( dl, c, b.dir, ImFluent::GetColorU32( ImFluentCol_TextSecondary ), FluentDpx( style.ChevronGlyphSize - 1.f ) );
     }
 
     ImGui::PopItemFlag();
-    DrawAndConsumePendingDescription();
-    DrawAndConsumePendingError( input_rect );
+    RenderAndConsumePendingDescription();
+    RenderAndConsumePendingError( input_rect );
     return changed;
 }
 
 bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size, ImGuiInputTextFlags flags )
 {
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
 
     PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
     const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags );
     PopControlFrameStyle();
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
-    DrawAndConsumePendingDescription();
-    DrawAndConsumePendingError( input_rect );
+    RenderAndConsumePendingDescription();
+    RenderAndConsumePendingError( input_rect );
     return changed;
 }
 
 bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index, const char * hint, ImGuiInputTextFlags flags )
 {
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
     bool changed = TextBox( label, buf, buf_size, hint, flags );
 
@@ -2428,7 +2433,7 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
         PopOverlayWindowStyle();
     }
 
-    DrawAndConsumePendingDescription();
+    RenderAndConsumePendingDescription();
     return changed;
 }
 
@@ -2653,7 +2658,7 @@ static bool ExpanderHeader( const char * label, bool * open, ImFluentExpandDirec
     fill = ImFluent::AnimateColorU32( id, fill );
     ImDrawList * dl = w->DrawList;
     dl->AddRectFilled( bb.Min, bb.Max, fill, r );
-    ImFluent::DrawElevationBorder( dl, bb, r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
+    ImFluent::RenderElevationBorder( dl, bb, r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
 
     const float closed_phase = ( dir == ImFluentExpandDirection_Up ) ? 1.f : 0.f;
     const float open_phase   = ( dir == ImFluentExpandDirection_Up ) ? 0.f : 1.f;
@@ -2668,7 +2673,7 @@ static bool ExpanderHeader( const char * label, bool * open, ImFluentExpandDirec
     dl->AddLine( b, c, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::FluentDpx( style.StrokeMedium ) );
 
     dl->AddText( ImVec2( bb.Min.x + ImFluent::FluentDpx( style.SpacingXLarge ), cy - ImGui::GetFontSize() * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( ImFluent::IsItemFocused( id ) ) ImFluent::DrawFocusRing( dl, bb, r );
+    if ( ImFluent::IsItemFocused( id ) ) ImFluent::RenderNavFocusRing( dl, bb, r );
     return isOpen;
 }
 
@@ -2860,7 +2865,7 @@ bool ImFluent::SelectorBarItem( const char * label, bool selected, const char * 
                            ImVec2( bx + bar_w * 0.5f, bb.Max.y ),
                            ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( style.StrokeThin ) );
     }
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
     ImGui::SameLine();
     return pressed;
 }
@@ -3001,7 +3006,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
                                ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ),
                                FluentDpx( style.SpacingXSmall ) );
         }
-        if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+        if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
         ImGui::SameLine();
         return pressed;
     }
@@ -3036,7 +3041,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
     if ( glyph ) dl->AddText( ImVec2( icon_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
     if ( g_Ctx.NavView.CurrentWidth > FluentDpx( style.AppBarButtonWidth ) )
         dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     return pressed;
 }
 
@@ -3104,7 +3109,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
         dl->AddLine( mb, c2, chev_col, FluentDpx( style.StrokeMedium ) );
     }
 
-    if ( ImFluent::IsItemFocused( id ) ) ImFluent::DrawFocusRing( dl, bb, r );
+    if ( ImFluent::IsItemFocused( id ) ) ImFluent::RenderNavFocusRing( dl, bb, r );
 
     if ( expanded )
     {
@@ -3192,7 +3197,7 @@ bool ImFluent::NavBackButton( bool enabled, bool visible )
     dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.StandardIconSize - 2.f ), cy ),
                  textCol, ImFluentIcon_BackArrow );
 
-    if ( enabled && IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    if ( enabled && IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     return pressed;
 }
 
@@ -3251,7 +3256,7 @@ void ImFluent::NavigationViewEndContent()
 
 bool ImFluent::ComboBox( const char * label, int * current_item, const char * const items[], int items_count )
 {
-    DrawAndConsumePendingHeader();
+    RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
     const float h = FluentDpx( style.ControlHeight );
 
@@ -3284,8 +3289,8 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     }
     g.Restore();
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
-    DrawAndConsumePendingDescription();
-    DrawAndConsumePendingError( input_rect );
+    RenderAndConsumePendingDescription();
+    RenderAndConsumePendingError( input_rect );
     return changed;
 }
 
@@ -3348,7 +3353,7 @@ bool ImFluent::ListViewItem( const char * label, bool selected, const char * gly
     const float cy = (bb.Min.y + bb.Max.y - ImGui::GetFontSize()) * 0.5f;
     if ( glyph ) dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.StandardIconSize - 2.f ), cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
     dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     return pressed;
 }
 
@@ -3421,7 +3426,7 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
 
     if ( selected )
-        DrawSelectionIndicator( dl, bb, ImGuiDir_Left,
+        RenderSelectionIndicator( dl, bb, ImGuiDir_Left,
                                 ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 0.5f );
 
     if ( p_checked )
@@ -3443,8 +3448,9 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
         }
         const ImU32 box_fill_anim   = AnimateColorU32( cid, box_fill );
         const ImU32 box_stroke_anim = AnimateColorU32( cid ^ 0xC1A0, box_stroke );
-        dl->AddRectFilled( check_bb.Min, check_bb.Max, box_fill_anim, box_r );
-        dl->AddRect( check_bb.Min, check_bb.Max, box_stroke_anim, box_r, 0, 1.f );
+        ImGui::PushStyleColor( ImGuiCol_Border, box_stroke_anim );
+        ImGui::RenderFrame( check_bb.Min, check_bb.Max, box_fill_anim, true, box_r );
+        ImGui::PopStyleColor();
         if ( *p_checked )
         {
             const ImU32  mark = ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary );
@@ -3456,7 +3462,7 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
         }
     }
 
-    DrawChevron( dl, ImVec2( chevron_cx, cy ),
+    RenderChevron( dl, ImVec2( chevron_cx, cy ),
                  isOpen ? ImGuiDir_Down : ImGuiDir_Right,
                  ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.ChevronGlyphSize ) );
 
@@ -3467,7 +3473,7 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     dl->AddText( ImVec2( label_x, cy - ImGui::GetFontSize() * 0.5f ),
                  ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
 
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     if ( isOpen ) ImGui::Indent( FluentDpx( style.CheckboxSize ) );
     return isOpen;
 }
@@ -3493,12 +3499,18 @@ bool ImFluent::GridViewItem( const char * label, bool selected, const ImVec2 & s
         : held ? ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary )
         : hovered ? ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary )
         : ImFluent::GetColorU32( ImFluentCol_CardBgDefault );
-    dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
-    dl->AddRect( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ), r, 0, 1.f );
+    ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ) );
+    ImGui::RenderFrame( bb.Min, bb.Max, AnimateColorU32( id, fill ), true, r );
+    ImGui::PopStyleColor();
     const ImVec2 ts = ImGui::CalcTextSize( label );
-    dl->AddText( ImVec2( bb.Min.x + (sz.x - ts.x) * 0.5f, bb.Max.y - ts.y - FluentDpx( style.SpacingLarge ) ),
-                 selected ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ) : ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    const ImU32 label_col = selected ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary )
+                                     : ImFluent::GetColorU32( ImFluentCol_TextPrimary );
+    ImGui::PushStyleColor( ImGuiCol_Text, label_col );
+    ImGui::RenderTextClipped( ImVec2( bb.Min.x, bb.Max.y - ts.y - FluentDpx( style.SpacingLarge ) ),
+                              ImVec2( bb.Max.x, bb.Max.y - FluentDpx( style.SpacingLarge ) ),
+                              label, NULL, &ts, ImVec2( 0.5f, 0.5f ), &bb );
+    ImGui::PopStyleColor();
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     return pressed;
 }
 
@@ -3600,7 +3612,7 @@ void ImFluent::EndFlyout()
         const ImRect bb( w->Pos, ImVec2( w->Pos.x + w->Size.x, w->Pos.y + w->Size.y ) );
 
         ImDrawList * fg = ImGui::GetForegroundDrawList( w );
-        DrawElevationShadow( fg, bb, FluentDpx( style.OverlayCornerRadius ), 4 );
+        RenderElevationShadow( fg, bb, FluentDpx( style.OverlayCornerRadius ), 4 );
     }
     ImGui::EndPopup();
     ImGui::PopStyleVar( 2 );
@@ -3729,7 +3741,7 @@ bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, b
                      enabled ? ImFluent::GetColorU32( ImFluentCol_TextPrimary ) : ImFluent::GetColorU32( ImFluentCol_TextDisabled ), glyph );
     dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.NavItemHeight ), cy ),
                  enabled ? ImFluent::GetColorU32( ImFluentCol_TextPrimary ) : ImFluent::GetColorU32( ImFluentCol_TextDisabled ), label );
-    DrawChevron( dl,
+    RenderChevron( dl,
                  ImVec2( bb.Max.x - FluentDpx( style.SpacingLarge ),
                  (bb.Min.y + bb.Max.y) * 0.5f ),
                  ImGuiDir_Right,
@@ -3955,7 +3967,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         else              fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDefault );
         const float r_btn = FluentDpx( style.ControlCornerRadius );
         dl->AddRectFilled( btn_bb.Min, btn_bb.Max, ImFluent::AnimateColorU32( aid, fill_target ), r_btn );
-        DrawElevationBorder( dl, btn_bb, r_btn,
+        RenderElevationBorder( dl, btn_bb, r_btn,
                              ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ),
                              ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
         const float ax = btn_bb.Min.x + ( btn_bb.GetWidth() - action_text_sz.x ) * 0.5f;
@@ -4031,7 +4043,7 @@ void ImFluent::InfoBadge( int count, const char * glyph )
     ImGui::ItemSize( bb );
     if ( !ImGui::ItemAdd( bb, 0 ) ) return;
     w->DrawList->AddRectFilled( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), h * 0.5f );
-    ImFluent::DrawCenteredText( w->DrawList,
+    ImFluent::RenderCenteredText( w->DrawList,
                                 ImVec2( (bb.Min.x + bb.Max.x) * 0.5f, (bb.Min.y + bb.Max.y) * 0.5f ),
                                 ImGui::GetFontSize(),
                                 ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ),
@@ -4353,8 +4365,8 @@ bool ImFluent::AppBarButton( const char * label, const char * glyph, const ImVec
     const float r = FluentDpx( style.ControlCornerRadius );
     ImU32 fill = ResolveSubtleFillState( false, held, hov );
     dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
-    DrawAppBarContent( dl, bb, label, glyph, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), pos, style );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    RenderAppBarContent( dl, bb, label, glyph, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), pos, style );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     return pressed;
 }
 
@@ -4405,8 +4417,8 @@ bool ImFluent::AppBarToggleButton( const char * label, const char * glyph, bool 
     dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
     const ImU32 textCol = on ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary )
         : ImFluent::GetColorU32( ImFluentCol_TextPrimary );
-    DrawAppBarContent( dl, bb, label, glyph, textCol, pos, style );
-    if ( IsItemFocused( id ) ) DrawFocusRing( dl, bb, r );
+    RenderAppBarContent( dl, bb, label, glyph, textCol, pos, style );
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
     return pressed;
 }
 
@@ -4470,7 +4482,7 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
     ImGui::EndGroup();
     const ImRect group_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     ImGui::PopID();
-    DrawAndConsumePendingError( group_rect );
+    RenderAndConsumePendingError( group_rect );
     return changed;
 }
 
@@ -4491,7 +4503,7 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time )
     ImGui::EndGroup();
     const ImRect group_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     ImGui::PopID();
-    DrawAndConsumePendingError( group_rect );
+    RenderAndConsumePendingError( group_rect );
     return changed;
 }
 
@@ -4550,6 +4562,6 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
     }
     ImGui::PopID();
     if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
-    DrawAndConsumePendingError( trigger_rect );
+    RenderAndConsumePendingError( trigger_rect );
     return changed;
 }
