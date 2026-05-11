@@ -1688,6 +1688,33 @@ static void Page_Settings()
     }
 
     ImGui::Dummy(ImVec2(0, FluentDpx(16.f)));
+    TextBlock("Accent color", ImFluentTextStyle_Subtitle);
+    ImGui::Dummy(ImVec2(0, FluentDpx(8.f)));
+    static ImVec4 accent = ImFluent::GetAccentColor().Value;
+    if (ImGui::ColorEdit3("##accent", &accent.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel))
+        ImFluent::SetAccentColor(ImColor(accent));
+    ImGui::SameLine();
+    static const struct { const char* Name; ImU32 Col; } presets[] = {
+        { "Default Blue", IM_COL32( 76, 194, 255, 255) },
+        { "Teal",         IM_COL32(  0, 183, 195, 255) },
+        { "Emerald",      IM_COL32( 16, 185, 129, 255) },
+        { "Amber",        IM_COL32(245, 158,  11, 255) },
+        { "Pink",         IM_COL32(244, 114, 182, 255) },
+        { "Purple",       IM_COL32(168,  85, 247, 255) },
+        { "Crimson",      IM_COL32(239,  68,  68, 255) },
+    };
+    for (int i = 0; i < IM_ARRAYSIZE(presets); ++i)
+    {
+        ImGui::PushID(i);
+        if (ImGui::ColorButton(presets[i].Name, ImColor(presets[i].Col).Value, ImGuiColorEditFlags_NoTooltip, ImVec2(FluentDpx(24.f), FluentDpx(24.f))))
+        {
+            accent = ImColor(presets[i].Col).Value;
+            ImFluent::SetAccentColor(ImColor(presets[i].Col));
+        }
+        ImGui::SameLine();
+        ImGui::PopID();
+    }
+    ImGui::Dummy(ImVec2(0, FluentDpx(16.f)));
     TextBlock("About", ImFluentTextStyle_Subtitle);
     TextBlock("ImFluent — Dear ImGui port of the Fluent 2 design system.", ImFluentTextStyle_Body);
     const char* ver; const char* ver_end;

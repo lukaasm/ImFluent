@@ -307,6 +307,10 @@ namespace ImFluent
     IMGUI_API void                  SetThemePreset( ImFluentThemePreset preset );
     IMGUI_API ImFluentThemePreset   GetThemePreset();
 
+    IMGUI_API void                  SetAccentColor( const ImColor & color );
+    IMGUI_API ImColor               GetAccentColor();
+    IMGUI_API bool                  HasUserAccentColor();
+
     IMGUI_API void      LoadFluentFonts();
 
     IMGUI_API void      PushFluentStyle();

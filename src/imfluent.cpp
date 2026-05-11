@@ -85,11 +85,16 @@ struct ImFluentContext
     ImFluentAppBarLabelPosition                 NextAppBarLabelPos;
     bool                                        NextAppBarLabelPosSet;
 
+    bool                                        HasUserAccent;
+    ImVec4                                      UserAccent;
+
     ImFluentContext()
         : Preset( ImFluentThemePreset_Dark )
         , PopupAnchorCount( 0 )
         , NextAppBarLabelPos( ImFluentAppBarLabelPosition_Bottom )
         , NextAppBarLabelPosSet( false )
+        , HasUserAccent( false )
+        , UserAccent( 0.f, 0.f, 0.f, 1.f )
     {
         for ( int i = 0; i < ImFluentTextStyle_COUNT; ++i ) Fonts[i] = NULL;
         NextItem = ImFluentNextItemData();
@@ -379,6 +384,53 @@ namespace ImFluent
         c[ImFluentCol_FocusStrokeInner] = ImColor( 0, 0, 0 );
     }
 
+    static inline ImVec4 LerpVec4( const ImVec4 & a, const ImVec4 & b, float t )
+    {
+        return ImVec4( a.x + (b.x - a.x) * t,
+                       a.y + (b.y - a.y) * t,
+                       a.z + (b.z - a.z) * t,
+                       a.w + (b.w - a.w) * t );
+    }
+
+    static void ApplyUserAccent( ImFluentStyle & s, const ImVec4 & base, ImFluentThemePreset preset )
+    {
+        ImVec4 * c = s.Colors;
+        const ImVec4 white( 1.f, 1.f, 1.f, 1.f );
+        const ImVec4 black( 0.f, 0.f, 0.f, 1.f );
+
+        ImVec4 base_opaque = base;
+        base_opaque.w = 1.f;
+
+        const bool dark = (preset != ImFluentThemePreset_Light);
+
+        const ImVec4 light1 = LerpVec4( base_opaque, white, 0.20f );
+        const ImVec4 light2 = LerpVec4( base_opaque, white, 0.40f );
+        const ImVec4 light3 = LerpVec4( base_opaque, white, 0.65f );
+        const ImVec4 dark1  = LerpVec4( base_opaque, black, 0.20f );
+        const ImVec4 dark2  = LerpVec4( base_opaque, black, 0.40f );
+        const ImVec4 dark3  = LerpVec4( base_opaque, black, 0.65f );
+
+        c[ImFluentCol_AccentFillDefault]   = base_opaque;
+        c[ImFluentCol_AccentFillSecondary] = ImVec4( base_opaque.x, base_opaque.y, base_opaque.z, 230.f / 255.f );
+        c[ImFluentCol_AccentFillTertiary]  = ImVec4( base_opaque.x, base_opaque.y, base_opaque.z, 204.f / 255.f );
+        c[ImFluentCol_AccentFillSelectedTextBg] = dark ? dark1 : base_opaque;
+
+        if ( dark )
+        {
+            c[ImFluentCol_AccentTextPrimary]   = light3;
+            c[ImFluentCol_AccentTextSecondary] = light2;
+            c[ImFluentCol_AccentTextTertiary]  = light1;
+        }
+        else
+        {
+            c[ImFluentCol_AccentTextPrimary]   = dark2;
+            c[ImFluentCol_AccentTextSecondary] = dark1;
+            c[ImFluentCol_AccentTextTertiary]  = base_opaque;
+        }
+
+        c[ImFluentCol_ElevationTextControlFocusedBottom] = base_opaque;
+    }
+
     static void BuildThemePalette( ImFluentStyle & s, ImFluentThemePreset preset )
     {
         switch ( preset )
@@ -393,6 +445,8 @@ namespace ImFluent
             default:
                 BuildDarkPalette( s ); break;
         }
+        if ( g_Ctx.HasUserAccent && preset != ImFluentThemePreset_HighContrast )
+            ApplyUserAccent( s, g_Ctx.UserAccent, preset );
     }
 
     static inline ImU32 LerpColorU32( ImU32 a, ImU32 b, float t )
@@ -891,6 +945,21 @@ const ImVec4 & ImFluent::GetStyleColorVec4( ImFluentCol idx )
 }
 
 ImFluentThemePreset ImFluent::GetThemePreset() { return g_Ctx.Preset; }
+
+void ImFluent::SetAccentColor( const ImColor & color )
+{
+    g_Ctx.HasUserAccent = true;
+    g_Ctx.UserAccent    = color.Value;
+    SetThemePreset( g_Ctx.Preset );
+}
+
+ImColor ImFluent::GetAccentColor()
+{
+    if ( g_Ctx.HasUserAccent ) return ImColor( g_Ctx.UserAccent );
+    return ImColor( g_Ctx.Style.Colors[ImFluentCol_AccentFillDefault] );
+}
+
+bool ImFluent::HasUserAccentColor() { return g_Ctx.HasUserAccent; }
 
 void ImFluent::SetThemePreset( ImFluentThemePreset preset )
 {
