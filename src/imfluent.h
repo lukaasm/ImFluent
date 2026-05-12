@@ -175,6 +175,22 @@ enum ImFluentExpandDirection_
 };
 typedef int ImFluentExpandDirection;
 
+enum ImFluentPagerDisplayMode_
+{
+    ImFluentPagerDisplayMode_ButtonPanel = 0,
+    ImFluentPagerDisplayMode_ComboBox,
+    ImFluentPagerDisplayMode_NumberBox,
+};
+typedef int ImFluentPagerDisplayMode;
+
+enum ImFluentPagerButtonVisibility_
+{
+    ImFluentPagerButtonVisibility_Visible = 0,
+    ImFluentPagerButtonVisibility_HiddenOnEdge,
+    ImFluentPagerButtonVisibility_Hidden,
+};
+typedef int ImFluentPagerButtonVisibility;
+
 enum ImFluentTextBoxFlags_
 {
     ImFluentTextBoxFlags_None        = 0,
@@ -435,6 +451,7 @@ namespace ImFluent
     IMGUI_API void       TreePop();
     IMGUI_API bool       GridViewItem( const char * label, bool selected, const ImVec2 & size );
     IMGUI_API bool       PipsPager( const char * id, int * current_item, int total_pages );
+    IMGUI_API bool       PagerControl( const char * id, int * current_page, int total_pages, ImFluentPagerDisplayMode display_mode = ImFluentPagerDisplayMode_ButtonPanel, ImFluentPagerButtonVisibility first_last_visibility = ImFluentPagerButtonVisibility_Hidden, ImFluentPagerButtonVisibility prev_next_visibility = ImFluentPagerButtonVisibility_Visible );
     IMGUI_API int        BreadcrumbBar( const char * id, const char * const items[], int items_count );
 
     IMGUI_API void      OpenFlyout( const char * id );

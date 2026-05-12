@@ -3549,6 +3549,182 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
     return changed;
 }
 
+static bool RenderPagerNavButton( const char * btn_id, const char * glyph, float sz, bool enabled )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const ImGuiID id = w->GetID( btn_id );
+    const ImVec2 pos = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + sz, pos.y + sz ) );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+    bool hov = false, held = false;
+    const bool pressed = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held ) : false;
+    const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+    const ImU32 fill_target = !enabled ? IM_COL32( 0, 0, 0, 0 )
+        : held ? ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary )
+        : hov  ? ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary )
+               : ImFluent::GetColorU32( ImFluentCol_SubtleFillTransparent );
+    w->DrawList->AddRectFilled( bb.Min, bb.Max, ImFluent::AnimateColorU32( id, fill_target ), r );
+    const ImU32 fg = enabled ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
+                             : ImFluent::GetColorU32( ImFluentCol_TextDisabled );
+    ImFluent::RenderCenteredText( w->DrawList,
+                                  ImVec2( (bb.Min.x + bb.Max.x) * 0.5f, (bb.Min.y + bb.Max.y) * 0.5f ),
+                                  ImGui::GetFontSize(), fg, glyph );
+    if ( enabled && ImFluent::IsItemFocused( id ) ) ImFluent::RenderNavFocusRing( w->DrawList, bb, r );
+    return pressed;
+}
+
+bool ImFluent::PagerControl( const char * id, int * current_page, int total_pages,
+                             ImFluentPagerDisplayMode display_mode,
+                             ImFluentPagerButtonVisibility first_last_visibility,
+                             ImFluentPagerButtonVisibility prev_next_visibility )
+{
+    if ( total_pages <= 0 || !current_page ) return false;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+
+    int cur = *current_page;
+    if ( cur < 0 ) cur = 0;
+    if ( cur >= total_pages ) cur = total_pages - 1;
+
+    bool changed = false;
+    ImGui::PushID( id );
+    ImGui::BeginGroup();
+
+    const float btn_sz = FluentDpx( style.ControlHeight );
+    const float gap    = FluentDpx( style.SpacingXSmall );
+
+    struct NavBtn { const char * id; const char * glyph; int target_page; bool enabled; ImFluentPagerButtonVisibility vis; bool is_edge_min; };
+    auto draw_nav = [&]( const NavBtn & b )
+    {
+        if ( b.vis == ImFluentPagerButtonVisibility_Hidden ) return;
+        if ( b.vis == ImFluentPagerButtonVisibility_HiddenOnEdge && !b.enabled ) return;
+        if ( RenderPagerNavButton( b.id, b.glyph, btn_sz, b.enabled ) )
+        {
+            *current_page = b.target_page;
+            changed = true;
+        }
+        ImGui::SameLine( 0.f, gap );
+    };
+
+    draw_nav( { "##first", ImFluentIcon_Previous,      0,                 cur > 0,                 first_last_visibility, true } );
+    draw_nav( { "##prev",  ImFluentIcon_ChevronLeft,   cur - 1,           cur > 0,                 prev_next_visibility,  true } );
+
+    if ( display_mode == ImFluentPagerDisplayMode_ButtonPanel )
+    {
+        const int window = ImMin( 7, total_pages );
+        int start = cur - window / 2;
+        if ( start < 0 ) start = 0;
+        if ( start + window > total_pages ) start = total_pages - window;
+        for ( int i = 0; i < window; ++i )
+        {
+            const int page = start + i;
+            ImGui::PushID( page );
+            const ImGuiID nid = ImGui::GetCurrentWindow()->GetID( "##np" );
+            const ImVec2 pos = ImGui::GetCursorScreenPos();
+            const ImRect bb( pos, ImVec2( pos.x + btn_sz, pos.y + btn_sz ) );
+            ImGui::ItemSize( bb );
+            const bool active_page = (page == cur);
+            if ( ImGui::ItemAdd( bb, nid ) )
+            {
+                bool hov = false, held = false;
+                const bool pressed = ImGui::ButtonBehavior( bb, nid, &hov, &held );
+                const float r = FluentDpx( style.ControlCornerRadius );
+                ImU32 fill_target;
+                if ( active_page )
+                    fill_target = held ? ImFluent::GetColorU32( ImFluentCol_AccentFillTertiary )
+                                : hov  ? ImFluent::GetColorU32( ImFluentCol_AccentFillSecondary )
+                                       : ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
+                else
+                    fill_target = held ? ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary )
+                                : hov  ? ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary )
+                                       : ImFluent::GetColorU32( ImFluentCol_SubtleFillTransparent );
+                ImDrawList * dl = ImGui::GetCurrentWindow()->DrawList;
+                dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( nid, fill_target ), r );
+                char num[8];
+                ImFormatString( num, sizeof( num ), "%d", page + 1 );
+                const ImU32 fg = active_page ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary )
+                                             : ImFluent::GetColorU32( ImFluentCol_TextPrimary );
+                RenderCenteredText( dl,
+                                    ImVec2( (bb.Min.x + bb.Max.x) * 0.5f, (bb.Min.y + bb.Max.y) * 0.5f ),
+                                    ImGui::GetFontSize(), fg, num );
+                if ( IsItemFocused( nid ) ) RenderNavFocusRing( dl, bb, r );
+                if ( pressed ) { *current_page = page; changed = true; }
+            }
+            ImGui::SameLine( 0.f, gap );
+            ImGui::PopID();
+        }
+    }
+    else if ( display_mode == ImFluentPagerDisplayMode_ComboBox )
+    {
+        const char * preview; const char * preview_end;
+        ImFormatStringToTempBuffer( &preview, &preview_end, "%d / %d", cur + 1, total_pages );
+        ImGui::PushItemWidth( FluentDpx( style.ControlMinWidth * 0.6f ) );
+        ImFluentStackGuard g;
+        g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
+        g.PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingLarge ),
+                                                          (btn_sz - ImGui::GetFontSize()) * 0.5f ) );
+        g.PushStyleColor( ImGuiCol_FrameBg, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
+        g.PushStyleColor( ImGuiCol_FrameBgHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
+        g.PushStyleColor( ImGuiCol_FrameBgActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
+        if ( ImGui::BeginCombo( "##pager-combo", preview ) )
+        {
+            for ( int p = 0; p < total_pages; ++p )
+            {
+                char num[16];
+                ImFormatString( num, sizeof( num ), "Page %d", p + 1 );
+                if ( ImGui::Selectable( num, p == cur ) )
+                {
+                    *current_page = p;
+                    changed = true;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopItemWidth();
+        ImGui::SameLine( 0.f, gap );
+    }
+    else
+    {
+        ImGui::PushItemWidth( btn_sz * 2.f );
+        int v = cur + 1;
+        ImFluentStackGuard g;
+        g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
+        g.PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingMedium ),
+                                                          (btn_sz - ImGui::GetFontSize()) * 0.5f ) );
+        g.PushStyleColor( ImGuiCol_FrameBg, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
+        g.PushStyleColor( ImGuiCol_FrameBgHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
+        g.PushStyleColor( ImGuiCol_FrameBgActive, ImFluent::GetColorU32( ImFluentCol_ControlFillInputActive ) );
+        ImGui::InputInt( "##pager-num", &v, 0, 0 );
+        if ( ImGui::IsItemDeactivatedAfterEdit() )
+        {
+            if ( v < 1 ) v = 1;
+            if ( v > total_pages ) v = total_pages;
+            if ( v - 1 != cur ) { *current_page = v - 1; changed = true; }
+        }
+        ImGui::PopItemWidth();
+        ImGui::SameLine( 0.f, FluentDpx( style.SpacingSmall ) );
+        const char * total_txt; const char * total_end;
+        ImFormatStringToTempBuffer( &total_txt, &total_end, "of %d", total_pages );
+        const ImVec2 sz = ImGui::CalcTextSize( total_txt, total_end );
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        ImGui::Dummy( ImVec2( sz.x, btn_sz ) );
+        ImDrawList * dl = ImGui::GetCurrentWindow()->DrawList;
+        dl->AddText( ImVec2( pos.x, pos.y + (btn_sz - sz.y) * 0.5f ),
+                     ImFluent::GetColorU32( ImFluentCol_TextSecondary ), total_txt, total_end );
+        ImGui::SameLine( 0.f, gap );
+    }
+
+    draw_nav( { "##next", ImFluentIcon_ChevronRight, cur + 1,           cur < total_pages - 1,   prev_next_visibility,  false } );
+    draw_nav( { "##last", ImFluentIcon_Next,         total_pages - 1,   cur < total_pages - 1,   first_last_visibility, false } );
+
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return changed;
+}
+
 int ImFluent::BreadcrumbBar( const char * id, const char * const items[], int items_count )
 {
     int clicked = -1;

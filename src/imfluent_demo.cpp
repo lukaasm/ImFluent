@@ -64,6 +64,7 @@ static void Page_Item_ListView();
 static void Page_Item_TreeView();
 static void Page_Item_GridView();
 static void Page_Item_PipsPager();
+static void Page_Item_PagerControl();
 static void Page_Item_BreadcrumbBar();
 static void Page_Item_Card();
 static void Page_Item_Expander();
@@ -121,6 +122,7 @@ static const ControlInfo g_Controls[] = {
     { "TreeView",        "Collections", "TreeView",          "A hierarchical list of items.",                                     ImFluentIcon_Folder,        &Page_Item_TreeView },
     { "GridView",        "Collections", "GridView",          "A grid layout of selectable items.",                                ImFluentIcon_ViewAll,   &Page_Item_GridView },
     { "PipsPager",       "Collections", "PipsPager",         "A pager rendered as a row of dots.",                                ImFluentIcon_More,          &Page_Item_PipsPager },
+    { "PagerControl",    "Collections", "PagerControl",      "Page navigator with numeric buttons, combo box, or editable number; first/last/prev/next controls.", ImFluentIcon_Page, &Page_Item_PagerControl },
 
     { "Card",            "Layout",      "Card",              "A surface that groups related content.",                            ImFluentIcon_Folder,        &Page_Item_Card },
     { "SettingsCard",    "Layout",      "SettingsCard",      "Card row used on settings pages: glyph + header + description + control slot.", ImFluentIcon_Settings, &Page_Item_SettingsCard },
@@ -844,6 +846,57 @@ static void Page_Item_PipsPager()
     static int s = 2;
     PipsPager("##pp", &s, 7);
     ControlExampleOutput("Page %d / 7", s + 1);
+    }
+    EndControlExample();
+}
+
+static void Page_Item_PagerControl()
+{
+    PageHeader("PagerControl", "Page navigator with three display modes: numeric buttons, combo box, or editable number. Each direction supports Visible / HiddenOnEdge / Hidden.");
+
+    if (BeginControlExample("Button panel"))
+    {
+    static int page = 0;
+    PagerControl("##pc-btn", &page, 12);
+    ControlExampleOutput("Page %d / 12", page + 1);
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Combo box"))
+    {
+    static int page = 4;
+    PagerControl("##pc-combo", &page, 25, ImFluentPagerDisplayMode_ComboBox);
+    ControlExampleOutput("Page %d / 25", page + 1);
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Number box"))
+    {
+    static int page = 7;
+    PagerControl("##pc-num", &page, 100, ImFluentPagerDisplayMode_NumberBox);
+    ControlExampleOutput("Page %d / 100", page + 1);
+    }
+    EndControlExample();
+
+    if (BeginControlExample("First/last buttons"))
+    {
+    static int page = 2;
+    PagerControl("##pc-fl", &page, 20,
+                 ImFluentPagerDisplayMode_ButtonPanel,
+                 ImFluentPagerButtonVisibility_Visible,
+                 ImFluentPagerButtonVisibility_Visible);
+    ControlExampleOutput("Page %d / 20", page + 1);
+    }
+    EndControlExample();
+
+    if (BeginControlExample("Hidden on edge"))
+    {
+    static int page = 0;
+    PagerControl("##pc-hide", &page, 10,
+                 ImFluentPagerDisplayMode_ButtonPanel,
+                 ImFluentPagerButtonVisibility_HiddenOnEdge,
+                 ImFluentPagerButtonVisibility_HiddenOnEdge);
+    ControlExampleOutput("Page %d / 10 - first/last/prev/next hide at edges", page + 1);
     }
     EndControlExample();
 }
