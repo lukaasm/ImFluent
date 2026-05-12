@@ -1776,12 +1776,12 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
     }
     const float v = value ? *value : 0.f;
     ImDrawList * dl = w->DrawList;
+    const ImU32 trackCol = ImFluent::GetColorU32( ImFluentCol_ControlStrongStrokeDefault );
+    const ImU32 fillCol = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
     for ( int i = 0; i < max_stars; ++i )
     {
         const ImVec2 c( pos.x + i * (star + gap) + star * 0.5f, pos.y + star * 0.5f );
         const float fill = ImClamp( v - ( float )i, 0.f, 1.f );
-        const ImU32 trackCol = ImFluent::GetColorU32( ImFluentCol_ControlStrongStrokeDefault );
-        const ImU32 fillCol = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
 
         dl->AddNgon( c, star * 0.45f, trackCol, 5, 1.5f );
         if ( fill > 0.f )
@@ -1930,18 +1930,23 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
                        ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), track_h * 0.5f );
 
     const float inner_rest = FluentDpx( style.SliderThumbInnerRadius );
+    const float inner_step = FluentDpx( style.SpacingXSmall );
+    const float stroke_thin = FluentDpx( style.StrokeThin );
+    const ImU32 col_thumb_solid = ImFluent::GetColorU32( ImFluentCol_ControlSolidFillDefault );
+    const ImU32 col_thumb_stroke = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
+    const ImU32 col_thumb_inner = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
     for ( int side = 0; side < 2; ++side )
     {
         const ImVec2 c = (side == 0) ? ImVec2( lo_x, track_y ) : ImVec2( hi_x, track_y );
         const bool   hov = (side == 0) ? lo_hov : hi_hov;
         const bool   act = (side == 0) ? lo_held : hi_held;
-        const float inner_target = act ? inner_rest - FluentDpx( style.SpacingXSmall )
-            : hov ? inner_rest + FluentDpx( style.SpacingXSmall )
+        const float inner_target = act ? inner_rest - inner_step
+            : hov ? inner_rest + inner_step
             : inner_rest;
         const float inner_r = AnimateFloat( (side == 0 ? id_lo : id_hi) ^ 0xC110, inner_target, 0.083f );
-        dl->AddCircleFilled( c, thumb_r, ImFluent::GetColorU32( ImFluentCol_ControlSolidFillDefault ), 32 );
-        dl->AddCircle( c, thumb_r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), 32, FluentDpx( style.StrokeThin ) );
-        dl->AddCircleFilled( c, inner_r, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 24 );
+        dl->AddCircleFilled( c, thumb_r, col_thumb_solid, 32 );
+        dl->AddCircle( c, thumb_r, col_thumb_stroke, 32, stroke_thin );
+        dl->AddCircleFilled( c, inner_r, col_thumb_inner, 24 );
     }
 
     if ( format && *format )
@@ -3880,6 +3885,9 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
     if ( !ImGui::ItemAdd( bb, gid ) ) return false;
     bool changed = false;
     ImDrawList * dl = w->DrawList;
+    const ImU32 col_pip_sel = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
+    const ImU32 col_pip_hov = ImFluent::GetColorU32( ImFluentCol_TextSecondary );
+    const ImU32 col_pip_rest = ImFluent::GetColorU32( ImFluentCol_TextDisabled );
     for ( int i = 0; i < total_pages; ++i )
     {
         const ImVec2 c( pos.x + i * (dot + gap) + dot * 0.5f, pos.y + dot * 0.5f );
@@ -3891,9 +3899,7 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
         bool hov = false, held = false;
         const bool pr = ImGui::ButtonBehavior( rect, iid, &hov, &held );
         if ( pr && current_item ) { *current_item = i; changed = true; }
-        const ImU32 col_target = sel ? ImFluent::GetColorU32( ImFluentCol_AccentFillDefault )
-            : hov ? ImFluent::GetColorU32( ImFluentCol_TextSecondary )
-            : ImFluent::GetColorU32( ImFluentCol_TextDisabled );
+        const ImU32 col_target = sel ? col_pip_sel : hov ? col_pip_hov : col_pip_rest;
         dl->AddCircleFilled( c, dot * 0.5f, AnimateColorU32( iid, col_target ), 16 );
         ImGui::PopID();
     }
@@ -4010,29 +4016,23 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
     }
     else if ( display_mode == ImFluentPagerDisplayMode_ComboBox )
     {
-        const char * preview; const char * preview_end;
-        ImFormatStringToTempBuffer( &preview, &preview_end, "%d / %d", cur + 1, total_pages );
-        ImGui::PushItemWidth( FluentDpx( style.ControlMinWidth * 0.6f ) );
-        ImFluentStackGuard g;
-        g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
-        g.PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingLarge ),
-                                                          (btn_sz - ImGui::GetFontSize()) * 0.5f ) );
-        g.PushStyleColor( ImGuiCol_FrameBg, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
-        g.PushStyleColor( ImGuiCol_FrameBgHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
-        g.PushStyleColor( ImGuiCol_FrameBgActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
-        if ( ImGui::BeginCombo( "##pager-combo", preview ) )
+        const int kLabelLen = 12;
+        ImVector<char> labels_buf;
+        ImVector<const char *> labels;
+        labels_buf.resize( total_pages * kLabelLen );
+        labels.resize( total_pages );
+        for ( int p = 0; p < total_pages; ++p )
         {
-            for ( int p = 0; p < total_pages; ++p )
-            {
-                char num[16];
-                ImFormatString( num, sizeof( num ), "Page %d", p + 1 );
-                if ( ImGui::Selectable( num, p == cur ) )
-                {
-                    *current_page = p;
-                    changed = true;
-                }
-            }
-            ImGui::EndCombo();
+            char * dst = labels_buf.Data + p * kLabelLen;
+            ImFormatString( dst, kLabelLen, "%d", p + 1 );
+            labels[p] = dst;
+        }
+        ImGui::PushItemWidth( FluentDpx( style.ControlMinWidth * 0.6f ) );
+        int sel = cur;
+        if ( ImFluent::ComboBox( "##pager-combo", &sel, labels.Data, total_pages ) )
+        {
+            *current_page = sel;
+            changed = true;
         }
         ImGui::PopItemWidth();
         ImGui::SameLine( 0.f, gap );
@@ -5042,6 +5042,18 @@ namespace ImFluent
 {
     static const int SPINNER_VISIBLE_ROWS = 7;
     static const int SPINNER_CENTER_ROW   = SPINNER_VISIBLE_ROWS / 2;
+    static const ImGuiID PICKER_KEY_INIT   = 0xD9FEu;
+    static const ImGuiID PICKER_KEY_WAS    = 0xD7FEu;
+    static const ImGuiID PICKER_KEY_DAY    = 0xDAFEu;
+    static const ImGuiID PICKER_KEY_MONTH  = 0xD0FEu;
+    static const ImGuiID PICKER_KEY_YEAR   = 0xD3FEu;
+    static const ImGuiID PICKER_KEY_HOUR   = 0xDAFEu;
+    static const ImGuiID PICKER_KEY_MINUTE = 0xD0FEu;
+    static const ImGuiID CAL_KEY_INIT      = 0xC9FEu;
+    static const ImGuiID CAL_KEY_WAS       = 0xC7FEu;
+    static const ImGuiID CAL_KEY_VIEW_Y    = 0xC1FEu;
+    static const ImGuiID CAL_KEY_VIEW_M    = 0xC2FEu;
+    static const ImGuiID CAL_KEY_MODE      = 0xC3FEu;
     static const ImGuiWindowFlags PICKER_POPUP_FLAGS =
         ImGuiWindowFlags_NoTitleBar
         | ImGuiWindowFlags_NoResize
@@ -5138,6 +5150,11 @@ namespace ImFluent
         const bool can_down = (new_value < max_v);
         const int top_chev_k = sel_idx - SPINNER_CENTER_ROW;
         const int bot_chev_k = sel_idx + SPINNER_CENTER_ROW;
+        const ImU32 col_subtle_ter = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
+        const ImU32 col_subtle_sec = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+        const ImU32 col_on_acc     = ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary );
+        const ImU32 col_text_pri   = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
+        const ImU32 col_text_sec   = ImFluent::GetColorU32( ImFluentCol_TextSecondary );
 
         int k_idx = 0;
         for ( int v = min_v; v <= max_v; v += step, ++k_idx )
@@ -5167,15 +5184,11 @@ namespace ImFluent
             const bool sel = (v == new_value);
             if ( !sel )
             {
-                ImU32 hover_fill = 0;
-                if ( held )      hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
-                else if ( hov )  hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+                ImU32 hover_fill = held ? col_subtle_ter : (hov ? col_subtle_sec : 0u);
                 if ( hover_fill ) dl->AddRectFilled( bb.Min, bb.Max, hover_fill, r );
             }
 
-            const ImU32 text_col = sel ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary )
-                                       : (hov ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
-                                              : ImFluent::GetColorU32( ImFluentCol_TextSecondary ));
+            const ImU32 text_col = sel ? col_on_acc : (hov ? col_text_pri : col_text_sec);
             const ImVec2 ts = ImGui::CalcTextSize( buf );
             dl->AddText( ImVec2( bb.Min.x + (col_w - ts.x) * 0.5f, bb.Min.y + (row_h - ts.y) * 0.5f ),
                          text_col, buf );
@@ -5274,6 +5287,11 @@ namespace ImFluent
         const bool can_down = (new_value < count - 1);
         const int top_chev_k = sel_idx - SPINNER_CENTER_ROW;
         const int bot_chev_k = sel_idx + SPINNER_CENTER_ROW;
+        const ImU32 col_subtle_ter = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
+        const ImU32 col_subtle_sec = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+        const ImU32 col_on_acc     = ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary );
+        const ImU32 col_text_pri   = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
+        const ImU32 col_text_sec   = ImFluent::GetColorU32( ImFluentCol_TextSecondary );
 
         for ( int v = 0; v < count; ++v )
         {
@@ -5296,15 +5314,11 @@ namespace ImFluent
             const bool sel = (v == new_value);
             if ( !sel )
             {
-                ImU32 hover_fill = 0;
-                if ( held )      hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
-                else if ( hov )  hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+                ImU32 hover_fill = held ? col_subtle_ter : (hov ? col_subtle_sec : 0u);
                 if ( hover_fill ) dl->AddRectFilled( bb.Min, bb.Max, hover_fill, r );
             }
 
-            const ImU32 text_col = sel ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary )
-                                       : (hov ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
-                                              : ImFluent::GetColorU32( ImFluentCol_TextSecondary ));
+            const ImU32 text_col = sel ? col_on_acc : (hov ? col_text_pri : col_text_sec);
             const char * txt = labels[v];
             const ImVec2 ts = ImGui::CalcTextSize( txt );
             dl->AddText( ImVec2( bb.Min.x + (col_w - ts.x) * 0.5f, bb.Min.y + (row_h - ts.y) * 0.5f ),
@@ -5505,11 +5519,11 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
         RenderNavFocusRing( dl, bb, r );
 
     ImGuiStorage * st = &w->StateStorage;
-    const ImGuiID init_key = id ^ 0xD9FEu;
-    const ImGuiID was_key  = id ^ 0xD7FEu;
-    const ImGuiID day_key  = id ^ 0xDAFEu;
-    const ImGuiID mon_key  = id ^ 0xD0FEu;
-    const ImGuiID yr_key   = id ^ 0xD3FEu;
+    const ImGuiID init_key = id ^ PICKER_KEY_INIT;
+    const ImGuiID was_key  = id ^ PICKER_KEY_WAS;
+    const ImGuiID day_key  = id ^ PICKER_KEY_DAY;
+    const ImGuiID mon_key  = id ^ PICKER_KEY_MONTH;
+    const ImGuiID yr_key   = id ^ PICKER_KEY_YEAR;
     const bool was_open_last = st->GetBool( was_key, false );
     if ( was_open_last && !popup_open ) st->SetBool( init_key, false );
 
@@ -5678,10 +5692,10 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
         RenderNavFocusRing( dl, bb, r );
 
     ImGuiStorage * st = &w->StateStorage;
-    const ImGuiID init_key = id ^ 0xD9FEu;
-    const ImGuiID was_key  = id ^ 0xD7FEu;
-    const ImGuiID hr_key   = id ^ 0xDAFEu;
-    const ImGuiID mn_key   = id ^ 0xD0FEu;
+    const ImGuiID init_key = id ^ PICKER_KEY_INIT;
+    const ImGuiID was_key  = id ^ PICKER_KEY_WAS;
+    const ImGuiID hr_key   = id ^ PICKER_KEY_HOUR;
+    const ImGuiID mn_key   = id ^ PICKER_KEY_MINUTE;
     const bool was_open_last = st->GetBool( was_key, false );
     if ( was_open_last && !popup_open ) st->SetBool( init_key, false );
 
@@ -5810,10 +5824,11 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
 
 static ImVec2 CalendarViewCalcSize()
 {
-    const float cell = ImFluent::FluentDpx( 36.f );
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const float cell = ImFluent::FluentDpx( style.ControlHeight + style.SpacingSmall );
     const float grid_w = cell * 7.f;
-    const float header_h = ImFluent::FluentDpx( 40.f );
-    const float dow_h = ImFluent::FluentDpx( 24.f );
+    const float header_h = ImFluent::FluentDpx( style.ControlHeight + style.SpacingMedium );
+    const float dow_h = ImFluent::FluentDpx( style.ControlHeight - style.SpacingMedium );
     const float day_grid_h = 6.f * cell;
     return ImVec2( grid_w, header_h + dow_h + day_grid_h );
 }
@@ -5825,20 +5840,20 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     if ( w->SkipItems ) return false;
 
     const ImFluentStyle & style = GetStyle();
-    const float cell = FluentDpx( 36.f );
+    const float cell = FluentDpx( style.ControlHeight + style.SpacingSmall );
     const float grid_w = cell * 7.f;
-    const float header_h = FluentDpx( 40.f );
-    const float dow_h = FluentDpx( 24.f );
+    const float header_h = FluentDpx( style.ControlHeight + style.SpacingMedium );
+    const float dow_h = FluentDpx( style.ControlHeight - style.SpacingMedium );
     const float day_grid_h = 6.f * cell;
-    const float chev_btn_w = FluentDpx( 32.f );
+    const float chev_btn_w = FluentDpx( style.ControlHeight );
     const float r2 = FluentDpx( style.ControlCornerRadius );
 
     ImGui::PushID( id );
     const ImGuiID scope_id = w->GetID( "##cv_scope" );
     ImGuiStorage * st = &w->StateStorage;
-    const ImGuiID viewy_key = scope_id ^ 0xC1FEu;
-    const ImGuiID viewm_key = scope_id ^ 0xC2FEu;
-    const ImGuiID mode_key  = scope_id ^ 0xC3FEu;
+    const ImGuiID viewy_key = scope_id ^ CAL_KEY_VIEW_Y;
+    const ImGuiID viewm_key = scope_id ^ CAL_KEY_VIEW_M;
+    const ImGuiID mode_key  = scope_id ^ CAL_KEY_MODE;
 
     int today_y, today_m, today_d;
     GetTodayDate( today_y, today_m, today_d );
@@ -5987,6 +6002,17 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
         int next_y = view_y;
         if ( next_m > 12 ) { next_m = 1; next_y++; }
 
+        const ImU32 col_subtle_trans = GetColorU32( ImFluentCol_SubtleFillTransparent );
+        const ImU32 col_subtle_sec   = GetColorU32( ImFluentCol_SubtleFillSecondary );
+        const ImU32 col_subtle_ter   = GetColorU32( ImFluentCol_SubtleFillTertiary );
+        const ImU32 col_accent_fill  = GetColorU32( ImFluentCol_AccentFillDefault );
+        const ImU32 col_text_disabled = GetColorU32( ImFluentCol_TextDisabled );
+        const ImU32 col_text_on_acc  = GetColorU32( ImFluentCol_TextOnAccentPrimary );
+        const ImU32 col_text_tert    = GetColorU32( ImFluentCol_TextTertiary );
+        const ImU32 col_text_primary = GetColorU32( ImFluentCol_TextPrimary );
+        const float circ_r = cell * 0.5f - FluentDpx( style.SpacingXSmall );
+        const float today_th = FluentDpx( style.StrokeMedium );
+
         for ( int row = 0; row < 6; ++row )
         {
             for ( int col = 0; col < 7; ++col )
@@ -6030,30 +6056,28 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 const bool is_sel = (cell_y == date->Year && cell_m == date->Month && cell_d == date->Day);
 
                 ImU32 fill_target;
-                if ( out_of_range ) fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
-                else if ( is_sel )  fill_target = GetColorU32( ImFluentCol_AccentFillDefault );
-                else if ( chld )    fill_target = GetColorU32( ImFluentCol_SubtleFillTertiary );
-                else if ( chov )    fill_target = GetColorU32( ImFluentCol_SubtleFillSecondary );
-                else                fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
+                if ( out_of_range ) fill_target = col_subtle_trans;
+                else if ( is_sel )  fill_target = col_accent_fill;
+                else if ( chld )    fill_target = col_subtle_ter;
+                else if ( chov )    fill_target = col_subtle_sec;
+                else                fill_target = col_subtle_trans;
                 const ImU32 fill = AnimateColorU32( cell_id, fill_target );
 
                 const float cx = (cbb.Min.x + cbb.Max.x) * 0.5f;
                 const float cy = (cbb.Min.y + cbb.Max.y) * 0.5f;
-                const float circ_r = cell * 0.5f - FluentDpx( 2.f );
                 pdl->AddCircleFilled( ImVec2( cx, cy ), circ_r, fill, 24 );
 
                 const bool is_today = (cell_y == today_y && cell_m == today_m && cell_d == today_d);
                 if ( is_today && !is_sel && !out_of_range )
                 {
-                    pdl->AddCircle( ImVec2( cx, cy ), circ_r, GetColorU32( ImFluentCol_AccentFillDefault ),
-                                    24, FluentDpx( style.StrokeMedium ) );
+                    pdl->AddCircle( ImVec2( cx, cy ), circ_r, col_accent_fill, 24, today_th );
                 }
 
                 ImU32 cell_text_col;
-                if ( out_of_range )     cell_text_col = GetColorU32( ImFluentCol_TextDisabled );
-                else if ( is_sel )      cell_text_col = GetColorU32( ImFluentCol_TextOnAccentPrimary );
-                else if ( other_month ) cell_text_col = GetColorU32( ImFluentCol_TextTertiary );
-                else                    cell_text_col = GetColorU32( ImFluentCol_TextPrimary );
+                if ( out_of_range )     cell_text_col = col_text_disabled;
+                else if ( is_sel )      cell_text_col = col_text_on_acc;
+                else if ( other_month ) cell_text_col = col_text_tert;
+                else                    cell_text_col = col_text_primary;
 
                 char ds[8];
                 ImFormatString( ds, sizeof( ds ), "%d", cell_d );
@@ -6078,6 +6102,16 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
         const ImVec2 grid_origin = ImGui::GetCursorScreenPos();
         const float cell_w = grid_w / 4.f;
         const float cell_h = day_grid_h / 3.f;
+        const float cell_inset = FluentDpx( style.SpacingSmall );
+        const float my_today_th = FluentDpx( style.StrokeMedium );
+        const ImU32 col_subtle_trans2 = GetColorU32( ImFluentCol_SubtleFillTransparent );
+        const ImU32 col_subtle_sec2   = GetColorU32( ImFluentCol_SubtleFillSecondary );
+        const ImU32 col_subtle_ter2   = GetColorU32( ImFluentCol_SubtleFillTertiary );
+        const ImU32 col_accent_fill2  = GetColorU32( ImFluentCol_AccentFillDefault );
+        const ImU32 col_text_disabled2 = GetColorU32( ImFluentCol_TextDisabled );
+        const ImU32 col_text_on_acc2  = GetColorU32( ImFluentCol_TextOnAccentPrimary );
+        const ImU32 col_text_tert2    = GetColorU32( ImFluentCol_TextTertiary );
+        const ImU32 col_text_primary2 = GetColorU32( ImFluentCol_TextPrimary );
 
         for ( int row = 0; row < 3; ++row )
         {
@@ -6126,33 +6160,31 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld );
 
                 ImU32 fill_target;
-                if ( out_of_range ) fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
-                else if ( is_sel )  fill_target = GetColorU32( ImFluentCol_AccentFillDefault );
-                else if ( chld )    fill_target = GetColorU32( ImFluentCol_SubtleFillTertiary );
-                else if ( chov )    fill_target = GetColorU32( ImFluentCol_SubtleFillSecondary );
-                else                fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
+                if ( out_of_range ) fill_target = col_subtle_trans2;
+                else if ( is_sel )  fill_target = col_accent_fill2;
+                else if ( chld )    fill_target = col_subtle_ter2;
+                else if ( chov )    fill_target = col_subtle_sec2;
+                else                fill_target = col_subtle_trans2;
                 const ImU32 fill = AnimateColorU32( cell_id, fill_target );
 
-                const float inset = FluentDpx( 4.f );
-                const ImVec2 cell_min( cbb.Min.x + inset, cbb.Min.y + inset );
-                const ImVec2 cell_max( cbb.Max.x - inset, cbb.Max.y - inset );
+                const ImVec2 cell_min( cbb.Min.x + cell_inset, cbb.Min.y + cell_inset );
+                const ImVec2 cell_max( cbb.Max.x - cell_inset, cbb.Max.y - cell_inset );
                 pdl->AddRectFilled( cell_min, cell_max, fill, r2 );
                 if ( is_today_cell && !is_sel && !out_of_range )
                 {
-                    pdl->AddRect( cell_min, cell_max, GetColorU32( ImFluentCol_AccentFillDefault ),
-                                  r2, 0, FluentDpx( style.StrokeMedium ) );
+                    pdl->AddRect( cell_min, cell_max, col_accent_fill2, r2, 0, my_today_th );
                 }
 
                 ImU32 cell_text_col;
-                if ( out_of_range )     cell_text_col = GetColorU32( ImFluentCol_TextDisabled );
-                else if ( is_sel )      cell_text_col = GetColorU32( ImFluentCol_TextOnAccentPrimary );
-                else if ( other_range ) cell_text_col = GetColorU32( ImFluentCol_TextTertiary );
-                else                    cell_text_col = GetColorU32( ImFluentCol_TextPrimary );
+                if ( out_of_range )     cell_text_col = col_text_disabled2;
+                else if ( is_sel )      cell_text_col = col_text_on_acc2;
+                else if ( other_range ) cell_text_col = col_text_tert2;
+                else                    cell_text_col = col_text_primary2;
 
                 ImFluentStackGuard tg2;
                 tg2.PushStyleColor( ImGuiCol_Text, cell_text_col );
-                const ImRect text_clip( ImVec2( cbb.Min.x + inset, cbb.Min.y ),
-                                        ImVec2( cbb.Max.x - inset, cbb.Max.y ) );
+                const ImRect text_clip( ImVec2( cbb.Min.x + cell_inset, cbb.Min.y ),
+                                        ImVec2( cbb.Max.x - cell_inset, cbb.Max.y ) );
                 ImGui::RenderTextClipped( text_clip.Min, text_clip.Max, buf2, NULL, NULL,
                                           ImVec2( 0.5f, 0.5f ), &text_clip );
 
@@ -6256,15 +6288,15 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
         RenderNavFocusRing( dl, bb, r );
 
     ImGuiStorage * st = &w->StateStorage;
-    const ImGuiID init_key = id ^ 0xC9FEu;
-    const ImGuiID was_key  = id ^ 0xC7FEu;
+    const ImGuiID init_key = id ^ CAL_KEY_INIT;
+    const ImGuiID was_key  = id ^ CAL_KEY_WAS;
     const bool was_open_last = st->GetBool( was_key, false );
     if ( was_open_last && !popup_open )
     {
         st->SetBool( init_key, false );
-        st->SetInt( id ^ 0xC1FEu, 0 );
-        st->SetInt( id ^ 0xC2FEu, 0 );
-        st->SetInt( id ^ 0xC3FEu, 0 );
+        st->SetInt( id ^ CAL_KEY_VIEW_Y, 0 );
+        st->SetInt( id ^ CAL_KEY_VIEW_M, 0 );
+        st->SetInt( id ^ CAL_KEY_MODE,   0 );
     }
 
     bool changed = false;
