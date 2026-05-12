@@ -4969,60 +4969,763 @@ static int DaysInMonth( int year, int month )
 
 // [SECTION] Date & Time pickers
 
+namespace ImFluent
+{
+    static const int SPINNER_VISIBLE_ROWS = 7;
+    static const int SPINNER_CENTER_ROW   = SPINNER_VISIBLE_ROWS / 2;
+    static const ImGuiWindowFlags PICKER_POPUP_FLAGS =
+        ImGuiWindowFlags_NoTitleBar
+        | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_AlwaysAutoResize;
+
+    static void SetupPickerPopup( const ImRect & trigger_bb, float popup_w, float popup_pad_y_dpx )
+    {
+        const float trigger_cy = (trigger_bb.Min.y + trigger_bb.Max.y) * 0.5f;
+        const float row_h = ImFloor( ImFluent::FluentDpx( ImFluent::GetStyle().ControlHeight ) );
+        const float popup_y = trigger_cy - ((float)SPINNER_CENTER_ROW + 0.5f) * row_h - ImFluent::FluentDpx( popup_pad_y_dpx );
+        ImGui::SetNextWindowPos( ImVec2( trigger_bb.Min.x, popup_y ) );
+        ImGui::SetNextWindowSizeConstraints( ImVec2( popup_w, 0.f ), ImVec2( popup_w, FLT_MAX ) );
+    }
+
+    static void RenderSpinnerChevronButton( ImDrawList * dl, const ImRect & bb, ImGuiDir dir, bool hov, bool held )
+    {
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+        ImU32 fill = 0;
+        if ( held )      fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
+        else if ( hov )  fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+        else             fill = ImFluent::GetColorU32( ImFluentCol_SolidBgQuarternary );
+        dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+        const ImVec2 c( (bb.Min.x + bb.Max.x) * 0.5f, (bb.Min.y + bb.Max.y) * 0.5f );
+        const float L = ImFluent::FluentDpx( style.ChevronGlyphSize );
+        const float th = ImFluent::FluentDpx( style.StrokeMedium );
+        RenderChevron( dl, c, dir, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), L, th );
+    }
+
+    static int RenderSpinnerColumn( const char * id, int value, int min_v, int max_v, bool month_names, const char * format, float col_w, int step = 1 )
+    {
+        if ( step < 1 ) step = 1;
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float row_h = ImFloor( ImFluent::FluentDpx( style.ControlHeight ) );
+        const float win_h = SPINNER_VISIBLE_ROWS * row_h;
+        const float pad_h = SPINNER_CENTER_ROW * row_h;
+
+        int new_value = ImClamp( value, min_v, max_v );
+        new_value = min_v + ((new_value - min_v) / step) * step;
+
+        ImGui::PushID( id );
+        const float target_scroll = (float)((new_value - min_v) / step) * row_h;
+        ImGui::SetNextWindowScroll( ImVec2( -1.f, target_scroll ) );
+
+        ImFluentStackGuard gw;
+        gw.PushStyleColor( ImGuiCol_ChildBg, IM_COL32_BLACK_TRANS );
+        gw.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
+        gw.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
+
+        ImGui::BeginChild( id, ImVec2( col_w, win_h ), ImGuiChildFlags_None,
+                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+
+        const bool col_hovered = ImGui::IsWindowHovered();
+
+        ImGuiStorage * cs = ImGui::GetStateStorage();
+        const ImGuiID acc_key = ImGui::GetID( "##sp_acc" );
+        float acc = cs->GetFloat( acc_key, 0.f );
+        if ( col_hovered )
+        {
+            const float wheel = ImGui::GetIO().MouseWheel;
+            if ( wheel != 0.f )
+            {
+                acc += wheel;
+                int wheel_steps = (acc >= 0.f) ? (int)ImFloor( acc ) : (int)ImCeil( acc );
+                if ( wheel_steps != 0 )
+                {
+                    new_value = ImClamp( new_value - wheel_steps * step, min_v, max_v );
+                    new_value = min_v + ((new_value - min_v) / step) * step;
+                    acc -= (float)wheel_steps;
+                }
+            }
+        }
+        else
+        {
+            acc = 0.f;
+        }
+        cs->SetFloat( acc_key, acc );
+
+        ImGui::Dummy( ImVec2( 0.f, pad_h ) );
+
+        ImGuiWindow * cw = ImGui::GetCurrentWindow();
+        ImDrawList * dl = cw->DrawList;
+        const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+
+        const int sel_idx = (new_value - min_v) / step;
+        const bool can_up = (new_value > min_v);
+        const bool can_down = (new_value < max_v);
+        const int top_chev_k = sel_idx - SPINNER_CENTER_ROW;
+        const int bot_chev_k = sel_idx + SPINNER_CENTER_ROW;
+
+        int k_idx = 0;
+        for ( int v = min_v; v <= max_v; v += step, ++k_idx )
+        {
+            char buf[32];
+            if ( month_names )
+                ImStrncpy( buf, ImFluent::LocalizeGetMsg( (ImFluentLocKey)(ImFluentLocKey_MonthJanuary + v - 1) ), sizeof( buf ) );
+            else
+                ImFormatString( buf, sizeof( buf ), format, v );
+
+            ImGui::PushID( v );
+            const ImGuiID item_id = cw->GetID( "##si" );
+            ImGui::PopID();
+
+            const ImVec2 pos = cw->DC.CursorPos;
+            const ImRect bb( pos, ImVec2( pos.x + col_w, pos.y + row_h ) );
+            ImGui::ItemSize( bb );
+            if ( !ImGui::ItemAdd( bb, item_id ) ) continue;
+
+            const bool chev_covers = col_hovered && ((can_up && k_idx == top_chev_k) || (can_down && k_idx == bot_chev_k));
+            if ( chev_covers ) continue;
+
+            bool hov = false, held = false;
+            const bool pressed = ImGui::ButtonBehavior( bb, item_id, &hov, &held );
+            if ( pressed ) new_value = v;
+
+            const bool sel = (v == new_value);
+            if ( !sel )
+            {
+                ImU32 hover_fill = 0;
+                if ( held )      hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
+                else if ( hov )  hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+                if ( hover_fill ) dl->AddRectFilled( bb.Min, bb.Max, hover_fill, r );
+            }
+
+            const ImU32 text_col = sel ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary )
+                                       : (hov ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
+                                              : ImFluent::GetColorU32( ImFluentCol_TextSecondary ));
+            const ImVec2 ts = ImGui::CalcTextSize( buf );
+            dl->AddText( ImVec2( bb.Min.x + (col_w - ts.x) * 0.5f, bb.Min.y + (row_h - ts.y) * 0.5f ),
+                         text_col, buf );
+        }
+
+        ImGui::Dummy( ImVec2( 0.f, pad_h ) );
+
+        if ( col_hovered )
+        {
+            const ImVec2 wp = ImGui::GetWindowPos();
+            const ImVec2 ws = ImGui::GetWindowSize();
+            if ( can_up )
+            {
+                const ImRect top_bb( wp, ImVec2( wp.x + ws.x, wp.y + row_h ) );
+                const bool top_hov = ImGui::IsMouseHoveringRect( top_bb.Min, top_bb.Max, false );
+                const bool top_held = top_hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
+                const bool top_clicked = top_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
+                RenderSpinnerChevronButton( dl, top_bb, ImGuiDir_Up, top_hov, top_held );
+                if ( top_clicked ) new_value = ImClamp( new_value - step, min_v, max_v );
+            }
+            if ( can_down )
+            {
+                const ImRect bot_bb( ImVec2( wp.x, wp.y + ws.y - row_h ), ImVec2( wp.x + ws.x, wp.y + ws.y ) );
+                const bool bot_hov = ImGui::IsMouseHoveringRect( bot_bb.Min, bot_bb.Max, false );
+                const bool bot_held = bot_hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
+                const bool bot_clicked = bot_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
+                RenderSpinnerChevronButton( dl, bot_bb, ImGuiDir_Down, bot_hov, bot_held );
+                if ( bot_clicked ) new_value = ImClamp( new_value + step, min_v, max_v );
+            }
+        }
+
+        ImGui::EndChild();
+        ImGui::PopID();
+        return new_value;
+    }
+
+    static int RenderSpinnerLabelColumn( const char * id, int value, const char * const * labels, int count, float col_w )
+    {
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float row_h = ImFloor( ImFluent::FluentDpx( style.ControlHeight ) );
+        const float win_h = SPINNER_VISIBLE_ROWS * row_h;
+        const float pad_h = SPINNER_CENTER_ROW * row_h;
+
+        int new_value = ImClamp( value, 0, count - 1 );
+
+        ImGui::PushID( id );
+        const float target_scroll = (float)new_value * row_h;
+        ImGui::SetNextWindowScroll( ImVec2( -1.f, target_scroll ) );
+
+        ImFluentStackGuard gw;
+        gw.PushStyleColor( ImGuiCol_ChildBg, IM_COL32_BLACK_TRANS );
+        gw.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
+        gw.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
+
+        ImGui::BeginChild( id, ImVec2( col_w, win_h ), ImGuiChildFlags_None,
+                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+
+        const bool col_hovered = ImGui::IsWindowHovered();
+
+        ImGuiStorage * cs = ImGui::GetStateStorage();
+        const ImGuiID acc_key = ImGui::GetID( "##sp_acc" );
+        float acc = cs->GetFloat( acc_key, 0.f );
+        if ( col_hovered )
+        {
+            const float wheel = ImGui::GetIO().MouseWheel;
+            if ( wheel != 0.f )
+            {
+                acc += wheel;
+                int steps = (acc >= 0.f) ? (int)ImFloor( acc ) : (int)ImCeil( acc );
+                if ( steps != 0 )
+                {
+                    new_value = ImClamp( new_value - steps, 0, count - 1 );
+                    acc -= (float)steps;
+                }
+            }
+        }
+        else
+        {
+            acc = 0.f;
+        }
+        cs->SetFloat( acc_key, acc );
+
+        ImGui::Dummy( ImVec2( 0.f, pad_h ) );
+
+        ImGuiWindow * cw = ImGui::GetCurrentWindow();
+        ImDrawList * dl = cw->DrawList;
+        const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+
+        const int sel_idx = new_value;
+        const bool can_up = (new_value > 0);
+        const bool can_down = (new_value < count - 1);
+        const int top_chev_k = sel_idx - SPINNER_CENTER_ROW;
+        const int bot_chev_k = sel_idx + SPINNER_CENTER_ROW;
+
+        for ( int v = 0; v < count; ++v )
+        {
+            ImGui::PushID( v );
+            const ImGuiID item_id = cw->GetID( "##si" );
+            ImGui::PopID();
+
+            const ImVec2 pos = cw->DC.CursorPos;
+            const ImRect bb( pos, ImVec2( pos.x + col_w, pos.y + row_h ) );
+            ImGui::ItemSize( bb );
+            if ( !ImGui::ItemAdd( bb, item_id ) ) continue;
+
+            const bool chev_covers = col_hovered && ((can_up && v == top_chev_k) || (can_down && v == bot_chev_k));
+            if ( chev_covers ) continue;
+
+            bool hov = false, held = false;
+            const bool pressed = ImGui::ButtonBehavior( bb, item_id, &hov, &held );
+            if ( pressed ) new_value = v;
+
+            const bool sel = (v == new_value);
+            if ( !sel )
+            {
+                ImU32 hover_fill = 0;
+                if ( held )      hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
+                else if ( hov )  hover_fill = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+                if ( hover_fill ) dl->AddRectFilled( bb.Min, bb.Max, hover_fill, r );
+            }
+
+            const ImU32 text_col = sel ? ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary )
+                                       : (hov ? ImFluent::GetColorU32( ImFluentCol_TextPrimary )
+                                              : ImFluent::GetColorU32( ImFluentCol_TextSecondary ));
+            const char * txt = labels[v];
+            const ImVec2 ts = ImGui::CalcTextSize( txt );
+            dl->AddText( ImVec2( bb.Min.x + (col_w - ts.x) * 0.5f, bb.Min.y + (row_h - ts.y) * 0.5f ),
+                         text_col, txt );
+        }
+
+        ImGui::Dummy( ImVec2( 0.f, pad_h ) );
+
+        if ( col_hovered )
+        {
+            const ImVec2 wp = ImGui::GetWindowPos();
+            const ImVec2 ws = ImGui::GetWindowSize();
+            if ( can_up )
+            {
+                const ImRect top_bb( wp, ImVec2( wp.x + ws.x, wp.y + row_h ) );
+                const bool tov = ImGui::IsMouseHoveringRect( top_bb.Min, top_bb.Max, false );
+                const bool thd = tov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
+                const bool tcl = tov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
+                RenderSpinnerChevronButton( dl, top_bb, ImGuiDir_Up, tov, thd );
+                if ( tcl ) new_value = ImClamp( new_value - 1, 0, count - 1 );
+            }
+            if ( can_down )
+            {
+                const ImRect bot_bb( ImVec2( wp.x, wp.y + ws.y - row_h ), ImVec2( wp.x + ws.x, wp.y + ws.y ) );
+                const bool bov = ImGui::IsMouseHoveringRect( bot_bb.Min, bot_bb.Max, false );
+                const bool bhd = bov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
+                const bool bcl = bov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
+                RenderSpinnerChevronButton( dl, bot_bb, ImGuiDir_Down, bov, bhd );
+                if ( bcl ) new_value = ImClamp( new_value + 1, 0, count - 1 );
+            }
+        }
+
+        ImGui::EndChild();
+        ImGui::PopID();
+        return new_value;
+    }
+
+    static bool RenderPickerActionButton( const char * label, const ImVec2 & size )
+    {
+        ImGuiWindow * w = ImGui::GetCurrentWindow();
+        if ( w->SkipItems ) return false;
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float r = ImFluent::FluentDpx( style.ControlCornerRadius );
+        const ImGuiID id = w->GetID( label );
+        const ImVec2 pos = w->DC.CursorPos;
+        const ImRect bb( pos, ImVec2( pos.x + size.x, pos.y + size.y ) );
+        ImGui::ItemSize( bb );
+        if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+        bool hov = false, held = false;
+        const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+
+        ImU32 fill_target;
+        if ( held )      fill_target = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
+        else if ( hov )  fill_target = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+        else             fill_target = ImFluent::GetColorU32( ImFluentCol_SubtleFillTransparent );
+        const ImU32 fill = ImFluent::AnimateColorU32( id, fill_target );
+        ImDrawList * dl = w->DrawList;
+        dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+
+        const char * text_end = ImGui::FindRenderedTextEnd( label );
+        const ImVec2 ts = ImGui::CalcTextSize( label, text_end );
+        const ImU32 text_col = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
+        dl->AddText( ImVec2( bb.Min.x + (size.x - ts.x) * 0.5f, bb.Min.y + (size.y - ts.y) * 0.5f ),
+                     text_col, label, text_end );
+
+        if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
+        return pressed;
+    }
+
+    static void RenderSpinnerSelectionBand( ImDrawList * dl, ImVec2 group_origin, float total_w, float row_h )
+    {
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float spinners_h = SPINNER_VISIBLE_ROWS * row_h;
+        const float band_top = ImFloor( group_origin.y + (spinners_h - row_h) * 0.5f );
+        dl->AddRectFilled( ImVec2( group_origin.x, band_top ),
+                           ImVec2( group_origin.x + total_w, band_top + row_h ),
+                           ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ),
+                           ImFluent::FluentDpx( style.ControlCornerRadius ) );
+    }
+
+    static void RenderPickerTriggerFrame( ImDrawList * dl, const ImRect & bb, float r, bool hovered, bool held, bool open, bool disabled, ImGuiID id )
+    {
+        ImU32 fill_target;
+        if ( disabled )            fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDisabled );
+        else if ( held || open )   fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary );
+        else if ( hovered )        fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary );
+        else                       fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDefault );
+        const ImU32 fill = ImFluent::AnimateColorU32( id, fill_target );
+        dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+
+        const ImU32 stroke = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
+        const ImU32 stroke_bot = ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom );
+        if ( !held && !open && !disabled )
+            ImFluent::RenderElevationBorder( dl, bb, r, stroke, stroke_bot, 1.f );
+        else
+            dl->AddRect( bb.Min, bb.Max, stroke, r, 0, 1.f );
+    }
+
+    static void RenderColumnSeparator( ImDrawList * dl, float x, float ymin, float ymax, ImU32 col )
+    {
+        dl->AddLine( ImVec2( x, ymin ), ImVec2( x, ymax ), col, 1.f );
+    }
+
+    static void RenderCenteredColumnText( ImDrawList * dl, float x0, float x1, float ycenter, ImU32 col, const char * text )
+    {
+        const ImVec2 ts = ImGui::CalcTextSize( text );
+        dl->AddText( ImVec2( x0 + ((x1 - x0) - ts.x) * 0.5f, ycenter - ts.y * 0.5f ), col, text );
+    }
+
+    static bool PickerTogglePopup( ImGuiID popup_id, const ImRect & bb, ImGuiID trig_id, bool disabled )
+    {
+        ImGuiContext & gctx = *ImGui::GetCurrentContext();
+        const bool popup_open = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
+        const bool click_in_bb = ImGui::IsMouseClicked( ImGuiMouseButton_Left )
+                              && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
+        const bool nav_activate = (gctx.NavActivateId == trig_id);
+        const bool toggle = (click_in_bb || nav_activate) && !disabled;
+        if ( toggle )
+        {
+            if ( popup_open )
+            {
+                for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
+                {
+                    if ( gctx.OpenPopupStack[i].PopupId == popup_id )
+                    {
+                        ImGui::ClosePopupToLevel( i, true );
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                ImGui::OpenPopupEx( popup_id, ImGuiPopupFlags_None );
+            }
+        }
+        return popup_open;
+    }
+}
+
 bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
 {
     if ( !date ) return false;
-    const ImFluentStyle & style = ImFluent::GetStyle();
-    ImGui::PushID( label );
-    ImGui::BeginGroup();
-    bool changed = false;
-    int dim = DaysInMonth( date->Year, date->Month );
-    ImGui::PushItemWidth( FluentDpx( style.ControlMinWidth ) );
-    int day = date->Day, month = date->Month, year = date->Year;
-    if ( ImGui::DragInt( "##day", &day, 0.1f, 1, dim, LocalizeGetMsg( ImFluentLocKey_DatePickerDayFormat ) ) ) { date->Day = day;   changed = true; }
-    ImGui::SameLine();
-    char month_combo[256];
-    int  off = 0;
-    for ( int i = 0; i < 12 && off < ( int )sizeof( month_combo ) - 2; ++i )
-    {
-        const char * m = LocalizeGetMsg( ( ImFluentLocKey )(ImFluentLocKey_MonthJanuary + i) );
-        const int    n = ImFormatString( month_combo + off, sizeof( month_combo ) - off, "%s", m );
-        off += n + 1;
-    }
-    month_combo[off] = 0;
-    if ( ImGui::Combo( "##month", &month, month_combo ) )
-    {
-        date->Month = month + 1; date->Day = ImClamp( date->Day, 1, DaysInMonth( date->Year, date->Month ) ); changed = true;
-    }
-    ImGui::SameLine();
-    if ( ImGui::DragInt( "##year", &year, 0.5f, 1900, 2100, LocalizeGetMsg( ImFluentLocKey_DatePickerYearFormat ) ) ) { date->Year = year; date->Day = ImClamp( date->Day, 1, DaysInMonth( date->Year, date->Month ) ); changed = true; }
-    ImGui::PopItemWidth();
-    if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
-    ImGui::EndGroup();
-    const ImRect group_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
+    RenderAndConsumePendingHeader();
+
+    const ImFluentStyle & style = GetStyle();
+    const float h = FluentDpx( style.ControlHeight );
+    const float r = FluentDpx( style.ControlCornerRadius );
+    const float full_w = ImGui::CalcItemWidth();
+    const ImVec2 pos = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + full_w, pos.y + h ) );
+
+    const ImGuiID id = w->GetID( label );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+    ImGuiContext & gctx = *ImGui::GetCurrentContext();
+    bool hovered = false, held = false;
+    ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    const bool disabled = (gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled) != 0;
+
+    ImGui::PushOverrideID( id );
+    const ImGuiID popup_id = ImGui::GetID( "##fl_dp_popup" );
     ImGui::PopID();
-    RenderAndConsumePendingError( group_rect );
+
+    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+
+    ImDrawList * dl = w->DrawList;
+    RenderPickerTriggerFrame( dl, bb, r, hovered, held, popup_open, disabled, id );
+
+    const float ratio_d = 56.f / 256.f;
+    const float ratio_m = 120.f / 256.f;
+    const float c1_x = bb.Min.x;
+    const float c2_x = bb.Min.x + full_w * ratio_d;
+    const float c3_x = c2_x + full_w * ratio_m;
+    const float c_end = bb.Max.x;
+    const float cy = (bb.Min.y + bb.Max.y) * 0.5f;
+
+    const ImU32 text_col = disabled ? GetColorU32( ImFluentCol_TextDisabled )
+                                    : GetColorU32( ImFluentCol_TextPrimary );
+    const ImU32 div_col = GetColorU32( ImFluentCol_DividerStrokeDefault );
+
+    char buf[32];
+    ImFormatString( buf, sizeof( buf ), "%d", date->Day );
+    RenderCenteredColumnText( dl, c1_x, c2_x, cy, text_col, buf );
+    RenderColumnSeparator( dl, c2_x, bb.Min.y + h * 0.2f, bb.Min.y + h * 0.8f, div_col );
+
+    const char * mname = LocalizeGetMsg( (ImFluentLocKey)(ImFluentLocKey_MonthJanuary + date->Month - 1) );
+    RenderCenteredColumnText( dl, c2_x, c3_x, cy, text_col, mname );
+    RenderColumnSeparator( dl, c3_x, bb.Min.y + h * 0.2f, bb.Min.y + h * 0.8f, div_col );
+
+    ImFormatString( buf, sizeof( buf ), "%d", date->Year );
+    RenderCenteredColumnText( dl, c3_x, c_end, cy, text_col, buf );
+
+    if ( IsItemFocused( id ) )
+        RenderNavFocusRing( dl, bb, r );
+
+    ImGuiStorage * st = &w->StateStorage;
+    const ImGuiID init_key = id ^ 0xD9FEu;
+    const ImGuiID was_key  = id ^ 0xD7FEu;
+    const ImGuiID day_key  = id ^ 0xDAFEu;
+    const ImGuiID mon_key  = id ^ 0xD0FEu;
+    const ImGuiID yr_key   = id ^ 0xD3FEu;
+    const bool was_open_last = st->GetBool( was_key, false );
+    if ( was_open_last && !popup_open ) st->SetBool( init_key, false );
+
+    bool changed = false;
+    SetupPickerPopup( bb, full_w, style.SpacingMedium );
+    PushOverlayWindowStyle( style.SpacingMedium, style.SpacingMedium );
+
+    if ( ImGui::BeginPopupEx( popup_id, PICKER_POPUP_FLAGS ) )
+    {
+        if ( !st->GetBool( init_key, false ) )
+        {
+            st->SetInt( day_key, date->Day );
+            st->SetInt( mon_key, date->Month );
+            st->SetInt( yr_key,  date->Year );
+            st->SetBool( init_key, true );
+        }
+        int wd = st->GetInt( day_key, date->Day );
+        int wm = st->GetInt( mon_key, date->Month );
+        int wy = st->GetInt( yr_key,  date->Year );
+
+        const float avail_w = ImGui::GetContentRegionAvail().x;
+        const float c_day_w = ImFloor( avail_w * (56.f / 256.f) );
+        const float c_mon_w = ImFloor( avail_w * (120.f / 256.f) );
+        const float c_yr_w  = avail_w - c_day_w - c_mon_w;
+
+        const int dim_pre = DaysInMonth( wy, wm );
+        wd = ImClamp( wd, 1, dim_pre );
+
+        const ImVec2 group_origin = ImGui::GetCursorScreenPos();
+        const float row_h = ImFloor( FluentDpx( style.ControlHeight ) );
+        const float total_w = c_day_w + c_mon_w + c_yr_w;
+        RenderSpinnerSelectionBand( ImGui::GetWindowDrawList(), group_origin, total_w, row_h );
+
+        {
+            ImFluentStackGuard sp_group;
+            sp_group.BeginGroup();
+            wd = RenderSpinnerColumn( "##sp_day", wd, 1, dim_pre, false, "%d", c_day_w );
+            ImGui::SameLine( 0.f, 0.f );
+            wm = RenderSpinnerColumn( "##sp_mon", wm, 1, 12, true, NULL, c_mon_w );
+            ImGui::SameLine( 0.f, 0.f );
+            wy = RenderSpinnerColumn( "##sp_yr",  wy, 1900, 2100, false, "%d", c_yr_w );
+        }
+
+        {
+            ImDrawList * pdl = ImGui::GetWindowDrawList();
+            const ImU32 div_col = GetColorU32( ImFluentCol_DividerStrokeDefault );
+            const float sep_y0 = group_origin.y;
+            const float sep_y1 = group_origin.y + (float)SPINNER_VISIBLE_ROWS * row_h;
+            pdl->AddLine( ImVec2( group_origin.x + c_day_w, sep_y0 ),
+                          ImVec2( group_origin.x + c_day_w, sep_y1 ), div_col, 1.f );
+            pdl->AddLine( ImVec2( group_origin.x + c_day_w + c_mon_w, sep_y0 ),
+                          ImVec2( group_origin.x + c_day_w + c_mon_w, sep_y1 ), div_col, 1.f );
+        }
+
+        st->SetInt( day_key, wd );
+        st->SetInt( mon_key, wm );
+        st->SetInt( yr_key,  wy );
+
+        const float btn_w = total_w * 0.5f;
+        const float btn_h = FluentDpx( style.ControlHeight );
+
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( style.SpacingXSmall ) ) );
+        if ( RenderPickerActionButton( ImFluentIcon_CheckMark "##ok", ImVec2( btn_w, btn_h ) ) )
+        {
+            date->Day = wd; date->Month = wm; date->Year = wy;
+            changed = true;
+            st->SetBool( init_key, false );
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine( 0.f, 0.f );
+        if ( RenderPickerActionButton( ImFluentIcon_Cancel "##cancel", ImVec2( btn_w, btn_h ) ) )
+        {
+            st->SetBool( init_key, false );
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    PopOverlayWindowStyle();
+
+    st->SetBool( was_key, popup_open );
+
+    if ( label )
+    {
+        const char * label_end = ImGui::FindRenderedTextEnd( label );
+        if ( label_end > label )
+        {
+            ImGui::SameLine();
+            ImGui::TextUnformatted( label, label_end );
+        }
+    }
+
+    RenderAndConsumePendingError( bb );
     return changed;
 }
 
-bool ImFluent::TimePicker( const char * label, ImFluentTime * time )
+bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTimePickerFlags flags, int minute_increment )
 {
     if ( !time ) return false;
-    const ImFluentStyle & style = ImFluent::GetStyle();
-    ImGui::PushID( label );
-    ImGui::BeginGroup();
-    bool changed = false;
-    int h = time->Hour, m = time->Minute;
-    ImGui::PushItemWidth( FluentDpx( style.NavPaneCompactWidth * 2.f ) );
-    if ( ImGui::DragInt( "##hour", &h, 0.1f, 0, 23, LocalizeGetMsg( ImFluentLocKey_TimePickerHourFormat ) ) ) { time->Hour = h; changed = true; }
-    ImGui::SameLine();
-    if ( ImGui::DragInt( "##minute", &m, 0.5f, 0, 59, LocalizeGetMsg( ImFluentLocKey_TimePickerMinuteFormat ) ) ) { time->Minute = m; changed = true; }
-    ImGui::PopItemWidth();
-    if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
-    ImGui::EndGroup();
-    const ImRect group_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
+    RenderAndConsumePendingHeader();
+
+    const bool is_12h = (flags & ImFluentTimePickerFlags_Hours12) != 0;
+    static const char * kAmPm[2] = { "AM", "PM" };
+    if ( minute_increment < 1 ) minute_increment = 1;
+    if ( minute_increment > 30 ) minute_increment = 30;
+
+    const ImFluentStyle & style = GetStyle();
+    const float h = FluentDpx( style.ControlHeight );
+    const float r = FluentDpx( style.ControlCornerRadius );
+    const float full_w = ImGui::CalcItemWidth();
+    const ImVec2 pos = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + full_w, pos.y + h ) );
+
+    const ImGuiID id = w->GetID( label );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+    ImGuiContext & gctx = *ImGui::GetCurrentContext();
+    bool hovered = false, held = false;
+    ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    const bool disabled = (gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled) != 0;
+
+    ImGui::PushOverrideID( id );
+    const ImGuiID popup_id = ImGui::GetID( "##fl_tp_popup" );
     ImGui::PopID();
-    RenderAndConsumePendingError( group_rect );
+
+    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+
+    ImDrawList * dl = w->DrawList;
+    RenderPickerTriggerFrame( dl, bb, r, hovered, held, popup_open, disabled, id );
+
+    const int n_cols = is_12h ? 3 : 2;
+    const float col_step = full_w / (float)n_cols;
+    const float cy = (bb.Min.y + bb.Max.y) * 0.5f;
+
+    const ImU32 text_col = disabled ? GetColorU32( ImFluentCol_TextDisabled )
+                                    : GetColorU32( ImFluentCol_TextPrimary );
+    const ImU32 div_col = GetColorU32( ImFluentCol_DividerStrokeDefault );
+
+    int disp_h = time->Hour;
+    int ap_idx = 0;
+    if ( is_12h )
+    {
+        ap_idx = (time->Hour >= 12) ? 1 : 0;
+        disp_h = time->Hour % 12;
+        if ( disp_h == 0 ) disp_h = 12;
+    }
+
+    char buf[16];
+    ImFormatString( buf, sizeof( buf ), is_12h ? "%d" : "%02d", disp_h );
+    RenderCenteredColumnText( dl, bb.Min.x, bb.Min.x + col_step, cy, text_col, buf );
+    RenderColumnSeparator( dl, bb.Min.x + col_step, bb.Min.y + h * 0.2f, bb.Min.y + h * 0.8f, div_col );
+
+    const int disp_minute = (time->Minute / minute_increment) * minute_increment;
+    ImFormatString( buf, sizeof( buf ), "%02d", disp_minute );
+    RenderCenteredColumnText( dl, bb.Min.x + col_step, bb.Min.x + col_step * 2.f, cy, text_col, buf );
+
+    if ( is_12h )
+    {
+        RenderColumnSeparator( dl, bb.Min.x + col_step * 2.f, bb.Min.y + h * 0.2f, bb.Min.y + h * 0.8f, div_col );
+        RenderCenteredColumnText( dl, bb.Min.x + col_step * 2.f, bb.Max.x, cy, text_col, kAmPm[ap_idx] );
+    }
+
+    if ( IsItemFocused( id ) )
+        RenderNavFocusRing( dl, bb, r );
+
+    ImGuiStorage * st = &w->StateStorage;
+    const ImGuiID init_key = id ^ 0xD9FEu;
+    const ImGuiID was_key  = id ^ 0xD7FEu;
+    const ImGuiID hr_key   = id ^ 0xDAFEu;
+    const ImGuiID mn_key   = id ^ 0xD0FEu;
+    const bool was_open_last = st->GetBool( was_key, false );
+    if ( was_open_last && !popup_open ) st->SetBool( init_key, false );
+
+    bool changed = false;
+    SetupPickerPopup( bb, full_w, style.SpacingMedium );
+    PushOverlayWindowStyle( style.SpacingMedium, style.SpacingMedium );
+
+    if ( ImGui::BeginPopupEx( popup_id, PICKER_POPUP_FLAGS ) )
+    {
+        if ( !st->GetBool( init_key, false ) )
+        {
+            st->SetInt( hr_key, time->Hour );
+            st->SetInt( mn_key, time->Minute );
+            st->SetBool( init_key, true );
+        }
+        int wh24 = st->GetInt( hr_key, time->Hour );
+        int wm = st->GetInt( mn_key, time->Minute );
+
+        const float avail_w = ImGui::GetContentRegionAvail().x;
+        float col_w_h, col_w_m, col_w_ap;
+        if ( is_12h )
+        {
+            col_w_h  = ImFloor( avail_w / 3.f );
+            col_w_m  = ImFloor( avail_w / 3.f );
+            col_w_ap = avail_w - col_w_h - col_w_m;
+        }
+        else
+        {
+            col_w_h  = ImFloor( avail_w * 0.5f );
+            col_w_m  = avail_w - col_w_h;
+            col_w_ap = 0.f;
+        }
+
+        const ImVec2 group_origin = ImGui::GetCursorScreenPos();
+        const float row_h = ImFloor( FluentDpx( style.ControlHeight ) );
+        const float total_w = col_w_h + col_w_m + col_w_ap;
+        RenderSpinnerSelectionBand( ImGui::GetWindowDrawList(), group_origin, total_w, row_h );
+
+        int w_disp_h = wh24;
+        int w_ap = 0;
+        if ( is_12h )
+        {
+            w_ap = (wh24 >= 12) ? 1 : 0;
+            w_disp_h = wh24 % 12;
+            if ( w_disp_h == 0 ) w_disp_h = 12;
+        }
+
+        const int m_max = (60 / minute_increment - 1) * minute_increment;
+
+        {
+            ImFluentStackGuard sp_group;
+            sp_group.BeginGroup();
+            if ( is_12h )
+            {
+                w_disp_h = RenderSpinnerColumn( "##sp_h", w_disp_h, 1, 12, false, "%d", col_w_h );
+                ImGui::SameLine( 0.f, 0.f );
+                wm = RenderSpinnerColumn( "##sp_m", wm, 0, m_max, false, "%02d", col_w_m, minute_increment );
+                ImGui::SameLine( 0.f, 0.f );
+                w_ap = RenderSpinnerLabelColumn( "##sp_ap", w_ap, kAmPm, 2, col_w_ap );
+            }
+            else
+            {
+                wh24 = RenderSpinnerColumn( "##sp_h", wh24, 0, 23, false, "%02d", col_w_h );
+                ImGui::SameLine( 0.f, 0.f );
+                wm = RenderSpinnerColumn( "##sp_m", wm, 0, m_max, false, "%02d", col_w_m, minute_increment );
+            }
+        }
+
+        {
+            ImDrawList * pdl = ImGui::GetWindowDrawList();
+            const ImU32 div_col = GetColorU32( ImFluentCol_DividerStrokeDefault );
+            const float sep_y0 = group_origin.y;
+            const float sep_y1 = group_origin.y + (float)SPINNER_VISIBLE_ROWS * row_h;
+            pdl->AddLine( ImVec2( group_origin.x + col_w_h, sep_y0 ),
+                          ImVec2( group_origin.x + col_w_h, sep_y1 ), div_col, 1.f );
+            if ( is_12h )
+                pdl->AddLine( ImVec2( group_origin.x + col_w_h + col_w_m, sep_y0 ),
+                              ImVec2( group_origin.x + col_w_h + col_w_m, sep_y1 ), div_col, 1.f );
+        }
+
+        if ( is_12h )
+        {
+            const int hbase = (w_disp_h == 12) ? 0 : w_disp_h;
+            wh24 = hbase + (w_ap == 1 ? 12 : 0);
+        }
+
+        st->SetInt( hr_key, wh24 );
+        st->SetInt( mn_key, wm );
+
+        const float btn_w = total_w * 0.5f;
+        const float btn_h = FluentDpx( style.ControlHeight );
+
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( style.SpacingXSmall ) ) );
+        if ( RenderPickerActionButton( ImFluentIcon_CheckMark "##ok", ImVec2( btn_w, btn_h ) ) )
+        {
+            time->Hour = wh24; time->Minute = wm;
+            changed = true;
+            st->SetBool( init_key, false );
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine( 0.f, 0.f );
+        if ( RenderPickerActionButton( ImFluentIcon_Cancel "##cancel", ImVec2( btn_w, btn_h ) ) )
+        {
+            st->SetBool( init_key, false );
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    PopOverlayWindowStyle();
+
+    st->SetBool( was_key, popup_open );
+
+    if ( label )
+    {
+        const char * label_end = ImGui::FindRenderedTextEnd( label );
+        if ( label_end > label )
+        {
+            ImGui::SameLine();
+            ImGui::TextUnformatted( label, label_end );
+        }
+    }
+
+    RenderAndConsumePendingError( bb );
     return changed;
 }
 

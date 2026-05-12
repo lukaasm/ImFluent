@@ -1354,10 +1354,26 @@ static void Page_Item_DatePicker()
 static void Page_Item_TimePicker()
 {
     PageHeader("TimePicker", "Pick a time.");
-    if (BeginControlExample("Time"))
+    if (BeginControlExample("24-hour"))
     {
     static ImFluentTime t = { 9, 30 };
-    TimePicker("##tp", &t);
+    TimePicker("##tp24", &t);
+    ControlExampleOutput("Time: %02d:%02d", t.Hour, t.Minute);
+    }
+    EndControlExample();
+
+    if (BeginControlExample("12-hour with AM/PM"))
+    {
+    static ImFluentTime t = { 14, 15 };
+    TimePicker("##tp12", &t, ImFluentTimePickerFlags_Hours12);
+    ControlExampleOutput("Time: %02d:%02d (%s)", t.Hour, t.Minute, t.Hour >= 12 ? "PM" : "AM");
+    }
+    EndControlExample();
+
+    if (BeginControlExample("15-minute increment"))
+    {
+    static ImFluentTime t = { 8, 0 };
+    TimePicker("##tp15", &t, ImFluentTimePickerFlags_None, 15);
     ControlExampleOutput("Time: %02d:%02d", t.Hour, t.Minute);
     }
     EndControlExample();

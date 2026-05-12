@@ -534,8 +534,15 @@ namespace ImFluent
     struct ImFluentDate { int Year; int Month; int Day; };
     struct ImFluentTime { int Hour; int Minute; };
 
+    enum ImFluentTimePickerFlags_
+    {
+        ImFluentTimePickerFlags_None    = 0,
+        ImFluentTimePickerFlags_Hours12 = 1 << 0,
+    };
+    typedef int ImFluentTimePickerFlags;
+
     IMGUI_API bool      DatePicker( const char * label, ImFluentDate * date );
-    IMGUI_API bool      TimePicker( const char * label, ImFluentTime * time );
+    IMGUI_API bool      TimePicker( const char * label, ImFluentTime * time, ImFluentTimePickerFlags flags = ImFluentTimePickerFlags_None, int minute_increment = 1 );
     IMGUI_API bool      CalendarDatePicker( const char * label, ImFluentDate * date, const char * hint = "Pick a date" );
 
     IMGUI_API void      ShowDemoWindow( bool * p_open = NULL );
