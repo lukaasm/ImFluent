@@ -215,6 +215,13 @@ enum ImFluentTextBoxFlags_
 };
 typedef int ImFluentTextBoxFlags;
 
+enum ImFluentTimePickerFlags_
+{
+    ImFluentTimePickerFlags_None    = 0,
+    ImFluentTimePickerFlags_Hours12 = 1 << 0,
+};
+typedef int ImFluentTimePickerFlags;
+
 enum ImFluentStyleVar_
 {
     ImFluentStyleVar_ControlCornerRadius = 0,
@@ -260,6 +267,13 @@ enum ImFluentLocKey_
     ImFluentLocKey_MonthOctober,
     ImFluentLocKey_MonthNovember,
     ImFluentLocKey_MonthDecember,
+    ImFluentLocKey_DayMon,
+    ImFluentLocKey_DayTue,
+    ImFluentLocKey_DayWed,
+    ImFluentLocKey_DayThu,
+    ImFluentLocKey_DayFri,
+    ImFluentLocKey_DaySat,
+    ImFluentLocKey_DaySun,
     ImFluentLocKey_COUNT
 };
 typedef int ImFluentLocKey;
@@ -534,16 +548,10 @@ namespace ImFluent
     struct ImFluentDate { int Year; int Month; int Day; };
     struct ImFluentTime { int Hour; int Minute; };
 
-    enum ImFluentTimePickerFlags_
-    {
-        ImFluentTimePickerFlags_None    = 0,
-        ImFluentTimePickerFlags_Hours12 = 1 << 0,
-    };
-    typedef int ImFluentTimePickerFlags;
-
     IMGUI_API bool      DatePicker( const char * label, ImFluentDate * date );
     IMGUI_API bool      TimePicker( const char * label, ImFluentTime * time, ImFluentTimePickerFlags flags = ImFluentTimePickerFlags_None, int minute_increment = 1 );
-    IMGUI_API bool      CalendarDatePicker( const char * label, ImFluentDate * date, const char * hint = "Pick a date" );
+    IMGUI_API bool      CalendarView( const char * id, ImFluentDate * date, const ImFluentDate * min_date = NULL, const ImFluentDate * max_date = NULL );
+    IMGUI_API bool      CalendarDatePicker( const char * label, ImFluentDate * date, const char * hint = "Pick a date", const ImFluentDate * min_date = NULL, const ImFluentDate * max_date = NULL );
 
     IMGUI_API void      ShowDemoWindow( bool * p_open = NULL );
 

@@ -7,6 +7,7 @@
 
 #include <math.h>
 #include <stdarg.h>
+#include <time.h>
 
 #if defined (_WIN32)
 #   define WIN32_LEAN_AND_MEAN
@@ -202,6 +203,13 @@ namespace ImFluent
         loc[ImFluentLocKey_MonthOctober] = "October";
         loc[ImFluentLocKey_MonthNovember] = "November";
         loc[ImFluentLocKey_MonthDecember] = "December";
+        loc[ImFluentLocKey_DayMon] = "Mo";
+        loc[ImFluentLocKey_DayTue] = "Tu";
+        loc[ImFluentLocKey_DayWed] = "We";
+        loc[ImFluentLocKey_DayThu] = "Th";
+        loc[ImFluentLocKey_DayFri] = "Fr";
+        loc[ImFluentLocKey_DaySat] = "Sa";
+        loc[ImFluentLocKey_DaySun] = "Su";
     }
 
     static void BuildDarkPalette( ImFluentStyle & s )
@@ -4967,6 +4975,67 @@ static int DaysInMonth( int year, int month )
     return d;
 }
 
+static int DayOfWeekMonStart( int year, int month, int day )
+{
+    int y = year, m = month;
+    if ( m < 3 ) { m += 12; y -= 1; }
+    const int K = y % 100;
+    const int J = y / 100;
+    const int h = (day + 13 * (m + 1) / 5 + K + K / 4 + J / 4 + 5 * J) % 7;
+    return (h + 5) % 7;
+}
+
+static int CompareDate( int ay, int am, int ad, int by, int bm, int bd )
+{
+    if ( ay != by ) return ay - by;
+    if ( am != bm ) return am - bm;
+    return ad - bd;
+}
+
+static bool DateInRange( int y, int m, int d,
+                         const ImFluent::ImFluentDate * min_d,
+                         const ImFluent::ImFluentDate * max_d )
+{
+    if ( min_d && CompareDate( y, m, d, min_d->Year, min_d->Month, min_d->Day ) < 0 ) return false;
+    if ( max_d && CompareDate( y, m, d, max_d->Year, max_d->Month, max_d->Day ) > 0 ) return false;
+    return true;
+}
+
+static bool MonthOverlapsRange( int y, int m,
+                                const ImFluent::ImFluentDate * min_d,
+                                const ImFluent::ImFluentDate * max_d )
+{
+    const int dim = (m == 2)
+        ? ((y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 29 : 28)
+        : ((m == 4 || m == 6 || m == 9 || m == 11) ? 30 : 31);
+    if ( min_d && CompareDate( y, m, dim, min_d->Year, min_d->Month, min_d->Day ) < 0 ) return false;
+    if ( max_d && CompareDate( y, m, 1,   max_d->Year, max_d->Month, max_d->Day ) > 0 ) return false;
+    return true;
+}
+
+static bool YearOverlapsRange( int y,
+                               const ImFluent::ImFluentDate * min_d,
+                               const ImFluent::ImFluentDate * max_d )
+{
+    if ( min_d && CompareDate( y, 12, 31, min_d->Year, min_d->Month, min_d->Day ) < 0 ) return false;
+    if ( max_d && CompareDate( y, 1,  1,  max_d->Year, max_d->Month, max_d->Day ) > 0 ) return false;
+    return true;
+}
+
+static void GetTodayDate( int & out_y, int & out_m, int & out_d )
+{
+    const time_t t = time( NULL );
+    struct tm lt;
+#if defined(_WIN32)
+    localtime_s( &lt, &t );
+#else
+    lt = *localtime( &t );
+#endif
+    out_y = lt.tm_year + 1900;
+    out_m = lt.tm_mon + 1;
+    out_d = lt.tm_mday;
+}
+
 // [SECTION] Date & Time pickers
 
 namespace ImFluent
@@ -5031,8 +5100,17 @@ namespace ImFluent
 
         ImGuiStorage * cs = ImGui::GetStateStorage();
         const ImGuiID acc_key = ImGui::GetID( "##sp_acc" );
+        const ImGuiID wheel_owner = ImGui::GetCurrentWindow()->ID;
         float acc = cs->GetFloat( acc_key, 0.f );
         if ( col_hovered )
+        {
+            ImGui::SetKeyOwner( ImGuiKey_MouseWheelY, wheel_owner );
+        }
+        else
+        {
+            acc = 0.f;
+        }
+        if ( ImGui::TestKeyOwner( ImGuiKey_MouseWheelY, wheel_owner ) )
         {
             const float wheel = ImGui::GetIO().MouseWheel;
             if ( wheel != 0.f )
@@ -5046,10 +5124,6 @@ namespace ImFluent
                     acc -= (float)wheel_steps;
                 }
             }
-        }
-        else
-        {
-            acc = 0.f;
         }
         cs->SetFloat( acc_key, acc );
 
@@ -5163,8 +5237,17 @@ namespace ImFluent
 
         ImGuiStorage * cs = ImGui::GetStateStorage();
         const ImGuiID acc_key = ImGui::GetID( "##sp_acc" );
+        const ImGuiID wheel_owner = ImGui::GetCurrentWindow()->ID;
         float acc = cs->GetFloat( acc_key, 0.f );
         if ( col_hovered )
+        {
+            ImGui::SetKeyOwner( ImGuiKey_MouseWheelY, wheel_owner );
+        }
+        else
+        {
+            acc = 0.f;
+        }
+        if ( ImGui::TestKeyOwner( ImGuiKey_MouseWheelY, wheel_owner ) )
         {
             const float wheel = ImGui::GetIO().MouseWheel;
             if ( wheel != 0.f )
@@ -5177,10 +5260,6 @@ namespace ImFluent
                     acc -= (float)steps;
                 }
             }
-        }
-        else
-        {
-            acc = 0.f;
         }
         cs->SetFloat( acc_key, acc );
 
@@ -5729,61 +5808,503 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
     return changed;
 }
 
-bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, const char * hint )
+static ImVec2 CalendarViewCalcSize()
+{
+    const float cell = ImFluent::FluentDpx( 36.f );
+    const float grid_w = cell * 7.f;
+    const float header_h = ImFluent::FluentDpx( 40.f );
+    const float dow_h = ImFluent::FluentDpx( 24.f );
+    const float day_grid_h = 6.f * cell;
+    return ImVec2( grid_w, header_h + dow_h + day_grid_h );
+}
+
+bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluentDate * min_date, const ImFluentDate * max_date )
 {
     if ( !date ) return false;
-    const char * preview = NULL;
-    const char * preview_end = NULL;
-    if ( date->Year > 0 )
-        ImFormatStringToTempBuffer( &preview, &preview_end, "%04d-%02d-%02d", date->Year, date->Month, date->Day );
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
+
+    const ImFluentStyle & style = GetStyle();
+    const float cell = FluentDpx( 36.f );
+    const float grid_w = cell * 7.f;
+    const float header_h = FluentDpx( 40.f );
+    const float dow_h = FluentDpx( 24.f );
+    const float day_grid_h = 6.f * cell;
+    const float chev_btn_w = FluentDpx( 32.f );
+    const float r2 = FluentDpx( style.ControlCornerRadius );
+
+    ImGui::PushID( id );
+    const ImGuiID scope_id = w->GetID( "##cv_scope" );
+    ImGuiStorage * st = &w->StateStorage;
+    const ImGuiID viewy_key = scope_id ^ 0xC1FEu;
+    const ImGuiID viewm_key = scope_id ^ 0xC2FEu;
+    const ImGuiID mode_key  = scope_id ^ 0xC3FEu;
+
+    int today_y, today_m, today_d;
+    GetTodayDate( today_y, today_m, today_d );
+
+    int view_y = st->GetInt( viewy_key, date->Year  > 0 ? date->Year  : today_y );
+    int view_m = st->GetInt( viewm_key, date->Month > 0 ? date->Month : today_m );
+    int view_mode = st->GetInt( mode_key, 0 );
+
+    ImFluentStackGuard sg;
+    sg.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
+    sg.BeginGroup();
+
     bool changed = false;
-    const ImFluentStyle & style = ImFluent::GetStyle();
-    const float h = FluentDpx( style.ControlHeight );
-    const float w = ImGui::CalcItemWidth();
-    ImGui::PushID( label );
-    const char * btn_label = preview ? preview
-        : (hint ? hint : LocalizeGetMsg( ImFluentLocKey_DatePickerPickADate ));
-    if ( ImFluent::Button( btn_label, ImVec2( w, h ) ) )
-        ImGui::OpenPopup( "##cal" );
-    const ImRect trigger_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
-    if ( ImGui::BeginPopup( "##cal" ) )
+
+    const ImVec2 hdr_origin = ImGui::GetCursorScreenPos();
+    ImDrawList * pdl = w->DrawList;
+
     {
-
-        if ( ImFluent::Button( "<" ) ) { date->Month--; if ( date->Month < 1 ) { date->Month = 12; date->Year--; } }
-        ImGui::SameLine();
-        const char * hdr; const char * hdr_end;
-        ImFormatStringToTempBuffer( &hdr, &hdr_end, "%s %d",
-                                    LocalizeGetMsg( ( ImFluentLocKey )(ImFluentLocKey_MonthJanuary + date->Month - 1) ),
-                                    date->Year );
-        ImGui::TextUnformatted( hdr, hdr_end );
-        ImGui::SameLine();
-        if ( ImFluent::Button( ">" ) ) { date->Month++; if ( date->Month > 12 ) { date->Month = 1; date->Year++; } }
-        ImGui::Separator();
-
-        const int dim = DaysInMonth( date->Year, date->Month );
-        const float cell = FluentDpx( style.ControlHeight );
-        for ( int d = 1; d <= dim; ++d )
+        const ImVec2 cv_size = CalendarViewCalcSize();
+        const ImRect cv_bb( hdr_origin, ImVec2( hdr_origin.x + cv_size.x, hdr_origin.y + cv_size.y ) );
+        if ( ImGui::IsMouseHoveringRect( cv_bb.Min, cv_bb.Max, false ) )
         {
-            const char * buf; const char * buf_end;
-            ImFormatStringToTempBuffer( &buf, &buf_end, "%2d", d );
-            ( void )buf_end;
-            const bool sel = (d == date->Day);
-            ImGui::PushID( d );
-            if ( sel ) ImGui::PushStyleColor( ImGuiCol_Button, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ) );
-            if ( ImGui::Button( buf, ImVec2( cell, cell ) ) )
+            ImGui::SetKeyOwner( ImGuiKey_MouseWheelY, scope_id );
+        }
+        if ( ImGui::TestKeyOwner( ImGuiKey_MouseWheelY, scope_id ) )
+        {
+            const float wheel = ImGui::GetIO().MouseWheel;
+            const int steps = (wheel >= 0.f) ? (int)ImFloor( wheel ) : (int)ImCeil( wheel );
+            if ( steps != 0 )
             {
-                date->Day = d;
-                changed = true;
-                ImGui::CloseCurrentPopup();
+                if ( view_mode == 0 )
+                {
+                    view_m -= steps;
+                    while ( view_m < 1 ) { view_m += 12; view_y--; }
+                    while ( view_m > 12 ) { view_m -= 12; view_y++; }
+                }
+                else if ( view_mode == 1 )
+                {
+                    view_y -= steps;
+                }
+                else
+                {
+                    view_y -= steps * 10;
+                }
             }
-            if ( sel ) ImGui::PopStyleColor();
-            ImGui::PopID();
-            if ( (d % 7) != 0 ) ImGui::SameLine();
+        }
+    }
+
+    char title_buf[64];
+    if ( view_mode == 0 )
+    {
+        const char * mname = LocalizeGetMsg( (ImFluentLocKey)(ImFluentLocKey_MonthJanuary + view_m - 1) );
+        ImFormatString( title_buf, sizeof( title_buf ), "%s %d", mname, view_y );
+    }
+    else if ( view_mode == 1 )
+    {
+        ImFormatString( title_buf, sizeof( title_buf ), "%d", view_y );
+    }
+    else
+    {
+        const int decade_start = (view_y / 10) * 10;
+        ImFormatString( title_buf, sizeof( title_buf ), "%d - %d", decade_start, decade_start + 9 );
+    }
+
+    const float title_w = grid_w - chev_btn_w * 2.f;
+    const ImRect title_bb( hdr_origin, ImVec2( hdr_origin.x + title_w, hdr_origin.y + header_h ) );
+
+    ImGui::SetCursorScreenPos( hdr_origin );
+    const ImGuiID title_id = w->GetID( "##cal_title" );
+    ImGui::ItemSize( title_bb );
+    if ( ImGui::ItemAdd( title_bb, title_id ) )
+    {
+        bool t_hov = false, t_held = false;
+        const bool t_pr = view_mode < 2 ? ImGui::ButtonBehavior( title_bb, title_id, &t_hov, &t_held ) : false;
+        ImU32 t_fill_target;
+        if ( t_held )      t_fill_target = GetColorU32( ImFluentCol_SubtleFillTertiary );
+        else if ( t_hov )  t_fill_target = GetColorU32( ImFluentCol_SubtleFillSecondary );
+        else               t_fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
+        const ImU32 t_fill = AnimateColorU32( title_id, t_fill_target );
+        pdl->AddRectFilled( title_bb.Min, title_bb.Max, t_fill, r2 );
+
+        const ImVec2 t_ts = ImGui::CalcTextSize( title_buf );
+        const float t_pad = FluentDpx( style.SpacingMedium );
+        pdl->AddText( ImVec2( title_bb.Min.x + t_pad, title_bb.Min.y + (header_h - t_ts.y) * 0.5f ),
+                      GetColorU32( ImFluentCol_TextPrimary ), title_buf );
+
+        if ( t_pr )
+        {
+            if ( view_mode == 0 ) view_mode = 1;
+            else if ( view_mode == 1 ) view_mode = 2;
+        }
+    }
+
+    const float chev_y = hdr_origin.y + (header_h - chev_btn_w) * 0.5f;
+    const float prev_x = hdr_origin.x + grid_w - chev_btn_w * 2.f;
+    const float next_x = hdr_origin.x + grid_w - chev_btn_w;
+
+    ImGui::SetCursorScreenPos( ImVec2( prev_x, chev_y ) );
+    if ( RenderPickerActionButton( ImFluentIcon_ChevronUpMed "##prev", ImVec2( chev_btn_w, chev_btn_w ) ) )
+    {
+        if ( view_mode == 0 )      { view_m--; if ( view_m < 1 ) { view_m = 12; view_y--; } }
+        else if ( view_mode == 1 ) { view_y--; }
+        else                       { view_y -= 10; }
+    }
+    ImGui::SetCursorScreenPos( ImVec2( next_x, chev_y ) );
+    if ( RenderPickerActionButton( ImFluentIcon_ChevronDownMed "##next", ImVec2( chev_btn_w, chev_btn_w ) ) )
+    {
+        if ( view_mode == 0 )      { view_m++; if ( view_m > 12 ) { view_m = 1; view_y++; } }
+        else if ( view_mode == 1 ) { view_y++; }
+        else                       { view_y += 10; }
+    }
+
+    {
+        const float div_y = hdr_origin.y + header_h - 1.f;
+        pdl->AddLine( ImVec2( hdr_origin.x, div_y ),
+                      ImVec2( hdr_origin.x + grid_w, div_y ),
+                      GetColorU32( ImFluentCol_DividerStrokeDefault ), 1.f );
+    }
+
+    if ( view_mode == 0 )
+    {
+        ImGui::SetCursorScreenPos( ImVec2( hdr_origin.x, hdr_origin.y + header_h ) );
+        const ImVec2 dow_origin = ImGui::GetCursorScreenPos();
+        pdl->AddRectFilled( dow_origin, ImVec2( dow_origin.x + grid_w, dow_origin.y + dow_h ),
+                            GetColorU32( ImFluentCol_LayerFillDefault ) );
+        for ( int i = 0; i < 7; ++i )
+        {
+            const char * dn = LocalizeGetMsg( (ImFluentLocKey)(ImFluentLocKey_DayMon + i) );
+            const ImVec2 ts = ImGui::CalcTextSize( dn );
+            pdl->AddText( ImVec2( dow_origin.x + i * cell + (cell - ts.x) * 0.5f,
+                                  dow_origin.y + (dow_h - ts.y) * 0.5f ),
+                          GetColorU32( ImFluentCol_TextSecondary ), dn );
+        }
+        ImGui::SetCursorScreenPos( ImVec2( dow_origin.x, dow_origin.y + dow_h ) );
+        const ImVec2 grid_origin = ImGui::GetCursorScreenPos();
+
+        const int dim = DaysInMonth( view_y, view_m );
+        const int day1_dow = DayOfWeekMonStart( view_y, view_m, 1 );
+
+        int prev_m = view_m - 1;
+        int prev_y = view_y;
+        if ( prev_m < 1 ) { prev_m = 12; prev_y--; }
+        const int prev_dim = DaysInMonth( prev_y, prev_m );
+
+        int next_m = view_m + 1;
+        int next_y = view_y;
+        if ( next_m > 12 ) { next_m = 1; next_y++; }
+
+        for ( int row = 0; row < 6; ++row )
+        {
+            for ( int col = 0; col < 7; ++col )
+            {
+                const int idx = row * 7 + col;
+                int cell_y, cell_m, cell_d;
+                bool other_month = false;
+                if ( idx < day1_dow )
+                {
+                    cell_y = prev_y; cell_m = prev_m;
+                    cell_d = prev_dim - (day1_dow - 1 - idx);
+                    other_month = true;
+                }
+                else if ( idx < day1_dow + dim )
+                {
+                    cell_y = view_y; cell_m = view_m;
+                    cell_d = idx - day1_dow + 1;
+                }
+                else
+                {
+                    cell_y = next_y; cell_m = next_m;
+                    cell_d = idx - day1_dow - dim + 1;
+                    other_month = true;
+                }
+
+                const ImVec2 cp( grid_origin.x + col * cell, grid_origin.y + row * cell );
+                const ImRect cbb( cp, ImVec2( cp.x + cell, cp.y + cell ) );
+
+                ImGui::PushID( idx );
+                const ImGuiID cell_id = w->GetID( "##d" );
+                ImGui::PopID();
+
+                ImGui::ItemSize( cbb );
+                if ( !ImGui::ItemAdd( cbb, cell_id ) ) continue;
+
+                const bool out_of_range = !DateInRange( cell_y, cell_m, cell_d, min_date, max_date );
+
+                bool chov = false, chld = false;
+                const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld );
+
+                const bool is_sel = (cell_y == date->Year && cell_m == date->Month && cell_d == date->Day);
+
+                ImU32 fill_target;
+                if ( out_of_range ) fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
+                else if ( is_sel )  fill_target = GetColorU32( ImFluentCol_AccentFillDefault );
+                else if ( chld )    fill_target = GetColorU32( ImFluentCol_SubtleFillTertiary );
+                else if ( chov )    fill_target = GetColorU32( ImFluentCol_SubtleFillSecondary );
+                else                fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
+                const ImU32 fill = AnimateColorU32( cell_id, fill_target );
+
+                const float cx = (cbb.Min.x + cbb.Max.x) * 0.5f;
+                const float cy = (cbb.Min.y + cbb.Max.y) * 0.5f;
+                const float circ_r = cell * 0.5f - FluentDpx( 2.f );
+                pdl->AddCircleFilled( ImVec2( cx, cy ), circ_r, fill, 24 );
+
+                const bool is_today = (cell_y == today_y && cell_m == today_m && cell_d == today_d);
+                if ( is_today && !is_sel && !out_of_range )
+                {
+                    pdl->AddCircle( ImVec2( cx, cy ), circ_r, GetColorU32( ImFluentCol_AccentFillDefault ),
+                                    24, FluentDpx( style.StrokeMedium ) );
+                }
+
+                ImU32 cell_text_col;
+                if ( out_of_range )     cell_text_col = GetColorU32( ImFluentCol_TextDisabled );
+                else if ( is_sel )      cell_text_col = GetColorU32( ImFluentCol_TextOnAccentPrimary );
+                else if ( other_month ) cell_text_col = GetColorU32( ImFluentCol_TextTertiary );
+                else                    cell_text_col = GetColorU32( ImFluentCol_TextPrimary );
+
+                char ds[8];
+                ImFormatString( ds, sizeof( ds ), "%d", cell_d );
+                const ImVec2 ts = ImGui::CalcTextSize( ds );
+                pdl->AddText( ImVec2( cx - ts.x * 0.5f, cy - ts.y * 0.5f ), cell_text_col, ds );
+
+                if ( cpr )
+                {
+                    date->Year = cell_y;
+                    date->Month = cell_m;
+                    date->Day = cell_d;
+                    changed = true;
+                    view_y = cell_y;
+                    view_m = cell_m;
+                }
+            }
+        }
+    }
+    else
+    {
+        ImGui::SetCursorScreenPos( ImVec2( hdr_origin.x, hdr_origin.y + header_h ) );
+        const ImVec2 grid_origin = ImGui::GetCursorScreenPos();
+        const float cell_w = grid_w / 4.f;
+        const float cell_h = day_grid_h / 3.f;
+
+        for ( int row = 0; row < 3; ++row )
+        {
+            for ( int col = 0; col < 4; ++col )
+            {
+                const int idx = row * 4 + col;
+                int cell_val;
+                bool other_range = false;
+                bool is_sel = false;
+                bool is_today_cell = false;
+                bool out_of_range = false;
+                char buf2[16];
+                if ( view_mode == 1 )
+                {
+                    cell_val = idx + 1;
+                    is_sel = (view_y == date->Year && cell_val == date->Month);
+                    is_today_cell = (view_y == today_y && cell_val == today_m);
+                    out_of_range = !MonthOverlapsRange( view_y, cell_val, min_date, max_date );
+                    const char * mn = LocalizeGetMsg( (ImFluentLocKey)(ImFluentLocKey_MonthJanuary + idx) );
+                    int ci = 0;
+                    for ( ; ci < 3 && mn[ci]; ++ci ) buf2[ci] = mn[ci];
+                    buf2[ci] = 0;
+                }
+                else
+                {
+                    const int decade_start = (view_y / 10) * 10;
+                    cell_val = decade_start - 1 + idx;
+                    other_range = (cell_val < decade_start || cell_val > decade_start + 9);
+                    is_sel = (cell_val == date->Year);
+                    is_today_cell = (cell_val == today_y);
+                    out_of_range = !YearOverlapsRange( cell_val, min_date, max_date );
+                    ImFormatString( buf2, sizeof( buf2 ), "%d", cell_val );
+                }
+
+                const ImVec2 cp( grid_origin.x + col * cell_w, grid_origin.y + row * cell_h );
+                const ImRect cbb( cp, ImVec2( cp.x + cell_w, cp.y + cell_h ) );
+
+                ImGui::PushID( idx );
+                const ImGuiID cell_id = w->GetID( view_mode == 1 ? "##m" : "##y" );
+                ImGui::PopID();
+
+                ImGui::ItemSize( cbb );
+                if ( !ImGui::ItemAdd( cbb, cell_id ) ) continue;
+
+                bool chov = false, chld = false;
+                const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld );
+
+                ImU32 fill_target;
+                if ( out_of_range ) fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
+                else if ( is_sel )  fill_target = GetColorU32( ImFluentCol_AccentFillDefault );
+                else if ( chld )    fill_target = GetColorU32( ImFluentCol_SubtleFillTertiary );
+                else if ( chov )    fill_target = GetColorU32( ImFluentCol_SubtleFillSecondary );
+                else                fill_target = GetColorU32( ImFluentCol_SubtleFillTransparent );
+                const ImU32 fill = AnimateColorU32( cell_id, fill_target );
+
+                const float inset = FluentDpx( 4.f );
+                const ImVec2 cell_min( cbb.Min.x + inset, cbb.Min.y + inset );
+                const ImVec2 cell_max( cbb.Max.x - inset, cbb.Max.y - inset );
+                pdl->AddRectFilled( cell_min, cell_max, fill, r2 );
+                if ( is_today_cell && !is_sel && !out_of_range )
+                {
+                    pdl->AddRect( cell_min, cell_max, GetColorU32( ImFluentCol_AccentFillDefault ),
+                                  r2, 0, FluentDpx( style.StrokeMedium ) );
+                }
+
+                ImU32 cell_text_col;
+                if ( out_of_range )     cell_text_col = GetColorU32( ImFluentCol_TextDisabled );
+                else if ( is_sel )      cell_text_col = GetColorU32( ImFluentCol_TextOnAccentPrimary );
+                else if ( other_range ) cell_text_col = GetColorU32( ImFluentCol_TextTertiary );
+                else                    cell_text_col = GetColorU32( ImFluentCol_TextPrimary );
+
+                ImFluentStackGuard tg2;
+                tg2.PushStyleColor( ImGuiCol_Text, cell_text_col );
+                const ImRect text_clip( ImVec2( cbb.Min.x + inset, cbb.Min.y ),
+                                        ImVec2( cbb.Max.x - inset, cbb.Max.y ) );
+                ImGui::RenderTextClipped( text_clip.Min, text_clip.Max, buf2, NULL, NULL,
+                                          ImVec2( 0.5f, 0.5f ), &text_clip );
+
+                if ( cpr )
+                {
+                    if ( view_mode == 1 )
+                    {
+                        view_m = cell_val;
+                        view_mode = 0;
+                    }
+                    else
+                    {
+                        view_y = cell_val;
+                        view_mode = 1;
+                    }
+                }
+            }
+        }
+    }
+
+    st->SetInt( viewy_key, view_y );
+    st->SetInt( viewm_key, view_m );
+    st->SetInt( mode_key, view_mode );
+
+    sg.Restore();
+    ImGui::PopID();
+    return changed;
+}
+
+bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, const char * hint, const ImFluentDate * min_date, const ImFluentDate * max_date )
+{
+    if ( !date ) return false;
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
+    RenderAndConsumePendingHeader();
+
+    const ImFluentStyle & style = GetStyle();
+    const float h = FluentDpx( style.ControlHeight );
+    const float r = FluentDpx( style.ControlCornerRadius );
+    const float full_w = ImGui::CalcItemWidth();
+    const ImVec2 pos = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + full_w, pos.y + h ) );
+
+    const ImGuiID id = w->GetID( label );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+    ImGuiContext & gctx = *ImGui::GetCurrentContext();
+    bool hovered = false, held = false;
+    ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    const bool disabled = (gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled) != 0;
+
+    ImGui::PushOverrideID( id );
+    const ImGuiID popup_id = ImGui::GetID( "##fl_cdp_popup" );
+    ImGui::PopID();
+
+    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+
+    ImDrawList * dl = w->DrawList;
+    RenderPickerTriggerFrame( dl, bb, r, hovered, held, popup_open, disabled, id );
+
+    const float pad_x = FluentDpx( style.SpacingLarge );
+    const float icon_w = h;
+    const ImU32 text_col = disabled ? GetColorU32( ImFluentCol_TextDisabled )
+                                    : GetColorU32( ImFluentCol_TextPrimary );
+    const ImU32 hint_col = disabled ? GetColorU32( ImFluentCol_TextDisabled )
+                                    : GetColorU32( ImFluentCol_TextSecondary );
+
+    char buf[32];
+    const char * preview;
+    bool is_hint = false;
+    if ( date->Year > 0 )
+    {
+        ImFormatString( buf, sizeof( buf ), "%04d-%02d-%02d", date->Year, date->Month, date->Day );
+        preview = buf;
+    }
+    else
+    {
+        preview = hint ? hint : LocalizeGetMsg( ImFluentLocKey_DatePickerPickADate );
+        is_hint = true;
+    }
+
+    {
+        ImFluentStackGuard tg;
+        tg.PushStyleColor( ImGuiCol_Text, is_hint ? hint_col : text_col );
+        const ImVec2 tmin( bb.Min.x + pad_x, bb.Min.y );
+        const ImVec2 tmax( bb.Max.x - icon_w, bb.Max.y );
+        const ImRect text_clip( tmin, tmax );
+        ImGui::RenderTextClipped( tmin, tmax, preview, NULL, NULL, ImVec2( 0.f, 0.5f ), &text_clip );
+    }
+
+    {
+        const char * icon = ImFluentIcon_Calendar;
+        const ImVec2 ts = ImGui::CalcTextSize( icon );
+        const float cx = bb.Max.x - icon_w * 0.5f;
+        const float cy = (bb.Min.y + bb.Max.y) * 0.5f;
+        dl->AddText( ImVec2( cx - ts.x * 0.5f, cy - ts.y * 0.5f ), text_col, icon );
+    }
+
+    if ( IsItemFocused( id ) )
+        RenderNavFocusRing( dl, bb, r );
+
+    ImGuiStorage * st = &w->StateStorage;
+    const ImGuiID init_key = id ^ 0xC9FEu;
+    const ImGuiID was_key  = id ^ 0xC7FEu;
+    const bool was_open_last = st->GetBool( was_key, false );
+    if ( was_open_last && !popup_open )
+    {
+        st->SetBool( init_key, false );
+        st->SetInt( id ^ 0xC1FEu, 0 );
+        st->SetInt( id ^ 0xC2FEu, 0 );
+        st->SetInt( id ^ 0xC3FEu, 0 );
+    }
+
+    bool changed = false;
+
+    const ImVec2 cv_size = CalendarViewCalcSize();
+    const float pop_pad = FluentDpx( style.SpacingMedium );
+    const float popup_w = cv_size.x + pop_pad * 2.f;
+    const float popup_h = cv_size.y + pop_pad * 2.f;
+
+    ImGui::SetNextWindowPos( ImVec2( bb.Min.x, bb.Max.y + FluentDpx( style.SpacingXSmall ) ) );
+    ImGui::SetNextWindowSize( ImVec2( popup_w, popup_h ) );
+    PushOverlayWindowStyle( style.SpacingMedium, style.SpacingMedium );
+
+    const ImGuiWindowFlags cal_flags = ImGuiWindowFlags_NoTitleBar
+        | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+
+    if ( ImGui::BeginPopupEx( popup_id, cal_flags ) )
+    {
+        if ( ImFluent::CalendarView( "##cv", date, min_date, max_date ) )
+        {
+            changed = true;
+            ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
     }
-    ImGui::PopID();
-    if ( label && *label ) { ImGui::SameLine(); ImGui::TextUnformatted( label ); }
-    RenderAndConsumePendingError( trigger_rect );
+    PopOverlayWindowStyle();
+
+    st->SetBool( was_key, popup_open );
+
+    if ( label )
+    {
+        const char * label_end = ImGui::FindRenderedTextEnd( label );
+        if ( label_end > label )
+        {
+            ImGui::SameLine();
+            ImGui::TextUnformatted( label, label_end );
+        }
+    }
+
+    RenderAndConsumePendingError( bb );
     return changed;
 }

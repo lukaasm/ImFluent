@@ -1391,6 +1391,21 @@ static void Page_Item_CalendarDatePicker()
     ControlExampleOutput("Date: %04d-%02d-%02d", d.Year, d.Month, d.Day);
     }
     EndControlExample();
+
+    if (BeginControlExample("Bounded date range"))
+    {
+    static ImFluentDate d = { 2026, 5, 13 };
+    static const ImFluentDate min_d = { 2026, 5, 1 };
+    static const ImFluentDate max_d = { 2026, 6, 15 };
+    ImGui::PushItemWidth(220.f);
+    CalendarDatePicker("##cdp-range", &d, "Pick a date", &min_d, &max_d);
+    ImGui::PopItemWidth();
+    ControlExampleOutput("Date: %04d-%02d-%02d (range %04d-%02d-%02d ... %04d-%02d-%02d)",
+                         d.Year, d.Month, d.Day,
+                         min_d.Year, min_d.Month, min_d.Day,
+                         max_d.Year, max_d.Month, max_d.Day);
+    }
+    EndControlExample();
 }
 
 // [SECTION] Menus & toolbars (additions)
