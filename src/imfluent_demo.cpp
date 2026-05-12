@@ -83,6 +83,7 @@ static void Page_Item_TimePicker();
 static void Page_Item_CalendarDatePicker();
 static void Page_Item_SettingsCard();
 static void Page_Item_StackPanel();
+static void Page_Item_SplitView();
 static void Page_Item_WrapPanel();
 static void Page_Item_TeachingTip();
 static void Page_Item_TitleBar();
@@ -128,6 +129,7 @@ static const ControlInfo g_Controls[] = {
     { "SettingsCard",    "Layout",      "SettingsCard",      "Card row used on settings pages: glyph + header + description + control slot.", ImFluentIcon_Settings, &Page_Item_SettingsCard },
     { "Expander",        "Layout",      "Expander",          "A control with a header that expands to reveal a body.",            ImFluentIcon_ChevronDown,   &Page_Item_Expander },
     { "StackPanel",      "Layout",      "StackPanel",        "Linear container with uniform spacing; horizontal or vertical.",    ImFluentIcon_AlignCenter,       &Page_Item_StackPanel },
+    { "SplitView",       "Layout",      "SplitView",         "Master/detail layout with a side pane and content area; Inline / CompactInline / Overlay / CompactOverlay modes.", ImFluentIcon_DockLeft, &Page_Item_SplitView },
     { "WrapPanel",       "Layout",      "WrapPanel",         "Lays children left-to-right and wraps to a new row when full.",     ImFluentIcon_AlignCenter,       &Page_Item_WrapPanel },
     { "TitleBar",        "Layout",      "TitleBar",          "Custom title-bar shell hosting nav chevrons, search, and actions.", ImFluentIcon_GlobalNavButton, &Page_Item_TitleBar },
 
@@ -1471,6 +1473,54 @@ static void Page_Item_StackPanel()
     Checkbox("Send crash reports", &b);
     Checkbox("Receive newsletters", &c);
     EndStackPanel();
+    }
+    EndControlExample();
+}
+
+static void Page_Item_SplitView()
+{
+    PageHeader("SplitView", "Master/detail layout with a side pane and content area. Display modes: Inline (pane pushes content), CompactInline (narrow strip always visible, expands inline), Overlay (pane floats over content), CompactOverlay (narrow strip always, expands as overlay).");
+
+    static const char* mode_labels[] = { "Inline", "CompactInline", "Overlay", "CompactOverlay" };
+    static const char* place_labels[] = { "Left", "Right" };
+
+    static int mode_pick  = ImFluentSplitViewDisplayMode_CompactInline;
+    static int place_pick = ImFluentSplitViewPanePlacement_Left;
+    static bool pane_open = true;
+
+    if (BeginControlExample("Configurable"))
+    {
+    ImGui::PushItemWidth(FluentDpx(200.f));
+    ComboBox("Display mode", &mode_pick, mode_labels, IM_ARRAYSIZE(mode_labels));
+    ImGui::SameLine();
+    ComboBox("Placement", &place_pick, place_labels, IM_ARRAYSIZE(place_labels));
+    ImGui::PopItemWidth();
+    ToggleSwitch("Pane open", &pane_open);
+
+    ImGui::Dummy(ImVec2(0, FluentDpx(8.f)));
+    ImGui::BeginChild("##sv-host", ImVec2(FluentDpx(560.f), FluentDpx(280.f)), ImGuiChildFlags_Borders);
+    if (BeginSplitView("##sv1", &pane_open,
+                       (ImFluentSplitViewDisplayMode)mode_pick,
+                       (ImFluentSplitViewPanePlacement)place_pick))
+    {
+        if (BeginSplitViewContent())
+        {
+            TextBlock("Main content", ImFluentTextStyle_Subtitle);
+            TextBlock("Toggle the pane via the switch above. Try each display mode to compare push vs overlay behaviors.", ImFluentTextStyle_Body);
+            EndSplitViewContent();
+        }
+        if (BeginSplitViewPane())
+        {
+            static int sel = 0;
+            if (NavItem("Home",     sel == 0, ImFluentIcon_Home))     sel = 0;
+            if (NavItem("Inbox",    sel == 1, ImFluentIcon_Mail))     sel = 1;
+            if (NavItem("Folders",  sel == 2, ImFluentIcon_Folder))   sel = 2;
+            if (NavItem("Contacts", sel == 3, ImFluentIcon_Contact))  sel = 3;
+            EndSplitViewPane();
+        }
+        EndSplitView();
+    }
+    ImGui::EndChild();
     }
     EndControlExample();
 }

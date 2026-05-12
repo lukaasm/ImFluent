@@ -175,6 +175,22 @@ enum ImFluentExpandDirection_
 };
 typedef int ImFluentExpandDirection;
 
+enum ImFluentSplitViewDisplayMode_
+{
+    ImFluentSplitViewDisplayMode_Inline = 0,
+    ImFluentSplitViewDisplayMode_CompactInline,
+    ImFluentSplitViewDisplayMode_Overlay,
+    ImFluentSplitViewDisplayMode_CompactOverlay,
+};
+typedef int ImFluentSplitViewDisplayMode;
+
+enum ImFluentSplitViewPanePlacement_
+{
+    ImFluentSplitViewPanePlacement_Left = 0,
+    ImFluentSplitViewPanePlacement_Right,
+};
+typedef int ImFluentSplitViewPanePlacement;
+
 enum ImFluentPagerDisplayMode_
 {
     ImFluentPagerDisplayMode_ButtonPanel = 0,
@@ -439,6 +455,17 @@ namespace ImFluent
     IMGUI_API void      NavigationViewBeginContent();
     IMGUI_API void      NavContentHeader( const char * title );
     IMGUI_API void      NavigationViewEndContent();
+
+    IMGUI_API bool      BeginSplitView( const char * id, bool * is_pane_open,
+                                        ImFluentSplitViewDisplayMode display_mode = ImFluentSplitViewDisplayMode_Inline,
+                                        ImFluentSplitViewPanePlacement placement = ImFluentSplitViewPanePlacement_Left,
+                                        float open_pane_width_dpx = 320.f,
+                                        float compact_pane_width_dpx = 48.f );
+    IMGUI_API bool      BeginSplitViewPane();
+    IMGUI_API void      EndSplitViewPane();
+    IMGUI_API bool      BeginSplitViewContent();
+    IMGUI_API void      EndSplitViewContent();
+    IMGUI_API void      EndSplitView();
     IMGUI_API bool      IsNavPaneOpening();
     IMGUI_API bool      IsNavPaneClosing();
 

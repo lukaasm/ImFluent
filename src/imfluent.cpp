@@ -61,6 +61,23 @@ struct ImFluentCommandBarState
     float Height;
 };
 
+struct ImFluentSplitViewState
+{
+    char                            Id[64];
+    bool *                          IsPaneOpen;
+    ImFluentSplitViewDisplayMode    Mode;
+    ImFluentSplitViewPanePlacement  Placement;
+    float                           OpenPaneWidth;
+    float                           CompactPaneWidth;
+    float                           CurrentPaneWidth;
+    float                           OuterStartCursorX;
+    float                           OuterStartCursorY;
+    float                           ContentWidth;
+    float                           Height;
+    bool                            PaneDone;
+    bool                            ContentDone;
+};
+
 struct ImFluentContext
 {
     static const int                            MaxPopupAnchors = 16;
@@ -77,6 +94,7 @@ struct ImFluentContext
     ImVector<ImFluentExpanderState>             ExpanderStack;
     ImVector<ImFluentCommandBarState>           CommandBarStack;
     ImVector<float>                             NavItemIndentStack;
+    ImVector<ImFluentSplitViewState>            SplitViewStack;
 
     ImFluentNavViewState                        NavView;
 
@@ -3250,6 +3268,162 @@ void ImFluent::NavigationViewEndContent()
     ImGui::PopStyleVar();
     ImGui::PopStyleColor();
     g_Ctx.NavView.ContentStarted = false;
+}
+
+// [SECTION] SplitView
+
+bool ImFluent::BeginSplitView( const char * id, bool * is_pane_open,
+                               ImFluentSplitViewDisplayMode display_mode,
+                               ImFluentSplitViewPanePlacement placement,
+                               float open_pane_width_dpx,
+                               float compact_pane_width_dpx )
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    ImFluentSplitViewState s;
+    ImStrncpy( s.Id, id, sizeof( s.Id ) );
+    s.IsPaneOpen        = is_pane_open;
+    s.Mode              = display_mode;
+    s.Placement         = placement;
+    s.OpenPaneWidth     = FluentDpx( open_pane_width_dpx );
+    s.CompactPaneWidth  = FluentDpx( compact_pane_width_dpx );
+    s.PaneDone          = false;
+    s.ContentDone       = false;
+
+    const bool open       = is_pane_open && *is_pane_open;
+    const bool is_compact = (display_mode == ImFluentSplitViewDisplayMode_CompactInline
+                          || display_mode == ImFluentSplitViewDisplayMode_CompactOverlay);
+    const bool is_overlay = (display_mode == ImFluentSplitViewDisplayMode_Overlay
+                          || display_mode == ImFluentSplitViewDisplayMode_CompactOverlay);
+
+    const float min_w     = is_compact ? s.CompactPaneWidth : 0.f;
+    const float target_w  = open ? s.OpenPaneWidth : min_w;
+    const ImGuiID anim_id = ImGui::GetID( id );
+    s.CurrentPaneWidth    = ImFluent::AnimateFloat( anim_id, target_w, 0.20f );
+
+    const ImVec2 avail   = ImGui::GetContentRegionAvail();
+    const float outer_w  = avail.x;
+    const float outer_h  = (avail.y > 0.f) ? avail.y : ImGui::GetTextLineHeightWithSpacing() * 12.f;
+    s.ContentWidth       = is_overlay ? outer_w : (outer_w - s.CurrentPaneWidth);
+    s.Height             = outer_h;
+
+    ImGui::PushID( id );
+    ImGui::BeginGroup();
+    s.OuterStartCursorX = ImGui::GetCursorScreenPos().x;
+    s.OuterStartCursorY = ImGui::GetCursorScreenPos().y;
+
+    g_Ctx.SplitViewStack.push_back( s );
+    ( void )style;
+    return true;
+}
+
+bool ImFluent::BeginSplitViewPane()
+{
+    if ( g_Ctx.SplitViewStack.empty() ) return false;
+    ImFluentSplitViewState & s = g_Ctx.SplitViewStack.back();
+    const ImFluentStyle & style = ImFluent::GetStyle();
+
+    if ( s.CurrentPaneWidth < 1.f )
+    {
+        s.PaneDone = true;
+        return false;
+    }
+
+    const bool is_overlay = (s.Mode == ImFluentSplitViewDisplayMode_Overlay
+                          || s.Mode == ImFluentSplitViewDisplayMode_CompactOverlay);
+
+    float pane_x = s.OuterStartCursorX;
+    if ( s.Placement == ImFluentSplitViewPanePlacement_Right )
+    {
+        pane_x = s.OuterStartCursorX + (is_overlay ? s.ContentWidth - s.CurrentPaneWidth
+                                                   : s.ContentWidth);
+    }
+
+    ImGui::SetCursorScreenPos( ImVec2( pane_x, s.OuterStartCursorY ) );
+
+    const ImU32 pane_bg = is_overlay
+        ? ImFluent::GetColorU32( ImFluentCol_LayerFillAlt )
+        : ImFluent::GetColorU32( ImFluentCol_LayerFillDefault );
+    ImGui::PushStyleColor( ImGuiCol_ChildBg, pane_bg );
+    ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ),
+                                                              FluentDpx( style.SpacingSmall ) ) );
+    char child_id[80];
+    ImFormatString( child_id, sizeof( child_id ), "##sv-pane-%s", s.Id );
+    const bool pane_open = ImGui::BeginChild( child_id, ImVec2( s.CurrentPaneWidth, s.Height ),
+                                              ImGuiChildFlags_None,
+                                              ImGuiWindowFlags_NoScrollbar );
+    if ( !pane_open )
+    {
+        ImGui::EndChild();
+        ImGui::PopStyleVar( 2 );
+        ImGui::PopStyleColor();
+        s.PaneDone = true;
+        return false;
+    }
+    return true;
+}
+
+void ImFluent::EndSplitViewPane()
+{
+    if ( g_Ctx.SplitViewStack.empty() ) return;
+    ImFluentSplitViewState & s = g_Ctx.SplitViewStack.back();
+    if ( s.PaneDone ) return;
+    ImGui::EndChild();
+    ImGui::PopStyleVar( 2 );
+    ImGui::PopStyleColor();
+    s.PaneDone = true;
+}
+
+bool ImFluent::BeginSplitViewContent()
+{
+    if ( g_Ctx.SplitViewStack.empty() ) return false;
+    ImFluentSplitViewState & s = g_Ctx.SplitViewStack.back();
+    const ImFluentStyle & style = ImFluent::GetStyle();
+
+    const bool is_overlay = (s.Mode == ImFluentSplitViewDisplayMode_Overlay
+                          || s.Mode == ImFluentSplitViewDisplayMode_CompactOverlay);
+
+    float content_x = s.OuterStartCursorX;
+    if ( !is_overlay && s.Placement == ImFluentSplitViewPanePlacement_Left )
+        content_x = s.OuterStartCursorX + s.CurrentPaneWidth;
+    else if ( is_overlay )
+        content_x = s.OuterStartCursorX;
+
+    ImGui::SetCursorScreenPos( ImVec2( content_x, s.OuterStartCursorY ) );
+
+    const float pad = FluentDpx( style.CardPadding );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( pad, pad ) );
+    char child_id[80];
+    ImFormatString( child_id, sizeof( child_id ), "##sv-content-%s", s.Id );
+    const bool open = ImGui::BeginChild( child_id, ImVec2( s.ContentWidth, s.Height ),
+                                         ImGuiChildFlags_AlwaysUseWindowPadding,
+                                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+    if ( !open )
+    {
+        ImGui::EndChild();
+        ImGui::PopStyleVar();
+        s.ContentDone = true;
+        return false;
+    }
+    return true;
+}
+
+void ImFluent::EndSplitViewContent()
+{
+    if ( g_Ctx.SplitViewStack.empty() ) return;
+    ImFluentSplitViewState & s = g_Ctx.SplitViewStack.back();
+    if ( s.ContentDone ) return;
+    ImGui::EndChild();
+    ImGui::PopStyleVar();
+    s.ContentDone = true;
+}
+
+void ImFluent::EndSplitView()
+{
+    if ( g_Ctx.SplitViewStack.empty() ) return;
+    ImGui::EndGroup();
+    ImGui::PopID();
+    g_Ctx.SplitViewStack.pop_back();
 }
 
 // [SECTION] Lists & Pickers (ComboBox / ListBox / TreeNode / GridView / PipsPager / BreadcrumbBar)
