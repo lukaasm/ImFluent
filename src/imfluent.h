@@ -471,6 +471,7 @@ namespace ImFluent
 
     IMGUI_API bool       ComboBox( const char * label, int * current_item, const char * const items[], int items_count );
     IMGUI_API bool       ListBox( const char * label, int * current_item, const char * const items[], int items_count, int height_in_items = 7 );
+    IMGUI_API bool       Selectable( const char * label, bool selected = false, const char * glyph = NULL, float height = 0.f );
     IMGUI_API bool       ListViewItem( const char * label, bool selected = false, const char * glyph = NULL );
     IMGUI_API bool       TreeNode( const char * label, bool * p_open );
 

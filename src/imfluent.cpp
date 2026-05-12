@@ -918,6 +918,21 @@ namespace ImFluent
         return g.NavId == id && g.NavCursorVisible;
     }
 
+    static void RenderComboChevron( ImDrawList * dl, const ImRect & chev_bb, ImU32 col, ImGuiID anim_id, bool open )
+    {
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float L = ImFluent::FluentDpx( style.ChevronGlyphSize );
+        const float th = ImFluent::FluentDpx( style.StrokeMedium );
+        const float t = ImFluent::AnimateFloat( anim_id, open ? 1.f : 0.f, 0.20f );
+        const float cx = (chev_bb.Min.x + chev_bb.Max.x) * 0.5f;
+        const float cy = (chev_bb.Min.y + chev_bb.Max.y) * 0.5f;
+        const ImVec2 a( cx - L, cy - L * 0.5f + t * L );
+        const ImVec2 b( cx,     cy + L * 0.5f - t * L );
+        const ImVec2 c( cx + L, cy - L * 0.5f + t * L );
+        dl->AddLine( a, b, col, th );
+        dl->AddLine( b, c, col, th );
+    }
+
     static bool ButtonExStyled( const char * label, const ImVec2 & size_arg,
                                 ImU32 fillRest, ImU32 fillHover, ImU32 fillPress, ImU32 fillDisabled,
                                 ImU32 textCol, ImU32 textDisabled,
@@ -2410,32 +2425,54 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
     const ImGuiID input_id = ImGui::GetCurrentContext()->LastItemData.ID;
     const ImRect  input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     const bool    input_activated = ImGui::IsItemActivated();
+    const bool    input_active = ImGui::IsItemActive();
+    const bool    input_edited = ImGui::IsItemEdited();
 
     const ImGuiID popup_id = input_id ^ 0xA17051E5u;
+    ImGuiContext & gctx = *ImGui::GetCurrentContext();
+    const bool    popup_open = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
 
-    if ( input_activated && items_count > 0 )
-        ImGui::OpenPopupEx( popup_id, ImGuiPopupFlags_None );
+    const bool click_in_input = ImGui::IsMouseClicked( ImGuiMouseButton_Left )
+                             && ImGui::IsMouseHoveringRect( input_rect.Min, input_rect.Max, false );
 
     if ( items_count > 0 )
     {
+        if ( click_in_input && popup_open )
+        {
+            for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
+            {
+                if ( gctx.OpenPopupStack[i].PopupId == popup_id )
+                {
+                    ImGui::ClosePopupToLevel( i, true );
+                    break;
+                }
+            }
+        }
+        else if ( !popup_open && (input_activated || (input_active && (input_edited || click_in_input))) )
+        {
+            ImGui::OpenPopupEx( popup_id, ImGuiPopupFlags_None );
+        }
+
         ImGui::SetNextWindowPos( ImVec2( input_rect.Min.x, input_rect.Max.y + FluentDpx( style.SpacingXSmall ) ) );
         ImGui::SetNextWindowSize( ImVec2( input_rect.GetWidth(), 0.f ) );
-        PushOverlayWindowStyle( 4.f, 4.f );
+        PushOverlayWindowStyle( style.SpacingXSmall, style.SpacingXSmall );
 
         const ImGuiWindowFlags wflags = ImGuiWindowFlags_NoTitleBar
             | ImGuiWindowFlags_NoResize
             | ImGuiWindowFlags_NoMove
             | ImGuiWindowFlags_NoSavedSettings
+            | ImGuiWindowFlags_AlwaysAutoResize
             | ImGuiWindowFlags_NoFocusOnAppearing
             | ImGuiWindowFlags_NoNav;
         if ( ImGui::BeginPopupEx( popup_id, wflags ) )
         {
             int shown = 0;
+            const float h = FluentDpx( style.ControlHeight );
             for ( int i = 0; i < items_count; ++i )
             {
                 if ( !items[i] || !*items[i] ) continue;
                 if ( buf[0] && !ImStristr( items[i], NULL, buf, NULL ) ) continue;
-                if ( ImGui::Selectable( items[i] ) )
+                if ( ImFluent::Selectable( items[i], false, NULL, h ) )
                 {
                     ImStrncpy( buf, items[i], buf_size );
                     if ( selected_index ) *selected_index = i;
@@ -3430,42 +3467,177 @@ void ImFluent::EndSplitView()
 
 bool ImFluent::ComboBox( const char * label, int * current_item, const char * const items[], int items_count )
 {
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
     RenderAndConsumePendingHeader();
+
     const ImFluentStyle & style = ImFluent::GetStyle();
     const float h = FluentDpx( style.ControlHeight );
+    const float r = FluentDpx( style.ControlCornerRadius );
+    const float full_w = ImGui::CalcItemWidth();
+    const float chev_w = h;
+    const ImVec2 pos = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + full_w, pos.y + h ) );
 
-    ImFluentStackGuard g;
-    g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
-    g.PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( FluentDpx( style.SpacingLarge ), (h - ImGui::GetFontSize()) * 0.5f ) );
-    g.PushStyleColor( ImGuiCol_FrameBg, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
-    g.PushStyleColor( ImGuiCol_FrameBgHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
-    g.PushStyleColor( ImGuiCol_FrameBgActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
-    g.PushStyleColor( ImGuiCol_Button, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ) );
-    g.PushStyleColor( ImGuiCol_ButtonHovered, ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ) );
-    g.PushStyleColor( ImGuiCol_ButtonActive, ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ) );
+    const ImGuiID id = w->GetID( label );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+    ImGuiContext & gctx = *ImGui::GetCurrentContext();
+    bool hovered = false, held = false;
+    ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    const bool disabled = (gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled) != 0;
+
+    ImGui::PushOverrideID( id );
+    const ImGuiID popup_id = ImGui::GetID( "##fl_cb_popup" );
+    ImGui::PopID();
+    const bool popup_open = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
+
+    const bool click_in_bb = ImGui::IsMouseClicked( ImGuiMouseButton_Left )
+                          && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
+    const bool nav_activate = (gctx.NavActivateId == id);
+    const bool toggle = (click_in_bb || nav_activate) && !disabled;
+
+    if ( toggle )
+    {
+        if ( popup_open )
+        {
+            for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
+            {
+                if ( gctx.OpenPopupStack[i].PopupId == popup_id )
+                {
+                    ImGui::ClosePopupToLevel( i, true );
+                    break;
+                }
+            }
+        }
+        else
+        {
+            ImGui::OpenPopupEx( popup_id, ImGuiPopupFlags_None );
+        }
+    }
+
+    ImDrawList * dl = w->DrawList;
+    ImU32 fill_target;
+    if ( disabled )                   fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDisabled );
+    else if ( held || popup_open )    fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary );
+    else if ( hovered )               fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary );
+    else                              fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDefault );
+    const ImU32 fill = AnimateColorU32( id, fill_target );
+    dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+
+    const ImU32 stroke = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
+    const ImU32 stroke_bot = ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom );
+    if ( !held && !popup_open && !disabled )
+        RenderElevationBorder( dl, bb, r, stroke, stroke_bot, 1.f );
+    else
+        dl->AddRect( bb.Min, bb.Max, stroke, r, 0, 1.f );
+
+    const char * preview = (current_item && *current_item >= 0 && *current_item < items_count) ? items[*current_item] : "";
+    const ImU32 text_col = disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled )
+                                    : ImFluent::GetColorU32( ImFluentCol_TextPrimary );
+    if ( preview && *preview )
+    {
+        const float pad_x = FluentDpx( style.SpacingLarge );
+        ImFluentStackGuard g;
+        g.PushStyleColor( ImGuiCol_Text, text_col );
+        const ImVec2 tmin( bb.Min.x + pad_x, bb.Min.y );
+        const ImVec2 tmax( bb.Max.x - chev_w, bb.Max.y );
+        const ImRect text_clip( tmin, tmax );
+        ImGui::RenderTextClipped( tmin, tmax, preview, ImGui::FindRenderedTextEnd( preview ), NULL, ImVec2( 0.f, 0.5f ), &text_clip );
+    }
+
+    const ImRect chev_bb( ImVec2( bb.Max.x - chev_w, bb.Min.y ), bb.Max );
+    const ImU32 chev_col = disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled )
+                                    : ImFluent::GetColorU32( ImFluentCol_TextSecondary );
+    RenderComboChevron( dl, chev_bb, chev_col, id ^ 0xCAFEu, popup_open );
+
+    if ( IsItemFocused( id ) )
+        RenderNavFocusRing( dl, bb, r );
 
     bool changed = false;
-    const char * preview = (current_item && *current_item >= 0 && *current_item < items_count) ? items[*current_item] : "";
-    if ( ImGui::BeginCombo( label, preview ) )
+    ImGui::SetNextWindowPos( ImVec2( bb.Min.x, bb.Max.y + FluentDpx( style.SpacingXSmall ) ) );
+    ImGui::SetNextWindowSize( ImVec2( bb.GetWidth(), 0.f ) );
+
+    PushOverlayWindowStyle( style.SpacingXSmall, style.SpacingXSmall );
+    const ImGuiWindowFlags cb_wflags = ImGuiWindowFlags_NoTitleBar
+        | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_AlwaysAutoResize;
+    if ( ImGui::BeginPopupEx( popup_id, cb_wflags ) )
     {
-        ImFluentStackGuard popup;
-        popup.PushStyleVar( ImGuiStyleVar_SelectableTextAlign, ImVec2( 0.f, 0.5f ) );
         for ( int i = 0; i < items_count; ++i )
         {
             const bool sel = (current_item && *current_item == i);
-            if ( ImGui::Selectable( items[i], sel, 0, ImVec2( 0, h ) ) )
+            if ( ImFluent::Selectable( items[i], sel, NULL, h ) )
             {
                 if ( current_item ) *current_item = i;
                 changed = true;
+                ImGui::CloseCurrentPopup();
             }
         }
-        ImGui::EndCombo();
+        ImGui::EndPopup();
     }
-    g.Restore();
-    const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
+    PopOverlayWindowStyle();
+
     RenderAndConsumePendingDescription();
-    RenderAndConsumePendingError( input_rect );
+    RenderAndConsumePendingError( bb );
     return changed;
+}
+
+bool ImFluent::Selectable( const char * label, bool selected, const char * glyph, float height )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems ) return false;
+    glyph = ConsumePendingGlyph( glyph );
+
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const ImGuiID id = w->GetID( label );
+    const float h = (height > 0.f) ? height : FluentDpx( style.ControlHeight );
+    const float pad_x = FluentDpx( style.SpacingLarge );
+    const float gap = FluentDpx( style.SpacingMedium );
+    const float w_avail = ImGui::GetContentRegionAvail().x;
+    const ImVec2 pos = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + w_avail, pos.y + h ) );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id ) ) return false;
+
+    bool hovered = false, held = false;
+    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+
+    ImU32 fill_target;
+    if ( held || selected )  fill_target = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
+    else if ( hovered )      fill_target = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
+    else                     fill_target = ImFluent::GetColorU32( ImFluentCol_SubtleFillTransparent );
+    const ImU32 fill = AnimateColorU32( id, fill_target );
+    ImDrawList * dl = w->DrawList;
+    const float r = FluentDpx( style.ControlCornerRadius );
+    dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+
+    if ( selected )
+        RenderSelectionIndicator( dl, bb, ImGuiDir_Left, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 0.55f );
+
+    float cx = bb.Min.x + pad_x;
+    const ImU32 text_col = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
+    ImFluentStackGuard g;
+    g.PushStyleColor( ImGuiCol_Text, text_col );
+
+    if ( glyph && *glyph )
+    {
+        const ImVec2 gs = ImGui::CalcTextSize( glyph );
+        dl->AddText( ImVec2( cx, bb.Min.y + (h - gs.y) * 0.5f ), text_col, glyph );
+        cx += gs.x + gap;
+    }
+
+    const char * text_end = ImGui::FindRenderedTextEnd( label );
+    const ImVec2 tmin( cx, bb.Min.y );
+    const ImVec2 tmax( bb.Max.x - pad_x, bb.Max.y );
+    const ImRect text_clip( tmin, tmax );
+    ImGui::RenderTextClipped( tmin, tmax, label, text_end, NULL, ImVec2( 0.f, 0.5f ), &text_clip );
+
+    if ( IsItemFocused( id ) ) RenderNavFocusRing( dl, bb, r );
+    return pressed;
 }
 
 bool ImFluent::ListBox( const char * label, int * current_item, const char * const items[], int items_count, int height_in_items )
@@ -3478,18 +3650,15 @@ bool ImFluent::ListBox( const char * label, int * current_item, const char * con
     const ImVec2 sz( 0, FluentDpx( ( float )height_in_items * style.ControlHeight ) );
     if ( ImGui::BeginListBox( label, sz ) )
     {
-        ImFluentStackGuard items_g;
-        items_g.PushStyleVar( ImGuiStyleVar_SelectableTextAlign, ImVec2( 0.f, 0.5f ) );
         for ( int i = 0; i < items_count; ++i )
         {
             const bool sel = (current_item && *current_item == i);
-            if ( ImGui::Selectable( items[i], sel, 0, ImVec2( 0, FluentDpx( style.ControlHeight ) ) ) )
+            if ( ImFluent::Selectable( items[i], sel ) )
             {
                 if ( current_item ) *current_item = i;
                 changed = true;
             }
         }
-        items_g.Restore();
         ImGui::EndListBox();
     }
     return changed;
