@@ -5,6 +5,10 @@ A [Dear ImGui](https://github.com/ocornut/imgui) wrapper for providing widgets t
 A built-in `ImFluent::ShowDemoWindow()` reproduces the WinUI 3 Gallery shell
 with one demo page per control.
 
+## License
+
+MIT — see [LICENSE](LICENSE).
+
 ## Use
 
 ```cpp
@@ -30,7 +34,3 @@ Define `IMFLUENT_DISABLE_DEMO_WINDOWS` to compile out the demo.
 <img width="1924" height="2088" alt="image" src="https://github.com/user-attachments/assets/50f37e94-d34a-448b-8f08-ab646556e571" />
 <img width="1924" height="2088" alt="image" src="https://github.com/user-attachments/assets/2c87e15b-ceba-49b8-8c95-3e7824fe3621" />
 
-
-## License
-
-MIT — see [LICENSE.txt](LICENSE.txt).
