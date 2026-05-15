@@ -346,6 +346,8 @@ struct ImFluentStyle
     const char* LocalizationTable[ImFluentLocKey_COUNT];
 };
 
+typedef bool (*ImFluentAutoSuggestPredicate)( const char * item, const char * filter, void * user_data );
+
 namespace ImFluent
 {
     IMGUI_API ImFluentStyle &       GetStyle();
@@ -416,7 +418,10 @@ namespace ImFluent
     IMGUI_API bool      PasswordBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
     IMGUI_API bool      NumberBox( const char * label, double * v, double step = 1.0, double step_fast = 10.0, const char * format = "%.3f", ImGuiInputTextFlags flags = 0 );
     IMGUI_API bool      RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size = ImVec2( 0, 0 ), ImGuiInputTextFlags flags = 0 );
+
+    IMGUI_API void      SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate predicate, void * user_data = NULL );
     IMGUI_API bool      AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
+
     IMGUI_API void      TextBlock( const char * text, ImFluentTextStyle style = ImFluentTextStyle_Body );
     IMGUI_API void      TextBlockColored( const char * text, ImU32 color_u32, ImFluentTextStyle style = ImFluentTextStyle_Body );
 

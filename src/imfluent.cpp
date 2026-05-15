@@ -28,6 +28,13 @@ struct ImFluentNextItemData
     bool        HasError;
 };
 
+struct ImFluentNextAutoSuggestData
+{
+    ImFluentAutoSuggestPredicate Predicate;
+    void *                       UserData;
+    bool                         HasPredicate;
+};
+
 struct ImFluentColorStackEntry { ImFluentCol Idx; ImVec4 Prev; };
 
 enum ImFluentStyleVarKind { ImFluentStyleVarKind_Float, ImFluentStyleVarKind_Vec2 };
@@ -88,6 +95,7 @@ struct ImFluentContext
     ImFont *                                    Fonts[ImFluentTextStyle_COUNT];
 
     ImFluentNextItemData                        NextItem;
+    ImFluentNextAutoSuggestData                 NextAutoSuggest;
 
     ImVector<ImFluentColorStackEntry>           ColorStack;
     ImVector<ImFluentStyleVarStackEntry>        StyleVarStack;
@@ -117,8 +125,9 @@ struct ImFluentContext
         , UserAccent( 0.f, 0.f, 0.f, 1.f )
     {
         for ( int i = 0; i < ImFluentTextStyle_COUNT; ++i ) Fonts[i] = NULL;
-        NextItem = ImFluentNextItemData();
-        NavView  = ImFluentNavViewState();
+        NextItem        = ImFluentNextItemData();
+        NextAutoSuggest = ImFluentNextAutoSuggestData();
+        NavView         = ImFluentNavViewState();
     }
 };
 
@@ -2429,10 +2438,22 @@ bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, con
     return changed;
 }
 
+void ImFluent::SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate predicate, void * user_data )
+{
+    g_Ctx.NextAutoSuggest.Predicate    = predicate;
+    g_Ctx.NextAutoSuggest.UserData     = user_data;
+    g_Ctx.NextAutoSuggest.HasPredicate = (predicate != NULL);
+}
+
 bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index, const char * hint, ImGuiInputTextFlags flags )
 {
     RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
+
+    const ImFluentAutoSuggestPredicate pred_fn   = g_Ctx.NextAutoSuggest.HasPredicate ? g_Ctx.NextAutoSuggest.Predicate : NULL;
+    void * const                       pred_user = g_Ctx.NextAutoSuggest.UserData;
+    g_Ctx.NextAutoSuggest = ImFluentNextAutoSuggestData();
+
     bool changed = TextBox( label, buf, buf_size, hint, flags );
 
     const ImGuiID input_id = ImGui::GetCurrentContext()->LastItemData.ID;
@@ -2479,12 +2500,21 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
             | ImGuiWindowFlags_NoNav;
         if ( ImGui::BeginPopupEx( popup_id, wflags ) )
         {
+            ImGui::BringWindowToDisplayFront( ImGui::GetCurrentWindow() );
+
             int shown = 0;
             const float h = FluentDpx( style.ControlHeight );
             for ( int i = 0; i < items_count; ++i )
             {
                 if ( !items[i] || !*items[i] ) continue;
-                if ( buf[0] && !ImStristr( items[i], NULL, buf, NULL ) ) continue;
+                if ( pred_fn )
+                {
+                    if ( !pred_fn( items[i], buf, pred_user ) ) continue;
+                }
+                else if ( buf[0] && !ImStristr( items[i], NULL, buf, NULL ) )
+                {
+                    continue;
+                }
                 if ( ImFluent::Selectable( items[i], false, NULL, h ) )
                 {
                     ImStrncpy( buf, items[i], buf_size );
