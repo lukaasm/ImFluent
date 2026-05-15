@@ -14,6 +14,7 @@ MIT — see [LICENSE](LICENSE).
 ```cpp
 #include "imfluent.h"
 
+ImFluent::LoadFluentSystemFonts();
 ImFluent::SetThemePreset(ImFluentThemePreset_Dark);
 
 if (ImFluent::AccentButton("Sign in")) { /* ... */ }

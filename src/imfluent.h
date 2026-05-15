@@ -359,7 +359,7 @@ namespace ImFluent
     IMGUI_API ImColor               GetAccentColor();
     IMGUI_API bool                  HasUserAccentColor();
 
-    IMGUI_API void      LoadFluentFonts();
+    IMGUI_API void      LoadFluentSystemFonts();
 
     IMGUI_API void      PushFluentStyle();
     IMGUI_API void      PopFluentStyle();
@@ -375,7 +375,7 @@ namespace ImFluent
     IMGUI_API void      BeginDisabled( bool disabled = true );
     IMGUI_API void      EndDisabled();
 
-    IMGUI_API void      PushFont( ImFluentTextStyle style );
+    IMGUI_API void      PushFont( ImFluentTextStyle style, float size = 0.0f );
     IMGUI_API void      PopFont();
 
     IMGUI_API void      SetNextItemHeader( const char * text );

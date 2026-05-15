@@ -51,7 +51,7 @@ int main( int, char ** )
     init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
     ImGui_ImplSDLGPU3_Init( &init_info );
 
-    ImFluent::LoadFluentFonts();
+    ImFluent::LoadFluentSystemFonts();
     ImFluent::SetThemePreset( ImFluentThemePreset_Dark );
 
     bool show_demo_window = true;

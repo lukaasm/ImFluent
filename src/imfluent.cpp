@@ -93,13 +93,19 @@ struct ImFluentSplitViewState
     bool                            ContentDone;
 };
 
+struct ImFluentTextStyleFont
+{
+    ImFont * Font;
+    float    FontSize;
+};
+
 struct ImFluentContext
 {
     static const int                            MaxPopupAnchors = 16;
 
     ImFluentThemePreset                         Preset;
     ImFluentStyle                               Style;
-    ImFont *                                    Fonts[ImFluentTextStyle_COUNT];
+    ImFluentTextStyleFont                       Fonts[ImFluentTextStyle_COUNT];
 
     ImFluentNextItemData                        NextItem;
     ImFluentNextAutoSuggestData                 NextAutoSuggest;
@@ -132,7 +138,7 @@ struct ImFluentContext
         , HasUserAccent( false )
         , UserAccent( 0.f, 0.f, 0.f, 1.f )
     {
-        for ( int i = 0; i < ImFluentTextStyle_COUNT; ++i ) Fonts[i] = NULL;
+        for ( int i = 0; i < ImFluentTextStyle_COUNT; ++i ) Fonts[i] = ImFluentTextStyleFont();
         NextItem        = ImFluentNextItemData();
         NextAutoSuggest = ImFluentNextAutoSuggestData();
         NextTextBox     = ImFluentNextTextBoxData();
@@ -813,18 +819,6 @@ namespace ImFluent
         ImGui::PopStyleColor( 2 );
     }
 
-    static void SetFont( ImFluentTextStyle style, ImFont * font )
-    {
-        if ( style >= 0 && style < ImFluentTextStyle_COUNT )
-            g_Ctx.Fonts[style] = font;
-    }
-    static ImFont * GetFont( ImFluentTextStyle style )
-    {
-        if ( style >= 0 && style < ImFluentTextStyle_COUNT && g_Ctx.Fonts[style] )
-            return g_Ctx.Fonts[style];
-        return ImGui::GetFont();
-    }
-
     static const char * LocalizeGetMsg( ImFluentLocKey key )
     {
         if ( key < 0 || key >= ImFluentLocKey_COUNT ) return "*Missing Text*";
@@ -1140,8 +1134,8 @@ void ImFluent::SetThemePreset( ImFluentThemePreset preset )
 
 void ImFluent::PushFluentStyle()
 {
-    if ( g_Ctx.Fonts[ImFluentTextStyle_Body] )
-        ImGui::PushFont( g_Ctx.Fonts[ImFluentTextStyle_Body] );
+    if ( g_Ctx.Fonts[ImFluentTextStyle_Body].Font )
+        ImFluent::PushFont( ImFluentTextStyle_Body );
     else
         ImGui::PushFont( ImGui::GetFont() );
 }
@@ -1255,62 +1249,73 @@ void ImFluent::EndDisabled()
 
 // [SECTION] Fonts (LoadFluentFonts / PushFont / PopFont)
 
-void ImFluent::LoadFluentFonts()
+static ImFont * LoadFontAndMergeWithIcons( const char * fontsDirectory, const char * fontName )
 {
+    const char * fontPath;
+    ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/%s", fontsDirectory, fontName );
 
-#if defined (_WIN32)
+    ImFontConfig cfg;
+    cfg.SizePixels = 16.0;
+    cfg.RasterizerMultiply = 1.2f;
+
+    ImFont * font = ImGui::GetIO().Fonts->AddFontFromFileTTF( fontPath, 0.0f, &cfg );
+    IM_ASSERT( font != nullptr );
+
+    bool iconFontMedged = false;
+
+    static const char * iconFonts[] = { "SegoeIcons.ttf", "SegMDL2.ttf" };
+    static const ImWchar fluentIconsRange[] = { 0xE000, 0xF8FF, 0 };
+
+    for ( const char * iconFontName : iconFonts )
+    {
+        ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/%s", fontsDirectory, iconFontName );
+
+        cfg.MergeMode = true;
+        cfg.PixelSnapH = true;
+        cfg.GlyphOffset = { 0.0f, cfg.SizePixels / 8.0f };
+
+        iconFontMedged = ImGui::GetIO().Fonts->AddFontFromFileTTF( fontPath, 0.0f, &cfg, fluentIconsRange );
+        if ( iconFontMedged )
+            break;
+    }
+
+    IM_ASSERT( iconFontMedged );
+    return font;
+}
+
+void ImFluent::LoadFluentSystemFonts()
+{
+    char windowsDirectory[MAX_PATH] = { 0 };
+    ::GetWindowsDirectoryA( windowsDirectory, MAX_PATH );
+
     char fontsDirectory[MAX_PATH] = { 0 };
-    ::GetWindowsDirectoryA( fontsDirectory, MAX_PATH );
-#endif
+    ImFormatString( fontsDirectory, MAX_PATH, "%s/Fonts", windowsDirectory );
 
     struct TextStyleFontInfo { ImFluentTextStyle style; float dp; const char * fontFile; };
 
-    const TextStyleFontInfo info[] =
-    {
-        { ImFluentTextStyle_Caption,     16.0f, "segoeui.ttf"     },
-        { ImFluentTextStyle_Body,        20.0f, "segoeui.ttf"     },
-        { ImFluentTextStyle_BodyStrong,  20.0f, "segoeuib.ttf"   },
-        { ImFluentTextStyle_Subtitle,    28.0f, "segoeuib.ttf"   },
-        { ImFluentTextStyle_Title,       36.0f, "segoeuib.ttf"   },
-        { ImFluentTextStyle_TitleLarge,  52.0f, "segoeuib.ttf"   },
-        { ImFluentTextStyle_Display,     92.0f, "segoeuib.ttf"   },
-    };
+    ImFont * regularFont = LoadFontAndMergeWithIcons( fontsDirectory, "segoeui.ttf" );
+    
+    SetFluentTextStyleFont( ImFluentTextStyle_Caption, regularFont, 16.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_Body, regularFont, 20.0f );
 
-    ImGuiIO & io = ImGui::GetIO();
-    for ( const TextStyleFontInfo & i : info )
-    {
-        ImFontConfig cfg;
-        cfg.SizePixels = i.dp;
-        cfg.RasterizerMultiply = 1.2f;
+    ImFont * boldFont = LoadFontAndMergeWithIcons( fontsDirectory, "segoeuib.ttf" );
 
-        const char * fontPath = nullptr;
-        ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/Fonts/%s", fontsDirectory, i.fontFile );
+    SetFluentTextStyleFont( ImFluentTextStyle_BodyStrong, boldFont, 20.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_Subtitle, boldFont, 28.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_Title, boldFont, 36.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_TitleLarge, boldFont, 52.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_Display, boldFont, 92.0f );
 
-        ImFont * font = io.Fonts->AddFontFromFileTTF( fontPath, i.dp, &cfg );
-        IM_ASSERT( font != nullptr );
-
-        static const ImWchar fluentIconsRange[] = { 0xE000, 0xF8FF, 0 };
-
-        ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/Fonts/SegoeIcons.ttf", fontsDirectory, i.fontFile );
-
-        float iconSize = i.dp * 0.75f;
-        cfg.MergeMode = true;
-        cfg.PixelSnapH = true;
-        cfg.GlyphOffset = { 0.0f, iconSize / 8.0f };
-
-        io.Fonts->AddFontFromFileTTF( fontPath, iconSize, &cfg, fluentIconsRange );
-
-        SetFont( i.style, font );
-    }
-
-    ImGui::GetIO().FontDefault = GetFont( ImFluentTextStyle_Body );
+    if ( ImGui::GetIO().FontDefault == NULL )
+        ImGui::GetIO().FontDefault = g_Ctx.Fonts[ImFluentTextStyle_Body].Font;
 }
 
-void ImFluent::PushFont( ImFluentTextStyle style )
+void ImFluent::PushFont( ImFluentTextStyle style, float size )
 {
-    ImFont * f = GetFont( style );
-    ImGui::PushFont( f );
+    ImFluentTextStyleFont * font = &g_Ctx.Fonts[style];
+    ImGui::PushFont( font->Font, size > 0 ? size : font->FontSize );
 }
+
 void ImFluent::PopFont() { ImGui::PopFont(); }
 
 // [SECTION] Next-item attributes
@@ -1319,6 +1324,13 @@ void ImFluent::SetNextItemHeader( const char * text ) { g_Ctx.NextItem.Header = 
 void ImFluent::SetNextItemDescription( const char * text ) { g_Ctx.NextItem.Description = text;  g_Ctx.NextItem.HasDescription = (text != NULL); }
 void ImFluent::SetNextItemGlyph( const char * glyph ) { g_Ctx.NextItem.Glyph = glyph; g_Ctx.NextItem.HasGlyph = (glyph != NULL); }
 void ImFluent::SetNextItemError( const char * error ) { g_Ctx.NextItem.Error = error; g_Ctx.NextItem.HasError = (error != NULL); }
+
+void ImFluent::SetFluentTextStyleFont( ImFluentTextStyle style, ImFont * font, float size )
+{
+    IM_ASSERT( size > 0.0f );
+    if ( style >= 0 && style < ImFluentTextStyle_COUNT )
+        g_Ctx.Fonts[style] = { font, size };
+}
 
 // [SECTION] Buttons
 
