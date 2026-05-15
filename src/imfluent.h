@@ -414,6 +414,7 @@ namespace ImFluent
     IMGUI_API void      ProgressBar( float fraction, const ImVec2 & size_arg = ImVec2( -1.f, 0 ), const char * overlay = NULL, ImFluentProgressBarState state = ImFluentProgressBarState_Running );
     IMGUI_API void      ProgressRing( float diameter_dpx = 32.f, float fraction = -1.f );
 
+    IMGUI_API void      SetNextTextBoxInputTextCallback( ImGuiInputTextCallback callback, void * user_data = NULL );
     IMGUI_API bool      TextBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImFluentTextBoxFlags fluent_flags = ImFluentTextBoxFlags_None, int max_length = 0 );
     IMGUI_API bool      PasswordBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
     IMGUI_API bool      NumberBox( const char * label, double * v, double step = 1.0, double step_fast = 10.0, const char * format = "%.3f", ImGuiInputTextFlags flags = 0 );

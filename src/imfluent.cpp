@@ -35,6 +35,13 @@ struct ImFluentNextAutoSuggestData
     bool                         HasPredicate;
 };
 
+struct ImFluentNextTextBoxData
+{
+    ImGuiInputTextCallback UserCallback;
+    void *                 UserCallbackData;
+    bool                   HasUserCallback;
+};
+
 struct ImFluentColorStackEntry { ImFluentCol Idx; ImVec4 Prev; };
 
 enum ImFluentStyleVarKind { ImFluentStyleVarKind_Float, ImFluentStyleVarKind_Vec2 };
@@ -96,6 +103,7 @@ struct ImFluentContext
 
     ImFluentNextItemData                        NextItem;
     ImFluentNextAutoSuggestData                 NextAutoSuggest;
+    ImFluentNextTextBoxData                     NextTextBox;
 
     ImVector<ImFluentColorStackEntry>           ColorStack;
     ImVector<ImFluentStyleVarStackEntry>        StyleVarStack;
@@ -127,6 +135,7 @@ struct ImFluentContext
         for ( int i = 0; i < ImFluentTextStyle_COUNT; ++i ) Fonts[i] = NULL;
         NextItem        = ImFluentNextItemData();
         NextAutoSuggest = ImFluentNextAutoSuggestData();
+        NextTextBox     = ImFluentNextTextBoxData();
         NavView         = ImFluentNavViewState();
     }
 };
@@ -2152,6 +2161,13 @@ void ImFluent::ProgressRing( float diameter_dpx, float fraction )
 
 // [SECTION] Text input (TextBox / PasswordBox / NumberBox / RichEditBox / AutoSuggestBox / TextBlock)
 
+void ImFluent::SetNextTextBoxInputTextCallback( ImGuiInputTextCallback callback, void * user_data )
+{
+    g_Ctx.NextTextBox.UserCallback     = callback;
+    g_Ctx.NextTextBox.UserCallbackData = user_data;
+    g_Ctx.NextTextBox.HasUserCallback  = (callback != NULL);
+}
+
 bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const char * hint, ImGuiInputTextFlags extra_flags, ImFluentTextBoxFlags fluent_flags, int max_length )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
@@ -2161,23 +2177,46 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
     const ImFluentStyle & style = ImFluent::GetStyle();
     PushControlFrameStyle( FluentDpx( style.ControlHeight ) );
 
-    struct CharLimit { char * Buf; int Max; };
-    CharLimit limit = { buf, max_length };
+    const ImGuiInputTextCallback user_cb      = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
+    void * const                 user_cb_data = g_Ctx.NextTextBox.UserCallbackData;
+    g_Ctx.NextTextBox = ImFluentNextTextBoxData();
+
+    struct ChainCb
+    {
+        char *                 Buf;
+        int                    MaxChars;
+        ImGuiInputTextCallback UserCallback;
+        void *                 UserCallbackData;
+    };
+    ChainCb chain = { buf, max_length, user_cb, user_cb_data };
     ImGuiInputTextCallback cb = NULL;
     void * cb_user = NULL;
-    if ( max_length > 0 )
+    if ( max_length > 0 || user_cb )
     {
-        extra_flags |= ImGuiInputTextFlags_CallbackCharFilter;
+        if ( max_length > 0 )
+            extra_flags |= ImGuiInputTextFlags_CallbackCharFilter;
         cb = []( ImGuiInputTextCallbackData * data ) -> int
         {
-            const CharLimit * lim = ( const CharLimit * )data->UserData;
-            if ( !lim || data->EventFlag != ImGuiInputTextFlags_CallbackCharFilter ) return 0;
-            int n_chars = 0;
-            for ( const char * p = lim->Buf; *p; ++p )
-                if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
-            return ( n_chars >= lim->Max ) ? 1 : 0;
+            ChainCb * cc = ( ChainCb * )data->UserData;
+            if ( !cc ) return 0;
+            if ( cc->MaxChars > 0 && data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter )
+            {
+                int n_chars = 0;
+                for ( const char * p = cc->Buf; *p; ++p )
+                    if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
+                if ( n_chars >= cc->MaxChars ) return 1;
+            }
+            if ( cc->UserCallback )
+            {
+                void * saved = data->UserData;
+                data->UserData = cc->UserCallbackData;
+                const int r = cc->UserCallback( data );
+                data->UserData = saved;
+                return r;
+            }
+            return 0;
         };
-        cb_user = &limit;
+        cb_user = &chain;
     }
 
     if ( ( fluent_flags & ImFluentTextBoxFlags_ClearButton ) && buf && buf[0] )
