@@ -346,7 +346,7 @@ struct ImFluentStyle
     const char* LocalizationTable[ImFluentLocKey_COUNT];
 };
 
-typedef bool (*ImFluentAutoSuggestPredicate)( const char * item, const char * filter, void * user_data );
+typedef int (*ImFluentAutoSuggestPredicate)( const char * item, const char * filter, void * user_data );
 
 namespace ImFluent
 {
@@ -421,7 +421,7 @@ namespace ImFluent
     IMGUI_API bool      RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size = ImVec2( 0, 0 ), ImGuiInputTextFlags flags = 0 );
 
     IMGUI_API void      SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate predicate, void * user_data = NULL );
-    IMGUI_API bool      AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
+    IMGUI_API bool      AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImGuiComboFlags combo_flags = 0 );
 
     IMGUI_API void      TextBlock( const char * text, ImFluentTextStyle style = ImFluentTextStyle_Body );
     IMGUI_API void      TextBlockColored( const char * text, ImU32 color_u32, ImFluentTextStyle style = ImFluentTextStyle_Body );
@@ -489,7 +489,7 @@ namespace ImFluent
     IMGUI_API bool      IsNavPaneOpening();
     IMGUI_API bool      IsNavPaneClosing();
 
-    IMGUI_API bool       ComboBox( const char * label, int * current_item, const char * const items[], int items_count );
+    IMGUI_API bool       ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags = 0 );
     IMGUI_API bool       ListBox( const char * label, int * current_item, const char * const items[], int items_count, int height_in_items = 7 );
     IMGUI_API bool       Selectable( const char * label, bool selected = false, const char * glyph = NULL, float height = 0.f );
     IMGUI_API bool       ListViewItem( const char * label, bool selected = false, const char * glyph = NULL );

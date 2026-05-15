@@ -700,6 +700,53 @@ static void Page_Item_AutoSuggestBox()
     selected = -1;
     }
     EndControlExample();
+
+    if (BeginControlExample("Custom scoring predicate (prefix > word-start > substring)"))
+    {
+    static const char* items[] = {
+        "Apple Pie", "Apricot Jam", "Banana Bread", "Blueberry Muffin",
+        "Carrot Cake", "Cherry Tart", "Chocolate Chip Cookie", "Cinnamon Roll",
+        "Coconut Macaroon", "Cranberry Scone", "Date Bar", "Elderflower Cordial",
+        "Fig Newton", "Ginger Snap", "Grapefruit Sorbet", "Honey Cake",
+        "Kiwi Pavlova", "Lemon Meringue", "Mango Mousse", "Peach Cobbler",
+        "Pumpkin Spice Latte", "Raspberry Trifle", "Strawberry Shortcake",
+        "Vanilla Custard", "Walnut Brownie"
+    };
+    static char buf[64] = "";
+    static int  selected = -1;
+
+    struct Scorer
+    {
+        static int Score(const char* item, const char* filter, void* /*user_data*/)
+        {
+            if (!filter || !*filter) return 1; // show all in original order when empty
+            const char* hit = ImStristr(item, NULL, filter, NULL);
+            if (!hit) return 0;
+            int score = 100;
+            if (hit == item)                                                   score += 200; // prefix
+            else if (hit > item && (hit[-1] == ' ' || hit[-1] == '-'))         score += 100; // word-start
+            score -= (int)(hit - item);                                                      // earlier match wins ties
+            return score > 0 ? score : 1;
+        }
+    };
+
+    ImGui::PushItemWidth(280.f);
+    SetNextItemHeader("Pick a dessert");
+    SetNextAutoSuggestBoxPredicate(&Scorer::Score);
+    AutoSuggestBox("##sgb-scored", buf, sizeof(buf), items, IM_ARRAYSIZE(items), &selected, "Try 'an', 'co', 'berry'...");
+    ImGui::PopItemWidth();
+    if (selected >= 0)
+    {
+        ControlExampleOutput("Selected #%d: %s", selected, items[selected]);
+        int size = std::min((int)strlen(items[selected]), (int)sizeof(buf) - 1);
+        memcpy(buf, items[selected], size);
+        buf[size] = '\0';
+    }
+    else
+        ControlExampleOutput("Selected: (none)");
+    selected = -1;
+    }
+    EndControlExample();
 }
 
 static void Page_Item_RichEditBox()

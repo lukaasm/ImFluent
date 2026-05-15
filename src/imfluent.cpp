@@ -35,6 +35,8 @@ struct ImFluentNextAutoSuggestData
     bool                         HasPredicate;
 };
 
+struct ImFluentAutoSuggestScoredItem { int Index; int Score; };
+
 struct ImFluentNextTextBoxData
 {
     ImGuiInputTextCallback UserCallback;
@@ -118,6 +120,7 @@ struct ImFluentContext
     ImVector<ImFluentCommandBarState>           CommandBarStack;
     ImVector<float>                             NavItemIndentStack;
     ImVector<ImFluentSplitViewState>            SplitViewStack;
+    ImVector<ImFluentAutoSuggestScoredItem>     AutoSuggestVisible;
 
     ImFluentNavViewState                        NavView;
 
@@ -936,6 +939,23 @@ namespace ImFluent
     {
         ImGuiContext & g = *ImGui::GetCurrentContext();
         return g.NavId == id && g.NavCursorVisible;
+    }
+
+    static int ResolveComboPopupMaxItems( ImGuiComboFlags flags )
+    {
+        if ( flags & ImGuiComboFlags_HeightSmall )    return 4;
+        if ( flags & ImGuiComboFlags_HeightLarge )    return 20;
+        if ( flags & ImGuiComboFlags_HeightLargest )  return -1;
+        return 8;
+    }
+
+    static float CalcComboPopupMaxHeight( int max_items, float row_h )
+    {
+        if ( max_items <= 0 ) return FLT_MAX;
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        const float spacing_y = ImGui::GetStyle().ItemSpacing.y;
+        const float padding_y = ImFluent::FluentDpx( style.SpacingXSmall );
+        return row_h * max_items + spacing_y * ImMax( 0, max_items - 1 ) + padding_y * 2.f;
     }
 
     static void RenderComboChevron( ImDrawList * dl, const ImRect & chev_bb, ImU32 col, ImGuiID anim_id, bool open )
@@ -2496,7 +2516,7 @@ void ImFluent::SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate pred
     g_Ctx.NextAutoSuggest.HasPredicate = (predicate != NULL);
 }
 
-bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index, const char * hint, ImGuiInputTextFlags flags )
+bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index, const char * hint, ImGuiInputTextFlags flags, ImGuiComboFlags combo_flags )
 {
     RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
@@ -2538,8 +2558,12 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
             ImGui::OpenPopupEx( popup_id, ImGuiPopupFlags_None );
         }
 
+        const float h = FluentDpx( style.ControlHeight );
+        const int popup_max_items = ResolveComboPopupMaxItems( combo_flags );
+        const float popup_max_h = CalcComboPopupMaxHeight( popup_max_items, h );
+
         ImGui::SetNextWindowPos( ImVec2( input_rect.Min.x, input_rect.Max.y + FluentDpx( style.SpacingXSmall ) ) );
-        ImGui::SetNextWindowSize( ImVec2( input_rect.GetWidth(), 0.f ) );
+        ImGui::SetNextWindowSizeConstraints( ImVec2( input_rect.GetWidth(), 0.f ), ImVec2( input_rect.GetWidth(), popup_max_h ) );
         PushOverlayWindowStyle( style.SpacingXSmall, style.SpacingXSmall );
 
         const ImGuiWindowFlags wflags = ImGuiWindowFlags_NoTitleBar
@@ -2553,30 +2577,63 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
         {
             ImGui::BringWindowToDisplayFront( ImGui::GetCurrentWindow() );
 
-            int shown = 0;
-            const float h = FluentDpx( style.ControlHeight );
+            ImVector<ImFluentAutoSuggestScoredItem> & visible = g_Ctx.AutoSuggestVisible;
+            visible.resize( 0 );
+            visible.reserve( items_count );
             for ( int i = 0; i < items_count; ++i )
             {
                 if ( !items[i] || !*items[i] ) continue;
+                int score = 0;
                 if ( pred_fn )
                 {
-                    if ( !pred_fn( items[i], buf, pred_user ) ) continue;
+                    score = pred_fn( items[i], buf, pred_user );
+                    if ( score <= 0 ) continue;
                 }
                 else if ( buf[0] && !ImStristr( items[i], NULL, buf, NULL ) )
                 {
                     continue;
                 }
-                if ( ImFluent::Selectable( items[i], false, NULL, h ) )
-                {
-                    ImStrncpy( buf, items[i], buf_size );
-                    if ( selected_index ) *selected_index = i;
-                    changed = true;
-                    ImGui::CloseCurrentPopup();
-                }
-                ++shown;
+                visible.push_back( ImFluentAutoSuggestScoredItem{ i, score } );
             }
-            if ( shown == 0 )
-                ImGui::TextDisabled( "%s", ImFluent::LocalizeGetMsg( ImFluentLocKey_AutoSuggestNoSuggestions ) );
+
+            if ( pred_fn && visible.Size > 1 )
+            {
+                ImQsort( visible.Data, ( size_t )visible.Size, sizeof( ImFluentAutoSuggestScoredItem ),
+                         []( const void * a, const void * b ) -> int
+                         {
+                             const ImFluentAutoSuggestScoredItem * sa = ( const ImFluentAutoSuggestScoredItem * )a;
+                             const ImFluentAutoSuggestScoredItem * sb = ( const ImFluentAutoSuggestScoredItem * )b;
+                             if ( sa->Score != sb->Score ) return sb->Score - sa->Score;
+                             return sa->Index - sb->Index;
+                         } );
+            }
+
+            if ( visible.Size == 0 )
+            {
+                ImFluent::Selectable( ImFluent::LocalizeGetMsg( ImFluentLocKey_AutoSuggestNoSuggestions ), false, NULL, h );
+            }
+            else
+            {
+                const float row_advance = h + ImGui::GetStyle().ItemSpacing.y;
+                ImGuiListClipper clipper;
+                clipper.Begin( visible.Size, row_advance );
+                while ( clipper.Step() )
+                {
+                    for ( int n = clipper.DisplayStart; n < clipper.DisplayEnd; ++n )
+                    {
+                        const int i = visible[n].Index;
+                        ImGui::PushID( i );
+                        if ( ImFluent::Selectable( items[i], false, NULL, h ) )
+                        {
+                            ImStrncpy( buf, items[i], buf_size );
+                            if ( selected_index ) *selected_index = i;
+                            changed = true;
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::PopID();
+                    }
+                }
+            }
             ImGui::EndPopup();
         }
         PopOverlayWindowStyle();
@@ -3559,17 +3616,28 @@ void ImFluent::EndSplitView()
 
 // [SECTION] Lists & Pickers (ComboBox / ListBox / TreeNode / GridView / PipsPager / BreadcrumbBar)
 
-bool ImFluent::ComboBox( const char * label, int * current_item, const char * const items[], int items_count )
+bool ImFluent::ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems ) return false;
     RenderAndConsumePendingHeader();
 
+    IM_ASSERT( (flags & (ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_NoPreview)) != (ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_NoPreview) );
+
     const ImFluentStyle & style = ImFluent::GetStyle();
     const float h = FluentDpx( style.ControlHeight );
     const float r = FluentDpx( style.ControlCornerRadius );
-    const float full_w = ImGui::CalcItemWidth();
-    const float chev_w = h;
+    const float chev_w = (flags & ImGuiComboFlags_NoArrowButton) ? 0.f : h;
+    const char * preview = (current_item && *current_item >= 0 && *current_item < items_count) ? items[*current_item] : "";
+
+    float full_w;
+    if ( flags & ImGuiComboFlags_NoPreview )
+        full_w = chev_w;
+    else if ( flags & ImGuiComboFlags_WidthFitPreview )
+        full_w = chev_w + (preview && *preview ? ImGui::CalcTextSize( preview ).x : 0.f) + FluentDpx( style.SpacingLarge ) * 2.f;
+    else
+        full_w = ImGui::CalcItemWidth();
+
     const ImVec2 pos = w->DC.CursorPos;
     const ImRect bb( pos, ImVec2( pos.x + full_w, pos.y + h ) );
 
@@ -3627,10 +3695,9 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     else
         dl->AddRect( bb.Min, bb.Max, stroke, r, 0, 1.f );
 
-    const char * preview = (current_item && *current_item >= 0 && *current_item < items_count) ? items[*current_item] : "";
     const ImU32 text_col = disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled )
                                     : ImFluent::GetColorU32( ImFluentCol_TextPrimary );
-    if ( preview && *preview )
+    if ( !(flags & ImGuiComboFlags_NoPreview) && preview && *preview )
     {
         const float pad_x = FluentDpx( style.SpacingLarge );
         ImFluentStackGuard g;
@@ -3641,17 +3708,22 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         ImGui::RenderTextClipped( tmin, tmax, preview, ImGui::FindRenderedTextEnd( preview ), NULL, ImVec2( 0.f, 0.5f ), &text_clip );
     }
 
-    const ImRect chev_bb( ImVec2( bb.Max.x - chev_w, bb.Min.y ), bb.Max );
-    const ImU32 chev_col = disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled )
-                                    : ImFluent::GetColorU32( ImFluentCol_TextSecondary );
-    RenderComboChevron( dl, chev_bb, chev_col, id ^ 0xCAFEu, popup_open );
+    if ( chev_w > 0.f )
+    {
+        const ImRect chev_bb( ImVec2( bb.Max.x - chev_w, bb.Min.y ), bb.Max );
+        const ImU32 chev_col = disabled ? ImFluent::GetColorU32( ImFluentCol_TextDisabled )
+                                        : ImFluent::GetColorU32( ImFluentCol_TextSecondary );
+        RenderComboChevron( dl, chev_bb, chev_col, id ^ 0xCAFEu, popup_open );
+    }
 
     if ( IsItemFocused( id ) )
         RenderNavFocusRing( dl, bb, r );
 
     bool changed = false;
+    const int popup_max_items = ResolveComboPopupMaxItems( flags );
+    const float popup_max_h = CalcComboPopupMaxHeight( popup_max_items, h );
     ImGui::SetNextWindowPos( ImVec2( bb.Min.x, bb.Max.y + FluentDpx( style.SpacingXSmall ) ) );
-    ImGui::SetNextWindowSize( ImVec2( bb.GetWidth(), 0.f ) );
+    ImGui::SetNextWindowSizeConstraints( ImVec2( bb.GetWidth(), 0.f ), ImVec2( bb.GetWidth(), popup_max_h ) );
 
     PushOverlayWindowStyle( style.SpacingXSmall, style.SpacingXSmall );
     const ImGuiWindowFlags cb_wflags = ImGuiWindowFlags_NoTitleBar
@@ -3661,14 +3733,25 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         | ImGuiWindowFlags_AlwaysAutoResize;
     if ( ImGui::BeginPopupEx( popup_id, cb_wflags ) )
     {
-        for ( int i = 0; i < items_count; ++i )
+        const float row_advance = h + ImGui::GetStyle().ItemSpacing.y;
+        ImGuiListClipper clipper;
+        clipper.Begin( items_count, row_advance );
+        if ( current_item && *current_item >= 0 && *current_item < items_count )
+            clipper.IncludeItemByIndex( *current_item );
+        while ( clipper.Step() )
         {
-            const bool sel = (current_item && *current_item == i);
-            if ( ImFluent::Selectable( items[i], sel, NULL, h ) )
+            for ( int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i )
             {
-                if ( current_item ) *current_item = i;
-                changed = true;
-                ImGui::CloseCurrentPopup();
+                if ( !items[i] ) continue;
+                ImGui::PushID( i );
+                const bool sel = (current_item && *current_item == i);
+                if ( ImFluent::Selectable( items[i], sel, NULL, h ) )
+                {
+                    if ( current_item ) *current_item = i;
+                    changed = true;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::PopID();
             }
         }
         ImGui::EndPopup();
