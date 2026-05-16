@@ -2193,7 +2193,59 @@ void ImFluent::ProgressRing( float diameter_dpx, float fraction )
 
 // [SECTION] Text input (TextBox / PasswordBox / NumberBox / RichEditBox / AutoSuggestBox / TextBlock)
 
-void ImFluent::SetNextTextBoxInputTextCallback( ImGuiInputTextCallback callback, void * user_data )
+struct ImFluentTextInputChainCb
+{
+    char *                 Buf;
+    int                    MaxChars;
+    ImGuiInputTextCallback UserCallback;
+    void *                 UserCallbackData;
+};
+
+static int ImFluentTextInputChainCbProc( ImGuiInputTextCallbackData * data )
+{
+    ImFluentTextInputChainCb * cc = ( ImFluentTextInputChainCb * )data->UserData;
+    if ( !cc ) return 0;
+    if ( cc->MaxChars > 0 && data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter )
+    {
+        int n_chars = 0;
+        for ( const char * p = cc->Buf; *p; ++p )
+            if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
+        if ( n_chars >= cc->MaxChars ) return 1;
+    }
+    if ( cc->UserCallback )
+    {
+        void * saved = data->UserData;
+        data->UserData = cc->UserCallbackData;
+        const int r = cc->UserCallback( data );
+        data->UserData = saved;
+        return r;
+    }
+    return 0;
+}
+
+static void PrepareTextInputCallback( char * buf, int max_length, mGuiInputTextFlags & flags, ImFluentTextInputChainCb & chain, ImGuiInputTextCallback & out_cb, void *& out_cb_user )
+{
+    const ImGuiInputTextCallback user_cb      = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
+    void * const                 user_cb_data = g_Ctx.NextTextBox.UserCallbackData;
+    g_Ctx.NextTextBox = ImFluentNextTextBoxData();
+
+    chain.Buf              = buf;
+    chain.MaxChars         = max_length;
+    chain.UserCallback     = user_cb;
+    chain.UserCallbackData = user_cb_data;
+
+    out_cb      = NULL;
+    out_cb_user = NULL;
+    if ( max_length > 0 || user_cb )
+    {
+        if ( max_length > 0 )
+            flags |= ImGuiInputTextFlags_CallbackCharFilter;
+        out_cb      = ImFluentTextInputChainCbProc;
+        out_cb_user = &chain;
+    }
+}
+
+void ImFluent::SetNextTextInputTextCallback( ImGuiInputTextCallback callback, void * user_data )
 {
     g_Ctx.NextTextBox.UserCallback     = callback;
     g_Ctx.NextTextBox.UserCallbackData = user_data;
@@ -2209,47 +2261,10 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
     const ImFluentStyle & style = ImFluent::GetStyle();
     PushControlFrameStyle( FluentDpx( style.ControlHeight ) );
 
-    const ImGuiInputTextCallback user_cb      = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
-    void * const                 user_cb_data = g_Ctx.NextTextBox.UserCallbackData;
-    g_Ctx.NextTextBox = ImFluentNextTextBoxData();
-
-    struct ChainCb
-    {
-        char *                 Buf;
-        int                    MaxChars;
-        ImGuiInputTextCallback UserCallback;
-        void *                 UserCallbackData;
-    };
-    ChainCb chain = { buf, max_length, user_cb, user_cb_data };
-    ImGuiInputTextCallback cb = NULL;
-    void * cb_user = NULL;
-    if ( max_length > 0 || user_cb )
-    {
-        if ( max_length > 0 )
-            extra_flags |= ImGuiInputTextFlags_CallbackCharFilter;
-        cb = []( ImGuiInputTextCallbackData * data ) -> int
-        {
-            ChainCb * cc = ( ChainCb * )data->UserData;
-            if ( !cc ) return 0;
-            if ( cc->MaxChars > 0 && data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter )
-            {
-                int n_chars = 0;
-                for ( const char * p = cc->Buf; *p; ++p )
-                    if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
-                if ( n_chars >= cc->MaxChars ) return 1;
-            }
-            if ( cc->UserCallback )
-            {
-                void * saved = data->UserData;
-                data->UserData = cc->UserCallbackData;
-                const int r = cc->UserCallback( data );
-                data->UserData = saved;
-                return r;
-            }
-            return 0;
-        };
-        cb_user = &chain;
-    }
+    ImFluentTextInputChainCb chain;
+    ImGuiInputTextCallback   cb;
+    void *                   cb_user;
+    PrepareTextInputCallback( buf, max_length, extra_flags, chain, cb, cb_user );
 
     if ( ( fluent_flags & ImFluentTextBoxFlags_ClearButton ) && buf && buf[0] )
         ImGui::SetNextItemAllowOverlap();
@@ -2495,13 +2510,18 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
     return changed;
 }
 
-bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size, ImGuiInputTextFlags flags )
+bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size, ImGuiInputTextFlags flags, int max_length )
 {
     RenderAndConsumePendingHeader();
     const ImFluentStyle & style = ImFluent::GetStyle();
 
+    ImFluentTextInputChainCb chain;
+    ImGuiInputTextCallback   cb;
+    void *                   cb_user;
+    PrepareTextInputCallback( buf, max_length, flags, chain, cb, cb_user );
+
     PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
-    const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags );
+    const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags, cb, cb_user );
     PopControlFrameStyle();
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     RenderAndConsumePendingDescription();
