@@ -2853,7 +2853,85 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
 
     if ( items_count > 0 )
     {
-        const bool dismiss_popup = popup_open && ( input_deactivated || click_outside || click_in_input );
+        ImVector< ImFluentAutoSuggestScoredItem > & visible = g_Ctx.AutoSuggestVisible;
+        visible.resize( 0 );
+        visible.reserve( items_count );
+        for ( int i = 0; i < items_count; ++i )
+        {
+            if ( !items[ i ] || !*items[ i ] )
+                continue;
+            int score = 0;
+            if ( pred_fn )
+            {
+                score = pred_fn( items[ i ], buf, pred_user );
+                if ( score <= 0 )
+                    continue;
+            }
+            else if ( buf[ 0 ] && !ImStristr( items[ i ], NULL, buf, NULL ) )
+            {
+                continue;
+            }
+            visible.push_back( ImFluentAutoSuggestScoredItem{ i, score } );
+        }
+        if ( pred_fn && visible.Size > 1 )
+        {
+            ImQsort( visible.Data, ( size_t )visible.Size, sizeof( ImFluentAutoSuggestScoredItem ), []( const void * a, const void * b ) -> int
+            {
+                const ImFluentAutoSuggestScoredItem * sa = ( const ImFluentAutoSuggestScoredItem * )a;
+                const ImFluentAutoSuggestScoredItem * sb = ( const ImFluentAutoSuggestScoredItem * )b;
+                if ( sa->Score != sb->Score )
+                    return sb->Score - sa->Score;
+                return sa->Index - sb->Index;
+            } );
+        }
+
+        ImGuiStorage * storage   = ImGui::GetStateStorage();
+        const ImGuiID sel_key    = popup_id ^ 0x5E1Eu;
+        const ImGuiID scroll_key = popup_id ^ 0x5C01u;
+        int sel_idx              = storage->GetInt( sel_key, 0 );
+        bool sel_changed_by_key  = false;
+
+        if ( input_activated || input_edited )
+            sel_idx = 0;
+
+        const bool input_held = input_active || input_deactivated;
+        const bool key_enter  = popup_open && input_held && visible.Size > 0
+            && ( ImGui::IsKeyPressed( ImGuiKey_Enter, false ) || ImGui::IsKeyPressed( ImGuiKey_KeypadEnter, false ) );
+        if ( popup_open && input_active && visible.Size > 0 )
+        {
+            if ( ImGui::IsKeyPressed( ImGuiKey_DownArrow, true ) )
+            {
+                sel_idx            = ( sel_idx + 1 ) % visible.Size;
+                sel_changed_by_key = true;
+            }
+            else if ( ImGui::IsKeyPressed( ImGuiKey_UpArrow, true ) )
+            {
+                sel_idx            = ( sel_idx - 1 + visible.Size ) % visible.Size;
+                sel_changed_by_key = true;
+            }
+        }
+        if ( visible.Size > 0 )
+            sel_idx = ImClamp( sel_idx, 0, visible.Size - 1 );
+        else
+            sel_idx = 0;
+        storage->SetInt( sel_key, sel_idx );
+        if ( sel_changed_by_key )
+            storage->SetInt( scroll_key, 1 );
+
+        if ( key_enter )
+        {
+            const int i = visible[ sel_idx ].Index;
+            ImStrncpy( buf, items[ i ], buf_size );
+            if ( selected_index )
+                *selected_index = i;
+            changed = true;
+
+            ImGuiInputTextState & state = ImGui::GetCurrentContext()->InputTextState;
+            if ( state.ID == input_id )
+                state.ReloadUserBufAndMoveToEnd();
+        }
+
+        const bool dismiss_popup = popup_open && ( input_deactivated || click_outside || click_in_input || key_enter );
         if ( dismiss_popup )
         {
             for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
@@ -2883,45 +2961,13 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
         {
             ImGui::BringWindowToDisplayFront( ImGui::GetCurrentWindow() );
 
-            ImVector< ImFluentAutoSuggestScoredItem > & visible = g_Ctx.AutoSuggestVisible;
-            visible.resize( 0 );
-            visible.reserve( items_count );
-            for ( int i = 0; i < items_count; ++i )
-            {
-                if ( !items[ i ] || !*items[ i ] )
-                    continue;
-                int score = 0;
-                if ( pred_fn )
-                {
-                    score = pred_fn( items[ i ], buf, pred_user );
-                    if ( score <= 0 )
-                        continue;
-                }
-                else if ( buf[ 0 ] && !ImStristr( items[ i ], NULL, buf, NULL ) )
-                {
-                    continue;
-                }
-                visible.push_back( ImFluentAutoSuggestScoredItem{ i, score } );
-            }
-
-            if ( pred_fn && visible.Size > 1 )
-            {
-                ImQsort( visible.Data, ( size_t )visible.Size, sizeof( ImFluentAutoSuggestScoredItem ), []( const void * a, const void * b ) -> int
-                {
-                    const ImFluentAutoSuggestScoredItem * sa = ( const ImFluentAutoSuggestScoredItem * )a;
-                    const ImFluentAutoSuggestScoredItem * sb = ( const ImFluentAutoSuggestScoredItem * )b;
-                    if ( sa->Score != sb->Score )
-                        return sb->Score - sa->Score;
-                    return sa->Index - sb->Index;
-                } );
-            }
-
             if ( visible.Size == 0 )
             {
                 ImFluent::Selectable( ImFluent::LocalizeGetMsg( ImFluentLocKey_AutoSuggestNoSuggestions ), false, NULL, h );
             }
             else
             {
+                const bool want_scroll  = storage->GetInt( scroll_key, 0 ) != 0;
                 const float row_advance = h + ImGui::GetStyle().ItemSpacing.y;
                 ImGuiListClipper clipper;
                 clipper.Begin( visible.Size, row_advance );
@@ -2929,19 +2975,32 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
                 {
                     for ( int n = clipper.DisplayStart; n < clipper.DisplayEnd; ++n )
                     {
-                        const int i = visible[ n ].Index;
+                        const int i              = visible[ n ].Index;
+                        const bool is_highlighted = ( n == sel_idx );
                         ImGui::PushID( i );
-                        if ( ImFluent::Selectable( items[ i ], false, NULL, h ) )
+                        if ( is_highlighted && want_scroll )
+                            ImGui::SetScrollHereY();
+                        if ( ImFluent::Selectable( items[ i ], is_highlighted, NULL, h ) )
                         {
                             ImStrncpy( buf, items[ i ], buf_size );
                             if ( selected_index )
                                 *selected_index = i;
                             changed = true;
                             ImGui::CloseCurrentPopup();
+
+                            ImGuiInputTextState & state = ImGui::GetCurrentContext()->InputTextState;
+                            if ( state.ID == input_id )
+                                state.ReloadUserBufAndMoveToEnd();
+                        }
+                        if ( is_highlighted && gctx.NavId == input_id && gctx.NavCursorVisible )
+                        {
+                            const ImRect sel_bb( ImGui::GetItemRectMin(), ImGui::GetItemRectMax() );
+                            RenderNavFocusRing( ImGui::GetWindowDrawList(), sel_bb, FluentDpx( style.ControlCornerRadius ) );
                         }
                         ImGui::PopID();
                     }
                 }
+                storage->SetInt( scroll_key, 0 );
             }
             ImGui::EndPopup();
         }
@@ -2949,6 +3008,29 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
     }
 
     RenderAndConsumePendingDescription();
+    return changed;
+}
+
+bool ImFluent::AutoSuggestBox( const char * label, std::string & str, const char * const items[], int items_count, int * selected_index, const char * hint, ImGuiInputTextFlags flags, ImGuiComboFlags combo_flags )
+{
+    size_t needed = str.size();
+    for ( int i = 0; i < items_count; ++i )
+        if ( items[ i ] )
+            needed = ImMax( needed, ImStrlen( items[ i ] ) );
+    if ( str.capacity() < needed )
+        str.reserve( needed );
+
+    ImFluentStdStringResizeChain resize_chain;
+    resize_chain.Str               = &str;
+    resize_chain.ChainCallback     = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
+    resize_chain.ChainCallbackData = g_Ctx.NextTextBox.UserCallbackData;
+    ImFluent::SetNextTextInputTextCallback( ImFluentStdStringResizeCb, &resize_chain );
+
+    const bool changed = ImFluent::AutoSuggestBox( label, ( char * )str.c_str(), str.capacity() + 1, items, items_count, selected_index, hint, flags | ImGuiInputTextFlags_CallbackResize, combo_flags );
+
+    if ( changed )
+        str.resize( ImStrlen( str.c_str() ) );
+
     return changed;
 }
 

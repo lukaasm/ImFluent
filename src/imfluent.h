@@ -427,6 +427,7 @@ namespace ImFluent
 
     IMGUI_API void SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate predicate, void * user_data = NULL );
     IMGUI_API bool AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImGuiComboFlags combo_flags = 0 );
+    IMGUI_API bool AutoSuggestBox( const char * label, std::string & str, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImGuiComboFlags combo_flags = 0 );
 
     IMGUI_API void TextBlock( const char * text, ImFluentTextStyle style = ImFluentTextStyle_Body );
     IMGUI_API void TextBlockColored( const char * text, ImU32 color_u32, ImFluentTextStyle style = ImFluentTextStyle_Body );
