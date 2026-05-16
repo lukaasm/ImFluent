@@ -2680,16 +2680,43 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
     const bool    input_active = ImGui::IsItemActive();
     const bool    input_edited = ImGui::IsItemEdited();
 
+    const bool    input_deactivated = ImGui::IsItemDeactivated();
+
     const ImGuiID popup_id = input_id ^ 0xA17051E5u;
     ImGuiContext & gctx = *ImGui::GetCurrentContext();
     const bool    popup_open = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
 
+    // Locate the popup's resolved window (if it was previously rendered) so we can
+    // tell whether a mouse click landed inside it for the "click outside dismisses"
+    // path. Window may be NULL on the very frame OpenPopup was called.
+    ImGuiWindow * popup_window = NULL;
+    if ( popup_open )
+    {
+        for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
+        {
+            if ( gctx.OpenPopupStack[i].PopupId == popup_id )
+            {
+                popup_window = gctx.OpenPopupStack[i].Window;
+                break;
+            }
+        }
+    }
+
     const bool click_in_input = ImGui::IsMouseClicked( ImGuiMouseButton_Left )
                              && ImGui::IsMouseHoveringRect( input_rect.Min, input_rect.Max, false );
+    // Mouse click that landed outside both the input rect and the (already shown) popup
+    // window — we own the dismiss because the popup uses NoFocusOnAppearing + NoNav, so
+    // ImGui's own ClosePopupsOverWindow doesn't trigger when the click stays within the
+    // parent window.
+    const bool click_outside = ImGui::IsMouseClicked( ImGuiMouseButton_Left )
+                            && !ImGui::IsMouseHoveringRect( input_rect.Min, input_rect.Max, false )
+                            && (popup_window == NULL
+                                || !ImGui::IsMouseHoveringRect( popup_window->Rect().Min, popup_window->Rect().Max, false ));
 
     if ( items_count > 0 )
     {
-        if ( click_in_input && popup_open )
+        const bool dismiss_popup = popup_open && (input_deactivated || click_outside || click_in_input);
+        if ( dismiss_popup )
         {
             for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
             {
