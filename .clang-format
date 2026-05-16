@@ -1,0 +1,81 @@
+---
+Language: Cpp
+BasedOnStyle: Microsoft
+
+ColumnLimit: 400
+
+AccessModifierOffset: -4
+AlignAfterOpenBracket: DontAlign
+AlignConsecutiveAssignments: AcrossComments
+AlignConsecutiveBitFields: AcrossComments
+AlignOperands: Align
+AllowAllArgumentsOnNextLine: true
+AllowAllConstructorInitializersOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortCompoundRequirementOnASingleLine: false
+AlwaysBreakTemplateDeclarations: true
+BinPackArguments: true
+BinPackParameters: true
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: true
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterObjCDeclaration: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: true
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeConceptDeclarations: Always
+BreakConstructorInitializers: BeforeComma
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: false
+IndentCaseBlocks: false
+IndentCaseLabels: true
+IndentGotoLabels: false
+IndentPPDirectives: None
+IndentWidth: 4
+IndentWrappedFunctionNames: true
+LambdaBodyIndentation: OuterScope
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: All
+PointerAlignment: Middle
+QualifierAlignment: Left
+ReferenceAlignment: Middle
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: false
+SpaceAroundPointerQualifiers: Both
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceBeforeSquareBrackets: false
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: true
+SpacesInCStyleCastParentheses: true
+SpacesInConditionalStatement: true
+SpacesInContainerLiterals: true
+SpacesInParentheses: true
+SpacesInSquareBrackets: true
+TabWidth: 4
+UseTab: Never
+...

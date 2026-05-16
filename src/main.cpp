@@ -14,7 +14,7 @@ int main( int, char ** )
     float main_scale = SDL_GetDisplayContentScale( SDL_GetPrimaryDisplay() );
 
     SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    SDL_Window * window = SDL_CreateWindow( "Dear ImGui SDL3+SDL_GPU example", ( int )(1280 * main_scale), ( int )(800 * main_scale), window_flags );
+    SDL_Window * window          = SDL_CreateWindow( "Dear ImGui SDL3+SDL_GPU example", ( int )( 1280 * main_scale ), ( int )( 800 * main_scale ), window_flags );
     if ( window == nullptr )
         return 1;
 
@@ -32,7 +32,8 @@ int main( int, char ** )
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO & io = ImGui::GetIO(); ( void )io;
+    ImGuiIO & io = ImGui::GetIO();
+    ( void )io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
@@ -44,19 +45,19 @@ int main( int, char ** )
 
     ImGui_ImplSDL3_InitForSDLGPU( window );
     ImGui_ImplSDLGPU3_InitInfo init_info = {};
-    init_info.Device = gpu_device;
-    init_info.ColorTargetFormat = SDL_GetGPUSwapchainTextureFormat( gpu_device, window );
-    init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;
-    init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
-    init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
+    init_info.Device                     = gpu_device;
+    init_info.ColorTargetFormat          = SDL_GetGPUSwapchainTextureFormat( gpu_device, window );
+    init_info.MSAASamples                = SDL_GPU_SAMPLECOUNT_1;
+    init_info.SwapchainComposition       = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
+    init_info.PresentMode                = SDL_GPU_PRESENTMODE_VSYNC;
     ImGui_ImplSDLGPU3_Init( &init_info );
 
     ImFluent::LoadFluentSystemFonts();
     ImFluent::SetThemePreset( ImFluentThemePreset_Dark );
 
-    bool show_demo_window = true;
+    bool show_demo_window    = true;
     bool show_another_window = false;
-    ImVec4 clear_color = ImVec4( 0.45f, 0.55f, 0.60f, 1.00f );
+    ImVec4 clear_color       = ImVec4( 0.45f, 0.55f, 0.60f, 1.00f );
 
     bool done = false;
     while ( !done )
@@ -85,8 +86,8 @@ int main( int, char ** )
 
         ImGui::Render();
 
-        ImDrawData * draw_data = ImGui::GetDrawData();
-        const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
+        ImDrawData * draw_data  = ImGui::GetDrawData();
+        const bool is_minimized = ( draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f );
 
         SDL_GPUCommandBuffer * command_buffer = SDL_AcquireGPUCommandBuffer( gpu_device );
 
@@ -98,14 +99,14 @@ int main( int, char ** )
             ImGui_ImplSDLGPU3_PrepareDrawData( draw_data, command_buffer );
 
             SDL_GPUColorTargetInfo target_info = {};
-            target_info.texture = swapchain_texture;
-            target_info.clear_color = SDL_FColor{ clear_color.x, clear_color.y, clear_color.z, clear_color.w };
-            target_info.load_op = SDL_GPU_LOADOP_CLEAR;
-            target_info.store_op = SDL_GPU_STOREOP_STORE;
-            target_info.mip_level = 0;
-            target_info.layer_or_depth_plane = 0;
-            target_info.cycle = false;
-            SDL_GPURenderPass * render_pass = SDL_BeginGPURenderPass( command_buffer, &target_info, 1, nullptr );
+            target_info.texture                = swapchain_texture;
+            target_info.clear_color            = SDL_FColor{ clear_color.x, clear_color.y, clear_color.z, clear_color.w };
+            target_info.load_op                = SDL_GPU_LOADOP_CLEAR;
+            target_info.store_op               = SDL_GPU_STOREOP_STORE;
+            target_info.mip_level              = 0;
+            target_info.layer_or_depth_plane   = 0;
+            target_info.cycle                  = false;
+            SDL_GPURenderPass * render_pass    = SDL_BeginGPURenderPass( command_buffer, &target_info, 1, nullptr );
 
             ImGui_ImplSDLGPU3_RenderDrawData( draw_data, command_buffer, render_pass );
 

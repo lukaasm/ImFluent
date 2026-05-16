@@ -4,17 +4,17 @@
 
 namespace ImFluent
 {
-    IMGUI_API ImU32             GetColorU32( ImFluentCol idx, float alpha_mul = 1.0f );
-    IMGUI_API const ImVec4 &    GetStyleColorVec4( ImFluentCol idx );
+    IMGUI_API ImU32 GetColorU32( ImFluentCol idx, float alpha_mul = 1.0f );
+    IMGUI_API const ImVec4 & GetStyleColorVec4( ImFluentCol idx );
 
-    IMGUI_API void              SetFluentTextStyleFont( ImFluentTextStyle style, ImFont * font, float size );
+    IMGUI_API void SetFluentTextStyleFont( ImFluentTextStyle style, ImFont * font, float size );
 
-    IMGUI_API const char *      LocalizeGetMsg( ImFluentLocKey key );
-    IMGUI_API void              LocalizeRegisterEntries( const ImFluentLocEntry * entries, int count );
+    IMGUI_API const char * LocalizeGetMsg( ImFluentLocKey key );
+    IMGUI_API void LocalizeRegisterEntries( const ImFluentLocEntry * entries, int count );
 
-    IMGUI_API float             FluentDpx( float v );
-    IMGUI_API ImVec2            FluentDpx( const ImVec2 & v );
-}
+    IMGUI_API float FluentDpx( float v );
+    IMGUI_API ImVec2 FluentDpx( const ImVec2 & v );
+} // namespace ImFluent
 
 struct ImFluentStackGuard
 {
@@ -27,32 +27,98 @@ struct ImFluentStackGuard
         , ItemWidths( 0 )
         , Disabled( 0 )
         , Groups( 0 )
-    {}
-    ~ImFluentStackGuard() { Restore(); }
+    {
+    }
+    ~ImFluentStackGuard()
+    {
+        Restore();
+    }
 
-    void PushStyleColor( ImGuiCol idx, ImU32 col )           { ImGui::PushStyleColor( idx, col );  ++Colors; }
-    void PushStyleColor( ImGuiCol idx, const ImVec4 & col )  { ImGui::PushStyleColor( idx, col );  ++Colors; }
-    void PushStyleVar( ImGuiStyleVar idx, float v )          { ImGui::PushStyleVar( idx, v );      ++StyleVars; }
-    void PushStyleVar( ImGuiStyleVar idx, const ImVec2 & v ) { ImGui::PushStyleVar( idx, v );      ++StyleVars; }
-    void PushFont( ImFont * f )                              { ImGui::PushFont( f );               ++Fonts; }
-    void PushFluentFont( ImFluentTextStyle s )               { ImFluent::PushFont( s );            ++FluentFonts; }
-    void PushID( const char * s )                            { ImGui::PushID( s );                 ++IDs; }
-    void PushID( int id )                                    { ImGui::PushID( id );                ++IDs; }
-    void PushID( const void * p )                            { ImGui::PushID( p );                 ++IDs; }
-    void PushItemWidth( float w )                            { ImGui::PushItemWidth( w );          ++ItemWidths; }
-    void BeginDisabled( bool disabled = true )               { ImGui::BeginDisabled( disabled );   ++Disabled; }
-    void BeginGroup()                                        { ImGui::BeginGroup();                ++Groups; }
+    void PushStyleColor( ImGuiCol idx, ImU32 col )
+    {
+        ImGui::PushStyleColor( idx, col );
+        ++Colors;
+    }
+    void PushStyleColor( ImGuiCol idx, const ImVec4 & col )
+    {
+        ImGui::PushStyleColor( idx, col );
+        ++Colors;
+    }
+    void PushStyleVar( ImGuiStyleVar idx, float v )
+    {
+        ImGui::PushStyleVar( idx, v );
+        ++StyleVars;
+    }
+    void PushStyleVar( ImGuiStyleVar idx, const ImVec2 & v )
+    {
+        ImGui::PushStyleVar( idx, v );
+        ++StyleVars;
+    }
+    void PushFont( ImFont * f )
+    {
+        ImGui::PushFont( f );
+        ++Fonts;
+    }
+    void PushFluentFont( ImFluentTextStyle s )
+    {
+        ImFluent::PushFont( s );
+        ++FluentFonts;
+    }
+    void PushID( const char * s )
+    {
+        ImGui::PushID( s );
+        ++IDs;
+    }
+    void PushID( int id )
+    {
+        ImGui::PushID( id );
+        ++IDs;
+    }
+    void PushID( const void * p )
+    {
+        ImGui::PushID( p );
+        ++IDs;
+    }
+    void PushItemWidth( float w )
+    {
+        ImGui::PushItemWidth( w );
+        ++ItemWidths;
+    }
+    void BeginDisabled( bool disabled = true )
+    {
+        ImGui::BeginDisabled( disabled );
+        ++Disabled;
+    }
+    void BeginGroup()
+    {
+        ImGui::BeginGroup();
+        ++Groups;
+    }
 
     void Restore()
     {
-        while ( Groups-- > 0 )       ImGui::EndGroup();
-        while ( Disabled-- > 0 )     ImGui::EndDisabled();
-        while ( ItemWidths-- > 0 )   ImGui::PopItemWidth();
-        while ( IDs-- > 0 )          ImGui::PopID();
-        while ( FluentFonts-- > 0 )  ImFluent::PopFont();
-        while ( Fonts-- > 0 )        ImGui::PopFont();
-        if ( StyleVars > 0 )         { ImGui::PopStyleVar( StyleVars );   StyleVars = 0; }
-        if ( Colors > 0 )            { ImGui::PopStyleColor( Colors );    Colors = 0; }
+        while ( Groups-- > 0 )
+            ImGui::EndGroup();
+        while ( Disabled-- > 0 )
+            ImGui::EndDisabled();
+        while ( ItemWidths-- > 0 )
+            ImGui::PopItemWidth();
+        while ( IDs-- > 0 )
+            ImGui::PopID();
+        while ( FluentFonts-- > 0 )
+            ImFluent::PopFont();
+        while ( Fonts-- > 0 )
+            ImGui::PopFont();
+        if ( StyleVars > 0 )
+        {
+            ImGui::PopStyleVar( StyleVars );
+            StyleVars = 0;
+        }
+        if ( Colors > 0 )
+        {
+            ImGui::PopStyleColor( Colors );
+            Colors = 0;
+        }
         Groups = Disabled = ItemWidths = IDs = FluentFonts = Fonts = 0;
     }
 
