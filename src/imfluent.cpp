@@ -2195,21 +2195,30 @@ void ImFluent::ProgressRing( float diameter_dpx, float fraction )
 
 struct ImFluentTextInputChainCb
 {
-    char *                 Buf;
+    const char *           Buf;
     int                    MaxChars;
     ImGuiInputTextCallback UserCallback;
     void *                 UserCallbackData;
+    bool                   ClearPending;
 };
 
 static int ImFluentTextInputChainCbProc( ImGuiInputTextCallbackData * data )
 {
     ImFluentTextInputChainCb * cc = ( ImFluentTextInputChainCb * )data->UserData;
     if ( !cc ) return 0;
+    if ( cc->ClearPending && data->EventFlag == ImGuiInputTextFlags_CallbackAlways )
+    {
+        if ( data->BufTextLen > 0 )
+            data->DeleteChars( 0, data->BufTextLen );
+        cc->ClearPending = false;
+        return 0;
+    }
     if ( cc->MaxChars > 0 && data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter )
     {
         int n_chars = 0;
-        for ( const char * p = cc->Buf; *p; ++p )
-            if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
+        if ( cc->Buf )
+            for ( const char * p = cc->Buf; *p; ++p )
+                if ( ( *p & 0xC0 ) != 0x80 ) ++n_chars;
         if ( n_chars >= cc->MaxChars ) return 1;
     }
     if ( cc->UserCallback )
@@ -2223,7 +2232,7 @@ static int ImFluentTextInputChainCbProc( ImGuiInputTextCallbackData * data )
     return 0;
 }
 
-static void PrepareTextInputCallback( char * buf, int max_length, mGuiInputTextFlags & flags, ImFluentTextInputChainCb & chain, ImGuiInputTextCallback & out_cb, void *& out_cb_user )
+static void PrepareTextInputCallback( const char * buf, int max_length, bool clear_pending, ImGuiInputTextFlags & flags, ImFluentTextInputChainCb & chain, ImGuiInputTextCallback & out_cb, void *& out_cb_user )
 {
     const ImGuiInputTextCallback user_cb      = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
     void * const                 user_cb_data = g_Ctx.NextTextBox.UserCallbackData;
@@ -2233,16 +2242,52 @@ static void PrepareTextInputCallback( char * buf, int max_length, mGuiInputTextF
     chain.MaxChars         = max_length;
     chain.UserCallback     = user_cb;
     chain.UserCallbackData = user_cb_data;
+    chain.ClearPending     = clear_pending;
 
     out_cb      = NULL;
     out_cb_user = NULL;
-    if ( max_length > 0 || user_cb )
+    if ( max_length > 0 || user_cb || clear_pending )
     {
         if ( max_length > 0 )
             flags |= ImGuiInputTextFlags_CallbackCharFilter;
+        if ( clear_pending )
+            flags |= ImGuiInputTextFlags_CallbackAlways;
         out_cb      = ImFluentTextInputChainCbProc;
         out_cb_user = &chain;
     }
+}
+
+// Stand-alone resize trampoline used by the std::string overloads of TextBox / RichEditBox.
+// We install this as the next user callback so the base char* implementation drives it via
+// SetNextTextInputTextCallback's chain — no special-casing inside the base function.
+struct ImFluentStdStringResizeChain
+{
+    std::string *          Str;
+    ImGuiInputTextCallback ChainCallback;
+    void *                 ChainCallbackData;
+};
+
+static int ImFluentStdStringResizeCb( ImGuiInputTextCallbackData * data )
+{
+    ImFluentStdStringResizeChain * rc = ( ImFluentStdStringResizeChain * )data->UserData;
+    if ( !rc ) return 0;
+    if ( data->EventFlag == ImGuiInputTextFlags_CallbackResize )
+    {
+        std::string * str = rc->Str;
+        IM_ASSERT( data->Buf == str->c_str() );
+        str->resize( data->BufTextLen );
+        data->Buf = (char *)str->c_str();
+        return 0;
+    }
+    if ( rc->ChainCallback )
+    {
+        void * saved = data->UserData;
+        data->UserData = rc->ChainCallbackData;
+        const int r = rc->ChainCallback( data );
+        data->UserData = saved;
+        return r;
+    }
+    return 0;
 }
 
 void ImFluent::SetNextTextInputTextCallback( ImGuiInputTextCallback callback, void * user_data )
@@ -2261,43 +2306,83 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
     const ImFluentStyle & style = ImFluent::GetStyle();
     PushControlFrameStyle( FluentDpx( style.ControlHeight ) );
 
+    const ImGuiID    input_id_predicted = ImGui::GetID( label );
+    ImGuiStorage *   storage            = ImGui::GetStateStorage();
+    const ImGuiID    clear_pending_key  = input_id_predicted ^ 0xC1EA8C1Eu;
+    const bool       consume_clear      = storage->GetBool( clear_pending_key, false );
+    if ( consume_clear )
+    {
+        storage->SetBool( clear_pending_key, false );
+
+        // Safety net: a mouse click on the visual clear button already activated the
+        // InputText naturally, but for nav (Space/Enter) activations — and for any
+        // case where focus was lost between frames — we still need it active so
+        // CallbackAlways fires for DeleteChars. NavActivateId being already set means
+        // a prior SetKeyboardFocusHere has resolved this frame, no need to re-submit.
+        const ImGuiContext & g = *ImGui::GetCurrentContext();
+        if ( g.ActiveId != input_id_predicted && g.NavActivateId != input_id_predicted )
+            ImGui::SetKeyboardFocusHere();
+    }
+
     ImFluentTextInputChainCb chain;
     ImGuiInputTextCallback   cb;
     void *                   cb_user;
-    PrepareTextInputCallback( buf, max_length, extra_flags, chain, cb, cb_user );
-
-    if ( ( fluent_flags & ImFluentTextBoxFlags_ClearButton ) && buf && buf[0] )
-        ImGui::SetNextItemAllowOverlap();
+    PrepareTextInputCallback( buf, max_length, consume_clear, extra_flags, chain, cb, cb_user );
 
     bool changed = hint
         ? ImGui::InputTextWithHint( label, hint, buf, buf_size, extra_flags, cb, cb_user )
         : ImGui::InputText( label, buf, buf_size, extra_flags, cb, cb_user );
 
+    // SetKeyboardFocusHere has a one-frame latency: nav-activate Enter on the clear
+    // button schedules the focus, but the InputText doesn't actually become active
+    // until the next frame. If the trampoline didn't consume ClearPending this frame
+    // (still true), re-arm the storage flag so DeleteChars fires once focus resolves.
+    if ( chain.ClearPending )
+        storage->SetBool( clear_pending_key, true );
+
     PopControlFrameStyle();
 
-    const ImRect input_bb = ImGui::GetCurrentContext()->LastItemData.Rect;
-    const ImGuiID input_id = ImGui::GetCurrentContext()->LastItemData.ID;
-    const bool   active   = ImGui::IsItemActive();
+    // Snapshot the InputText's LastItemData so caller-side IsItem*() queries keep
+    // working — the clear button's ItemAdd, the counter's TextUnformatted, and the
+    // pending description/error helpers all overwrite g.LastItemData below.
+    const ImGuiLastItemData input_item_data  = ImGui::GetCurrentContext()->LastItemData;
+    const ImRect &          input_bb         = input_item_data.Rect;
+    const ImGuiID           input_id         = input_item_data.ID;
+    const bool              active           = ImGui::IsItemActive();
+    const bool              inputtext_hov    = ImGui::IsItemHovered();
 
-    if ( ( fluent_flags & ImFluentTextBoxFlags_ClearButton ) && buf && buf[0] )
+    const bool              show_clear_btn   = ( fluent_flags & ImFluentTextBoxFlags_ClearButton ) && buf && buf[0];
+
+    if ( show_clear_btn )
     {
         const float btn_w = FluentDpx( style.RevealButtonWidth );
         const float inset = FluentDpx( style.SpacingXSmall );
         const ImRect btn_bb(
             ImVec2( input_bb.Max.x - btn_w - inset, input_bb.Min.y + inset ),
             ImVec2( input_bb.Max.x - inset,         input_bb.Max.y - inset ) );
-        const ImGuiID id = input_id ^ 0xC1EA8u;
-        ImGui::KeepAliveID( id );
-        bool hov = false, held = false;
-        const bool added = ImGui::ItemAdd( btn_bb, id );
-        const bool pr = added && ImGui::ButtonBehavior( btn_bb, id, &hov, &held );
+
+        // Register the button for keyboard/gamepad nav (Tab focus + Space/Enter
+        // activate). We deliberately skip ItemHoverable/ButtonBehavior so the button
+        // does not claim mouse hover or consume the click — mouse falls through to
+        // the InputText, which activates naturally and fires all its usual callbacks.
+        const ImGuiID button_id = input_id ^ 0xC1EA8u;
+        ImGui::KeepAliveID( button_id );
+        ImGui::ItemAdd( btn_bb, button_id );
+
+        const ImGuiContext & g = *ImGui::GetCurrentContext();
+        const bool nav_focused = ( g.NavId == button_id && g.NavCursorVisible );
+        const bool mouse_in    = ImGui::IsMouseHoveringRect( btn_bb.Min, btn_bb.Max );
+        const bool hov         = ( inputtext_hov && mouse_in ) || nav_focused;
+        const bool held        = ( hov && ImGui::IsMouseDown( ImGuiMouseButton_Left ) ) ||
+                                 ( nav_focused && g.NavActivateDownId == button_id );
+
         ImDrawList * dl = w->DrawList;
         const float r = FluentDpx( style.ControlCornerRadius );
         const ImU32 clear_target = (hov || held)
             ? (held ? ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary )
                     : ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary ))
             : ImFluent::GetColorU32( ImFluentCol_SubtleFillTransparent );
-        const ImU32 clear_anim = ImFluent::AnimateColorU32( id, clear_target );
+        const ImU32 clear_anim = ImFluent::AnimateColorU32( button_id, clear_target );
         if ( hov || held )
         {
             const ImU32 frame_bg = active ? ImFluent::GetColorU32( ImFluentCol_ControlFillInputActive )
@@ -2312,11 +2397,13 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
         dl->AddText( ImVec2( btn_bb.Min.x + ( btn_bb.GetWidth() - ts.x ) * 0.5f,
                              btn_bb.Min.y + ( btn_bb.GetHeight() - ts.y ) * 0.5f ),
                      ImFluent::GetColorU32( ImFluentCol_TextSecondary ), x_glyph );
-        if ( pr )
-        {
-            buf[0] = 0;
-            changed = true;
-        }
+
+        ImGui::RenderNavCursor( btn_bb, button_id );
+
+        const bool mouse_press = inputtext_hov && mouse_in && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
+        const bool nav_press   = ( g.NavActivateId == button_id );
+        if ( mouse_press || nav_press )
+            storage->SetBool( clear_pending_key, true );
     }
 
     if ( active && !HasPendingError() )
@@ -2346,7 +2433,20 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
 
     RenderAndConsumePendingDescription();
     RenderAndConsumePendingError( input_bb );
+
+    ImGui::GetCurrentContext()->LastItemData = input_item_data;
     return changed;
+}
+
+bool ImFluent::TextBox( const char * label, std::string & str, const char * hint, ImGuiInputTextFlags extra_flags, ImFluentTextBoxFlags fluent_flags, int max_length )
+{
+    ImFluentStdStringResizeChain resize_chain;
+    resize_chain.Str               = &str;
+    resize_chain.ChainCallback     = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
+    resize_chain.ChainCallbackData = g_Ctx.NextTextBox.UserCallbackData;
+    ImFluent::SetNextTextInputTextCallback( ImFluentStdStringResizeCb, &resize_chain );
+
+    return ImFluent::TextBox( label, (char *)str.c_str(), str.capacity() + 1, hint, extra_flags | ImGuiInputTextFlags_CallbackResize, fluent_flags, max_length );
 }
 
 bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, const char * hint, ImGuiInputTextFlags flags )
@@ -2372,11 +2472,16 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     const bool held = hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
     const bool revealed = held;
 
-    const ImGuiInputTextFlags fl = revealed ? flags : (flags | ImGuiInputTextFlags_Password);
+    ImGuiInputTextFlags fl = revealed ? flags : (flags | ImGuiInputTextFlags_Password);
+
+    ImFluentTextInputChainCb chain;
+    ImGuiInputTextCallback   cb;
+    void *                   cb_user;
+    PrepareTextInputCallback( buf, /*max_length*/ 0, /*clear_pending*/ false, fl, chain, cb, cb_user );
 
     PushControlFrameStyle( h );
-    const bool changed = hint ? ImGui::InputTextWithHint( label, hint, buf, buf_size, fl )
-        : ImGui::InputText( label, buf, buf_size, fl );
+    const bool changed = hint ? ImGui::InputTextWithHint( label, hint, buf, buf_size, fl, cb, cb_user )
+        : ImGui::InputText( label, buf, buf_size, fl, cb, cb_user );
     PopControlFrameStyle();
 
     const bool   input_active = ImGui::IsItemActive();
@@ -2419,6 +2524,17 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     RenderAndConsumePendingDescription();
     RenderAndConsumePendingError( input_rect );
     return changed;
+}
+
+bool ImFluent::PasswordBox( const char * label, std::string & str, const char * hint, ImGuiInputTextFlags flags )
+{
+    ImFluentStdStringResizeChain resize_chain;
+    resize_chain.Str               = &str;
+    resize_chain.ChainCallback     = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
+    resize_chain.ChainCallbackData = g_Ctx.NextTextBox.UserCallbackData;
+    ImFluent::SetNextTextInputTextCallback( ImFluentStdStringResizeCb, &resize_chain );
+
+    return ImFluent::PasswordBox( label, (char *)str.c_str(), str.capacity() + 1, hint, flags | ImGuiInputTextFlags_CallbackResize );
 }
 
 bool ImFluent::NumberBox( const char * label, double * v, double step, double step_fast, const char * format, ImGuiInputTextFlags flags )
@@ -2518,7 +2634,7 @@ bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, con
     ImFluentTextInputChainCb chain;
     ImGuiInputTextCallback   cb;
     void *                   cb_user;
-    PrepareTextInputCallback( buf, max_length, flags, chain, cb, cb_user );
+    PrepareTextInputCallback( buf, max_length, /*clear_pending*/ false, flags, chain, cb, cb_user );
 
     PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
     const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags, cb, cb_user );
@@ -2527,6 +2643,17 @@ bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, con
     RenderAndConsumePendingDescription();
     RenderAndConsumePendingError( input_rect );
     return changed;
+}
+
+bool ImFluent::RichEditBox( const char * label, std::string & str, const ImVec2 & size, ImGuiInputTextFlags flags, int max_length )
+{
+    ImFluentStdStringResizeChain resize_chain;
+    resize_chain.Str               = &str;
+    resize_chain.ChainCallback     = g_Ctx.NextTextBox.HasUserCallback ? g_Ctx.NextTextBox.UserCallback : NULL;
+    resize_chain.ChainCallbackData = g_Ctx.NextTextBox.UserCallbackData;
+    ImFluent::SetNextTextInputTextCallback( ImFluentStdStringResizeCb, &resize_chain );
+
+    return ImFluent::RichEditBox( label, (char *)str.c_str(), str.capacity() + 1, size, flags | ImGuiInputTextFlags_CallbackResize, max_length );
 }
 
 void ImFluent::SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate predicate, void * user_data )

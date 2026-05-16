@@ -613,11 +613,15 @@ static void Page_Item_TextBox()
 
     if (BeginControlExample("Clear button + max length + counter"))
     {
-    static char buf_bio[256] = "";
     ImGui::PushItemWidth(280.f);
     SetNextItemHeader("Short bio");
-    TextBox("##tb-bio", buf_bio, sizeof(buf_bio), "Tell us about yourself", 0,
-            ImFluentTextBoxFlags_ClearButton | ImFluentTextBoxFlags_ShowCounter, 64);
+
+    static std::string value = "Test";
+    if ( TextBox( "##tb-bio", value, "Tell us about yourself", 0, ImFluentTextBoxFlags_ClearButton | ImFluentTextBoxFlags_ShowCounter, 64 ) )
+    {
+
+    }
+
     ImGui::PopItemWidth();
     }
     EndControlExample();

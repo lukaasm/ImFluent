@@ -2,6 +2,8 @@
 
 #include "imgui.h"
 
+#include <string>
+
 enum ImFluentThemePreset_
 {
     ImFluentThemePreset_Light = 0,
@@ -416,9 +418,12 @@ namespace ImFluent
 
     IMGUI_API void      SetNextTextInputTextCallback( ImGuiInputTextCallback callback, void * user_data = NULL );
     IMGUI_API bool      TextBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImFluentTextBoxFlags fluent_flags = ImFluentTextBoxFlags_None, int max_length = 0 );
+    IMGUI_API bool      TextBox( const char * label, std::string & str, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImFluentTextBoxFlags fluent_flags = ImFluentTextBoxFlags_None, int max_length = 0 );
     IMGUI_API bool      PasswordBox( const char * label, char * buf, size_t buf_size, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
+    IMGUI_API bool      PasswordBox( const char * label, std::string & str, const char * hint = NULL, ImGuiInputTextFlags flags = 0 );
     IMGUI_API bool      NumberBox( const char * label, double * v, double step = 1.0, double step_fast = 10.0, const char * format = "%.3f", ImGuiInputTextFlags flags = 0 );
     IMGUI_API bool      RichEditBox( const char * label, char * buf, size_t buf_size, const ImVec2 & size = ImVec2( 0, 0 ), ImGuiInputTextFlags flags = 0, int max_length = 0 );
+    IMGUI_API bool      RichEditBox( const char * label, std::string & str, const ImVec2 & size = ImVec2( 0, 0 ), ImGuiInputTextFlags flags = 0, int max_length = 0 );
 
     IMGUI_API void      SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate predicate, void * user_data = NULL );
     IMGUI_API bool      AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index = NULL, const char * hint = NULL, ImGuiInputTextFlags flags = 0, ImGuiComboFlags combo_flags = 0 );
