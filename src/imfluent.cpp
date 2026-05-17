@@ -983,6 +983,24 @@ namespace ImFluent
         return g.NavId == id && g.NavCursorVisible;
     }
 
+    // Overload of RenderNavFocusRing that performs the IsItemFocused(id) check
+    // itself — mirrors ImGui's own RenderNavCursor(bb, id) idiom.
+    static void RenderNavFocusRing( ImDrawList * dl, ImGuiID id, const ImRect & bb, float rounding )
+    {
+        if ( IsItemFocused( id ) )
+            RenderNavFocusRing( dl, bb, rounding );
+    }
+
+    // Derive a stable popup id keyed by an owning widget id + popup name. Keeps
+    // PushOverrideID / GetID / PopID boilerplate out of the call site.
+    static ImGuiID GetWidgetPopupId( ImGuiID widget_id, const char * popup_name )
+    {
+        ImGui::PushOverrideID( widget_id );
+        const ImGuiID popup_id = ImGui::GetID( popup_name );
+        ImGui::PopID();
+        return popup_id;
+    }
+
     static int ResolveComboPopupMaxItems( ImGuiComboFlags flags )
     {
         if ( flags & ImGuiComboFlags_HeightSmall )
@@ -1063,8 +1081,7 @@ namespace ImFluent
 
         RenderButtonLabel( dl, bb, label, disabled ? textDisabled : textCol, pad_x, pad_y );
 
-        if ( IsItemFocused( id ) )
-            RenderNavFocusRing( dl, bb, r );
+        RenderNavFocusRing( dl, id, bb, r );
         return pressed;
     }
 } // namespace ImFluent
@@ -1531,8 +1548,7 @@ bool ImFluent::HyperlinkButton( const char * label )
     dl->AddText( ImVec2( bb.Min.x, bb.Min.y + pad_y ), anim, label );
     if ( hovered )
         dl->AddLine( ImVec2( bb.Min.x, bb.Max.y - 1.f ), ImVec2( bb.Min.x + ts.x, bb.Max.y - 1.f ), anim, 1.f );
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
+    RenderNavFocusRing( dl, id, bb, FluentDpx( style.ControlCornerRadius ) );
     return pressed;
 }
 
@@ -1658,8 +1674,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
         RenderChevron( dl, cen, ImGuiDir_Down, disabled ? textDisabled : textCol, FluentDpx( style.ChevronGlyphSize ) );
     }
 
-    if ( IsItemFocused( id_main ) )
-        RenderNavFocusRing( dl, bb_total, r );
+    RenderNavFocusRing( dl, id_main, bb_total, r );
 
     if ( dropdown_clicked )
         *dropdown_clicked = split ? chev_pressed : false;
@@ -1772,8 +1787,7 @@ bool ImFluent::CheckboxEx( const char * label, int * v_tri, bool * v_bool )
         ImGui::RenderTextClipped( ImVec2( box_bb.Max.x + gap, pos.y ), ImVec2( box_bb.Max.x + gap + ts.x, pos.y + box ), label, NULL, &ts, ImVec2( 0.f, 0.5f ) );
         ImGui::PopStyleColor();
     }
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, box_bb, r );
+    RenderNavFocusRing( dl, id, box_bb, r );
     return pressed;
 }
 
@@ -1825,8 +1839,7 @@ bool ImFluent::RadioButton( const char * label, bool active )
         ImGui::RenderTextClipped( ImVec2( ring_bb.Max.x + gap, pos.y ), ImVec2( ring_bb.Max.x + gap + ts.x, pos.y + D ), label, NULL, &ts, ImVec2( 0.f, 0.5f ) );
         ImGui::PopStyleColor();
     }
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, ring_bb, ring_r + FluentDpx( style.StrokeThin ) );
+    RenderNavFocusRing( dl, id, ring_bb, ring_r + FluentDpx( style.StrokeThin ) );
     return pressed;
 }
 
@@ -1938,8 +1951,7 @@ bool ImFluent::ToggleSwitch( const char * label, bool * v, const char * on_text,
     }
     if ( lab_size.x > 0 )
         dl->AddText( ImVec2( cursor_x, pos.y + ( H - lab_size.y ) * 0.5f ), ImFluent::GetColorU32( disabled ? ImFluentCol_TextDisabled : ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, track_bb, H * 0.5f );
+    RenderNavFocusRing( dl, id, track_bb, H * 0.5f );
     return pressed;
 }
 
@@ -1994,8 +2006,7 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
             dl->PopClipRect();
         }
     }
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
+    RenderNavFocusRing( dl, id, bb, FluentDpx( style.ControlCornerRadius ) );
     return changed;
 }
 
@@ -2054,8 +2065,7 @@ bool ImFluent::Slider( const char * label, ImGuiDataType dtype, void * v, const 
     dl->AddCircleFilled( c, thumb_r, ImFluent::GetColorU32( ImFluentCol_ControlSolidFillDefault ), 32 );
     dl->AddCircleFilled( c, inner_r, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 24 );
 
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, frame_bb, FluentDpx( style.ControlCornerRadius ) );
+    RenderNavFocusRing( dl, id, frame_bb, FluentDpx( style.ControlCornerRadius ) );
     RenderAndConsumePendingDescription();
     return changed;
 }
@@ -2800,9 +2810,9 @@ void ImFluent::SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate pred
     g_Ctx.NextAutoSuggest.HasPredicate = ( predicate != NULL );
 }
 
-static const ImGuiID AutoSuggestPopupIdSalt   = 0xA17051E5u;
-static const ImGuiID AutoSuggestSelIdxKeySalt = 0x5E1Eu;
-static const ImGuiID AutoSuggestScrollKeySalt = 0x5C01u;
+static const ImGuiID AUTOSUGGEST_POPUP_ID_SALT   = 0xA17051E5u;
+static const ImGuiID AUTOSUGGEST_SEL_IDX_KEY_SALT = 0x5E1Eu;
+static const ImGuiID AUTOSUGGEST_SCROLL_KEY_SALT = 0x5C01u;
 
 // Returns the stack level of the open popup matching popup_id, or -1 if not open.
 static int FindOpenPopupLevel( ImGuiContext & g, ImGuiID popup_id )
@@ -2815,12 +2825,27 @@ static int FindOpenPopupLevel( ImGuiContext & g, ImGuiID popup_id )
     return -1;
 }
 
-static void CommitAutoSuggestSelection( char * buf, size_t buf_size, const char * item, int item_index, int * selected_index, ImGuiID input_id, bool & changed )
+// Close the popup with the given id, if it is currently open. No-op otherwise.
+static void ClosePopupById( ImGuiContext & g, ImGuiID popup_id )
+{
+    const int level = FindOpenPopupLevel( g, popup_id );
+    if ( level >= 0 )
+        ImGui::ClosePopupToLevel( level, true );
+}
+
+// True when the last submitted item has the Disabled item flag set.
+static bool IsLastItemDisabled()
+{
+    const ImGuiContext & g = *ImGui::GetCurrentContext();
+    return ( g.LastItemData.ItemFlags & ImGuiItemFlags_Disabled ) != 0;
+}
+
+static void CommitAutoSuggestSelection( char * buf, size_t buf_size, const char * item, int item_index, int * out_selected_index, ImGuiID input_id, bool & out_changed )
 {
     ImStrncpy( buf, item, buf_size );
-    if ( selected_index )
-        *selected_index = item_index;
-    changed = true;
+    if ( out_selected_index )
+        *out_selected_index = item_index;
+    out_changed = true;
 
     ImGuiInputTextState & state = ImGui::GetCurrentContext()->InputTextState;
     if ( state.ID == input_id )
@@ -2838,19 +2863,19 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
 
     bool changed = TextBox( label, buf, buf_size, hint, flags );
 
-    ImGuiContext & gctx        = *ImGui::GetCurrentContext();
-    const ImGuiID input_id     = gctx.LastItemData.ID;
-    const ImRect input_rect    = gctx.LastItemData.Rect;
+    ImGuiContext & g           = *ImGui::GetCurrentContext();
+    const ImGuiID input_id     = g.LastItemData.ID;
+    const ImRect input_rect    = g.LastItemData.Rect;
     const bool input_activated = ImGui::IsItemActivated();
     const bool input_active    = ImGui::IsItemActive();
     const bool input_edited    = ImGui::IsItemEdited();
 
     const bool input_deactivated = ImGui::IsItemDeactivated();
 
-    const ImGuiID popup_id      = input_id ^ AutoSuggestPopupIdSalt;
-    const int popup_level       = FindOpenPopupLevel( gctx, popup_id );
+    const ImGuiID popup_id      = input_id ^ AUTOSUGGEST_POPUP_ID_SALT;
+    const int popup_level       = FindOpenPopupLevel( g, popup_id );
     const bool popup_open       = ( popup_level >= 0 );
-    ImGuiWindow * popup_window  = popup_open ? gctx.OpenPopupStack[ popup_level ].Window : NULL;
+    ImGuiWindow * popup_window  = popup_open ? g.OpenPopupStack[ popup_level ].Window : NULL;
     const bool mouse_over_popup = popup_window && ImGui::IsMouseHoveringRect( popup_window->Rect().Min, popup_window->Rect().Max, false );
     const bool mouse_clicked    = ImGui::IsMouseClicked( ImGuiMouseButton_Left );
 
@@ -2901,8 +2926,8 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
         }
 
         ImGuiStorage * storage   = ImGui::GetStateStorage();
-        const ImGuiID sel_key    = popup_id ^ AutoSuggestSelIdxKeySalt;
-        const ImGuiID scroll_key = popup_id ^ AutoSuggestScrollKeySalt;
+        const ImGuiID sel_key    = popup_id ^ AUTOSUGGEST_SEL_IDX_KEY_SALT;
+        const ImGuiID scroll_key = popup_id ^ AUTOSUGGEST_SCROLL_KEY_SALT;
         int selected_visible     = storage->GetInt( sel_key, 0 );
         bool nav_key_pressed     = false;
 
@@ -2985,7 +3010,7 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
                             CommitAutoSuggestSelection( buf, buf_size, items[ i ], i, selected_index, input_id, changed );
                             ImGui::CloseCurrentPopup();
                         }
-                        if ( is_highlighted && gctx.NavId == input_id && gctx.NavCursorVisible )
+                        if ( is_highlighted && g.NavId == input_id && g.NavCursorVisible )
                         {
                             const ImRect sel_bb( ImGui::GetItemRectMin(), ImGui::GetItemRectMax() );
                             RenderNavFocusRing( ImGui::GetWindowDrawList(), sel_bb, FluentDpx( style.ControlCornerRadius ) );
@@ -3482,8 +3507,7 @@ bool ImFluent::SelectorBarItem( const char * label, bool selected, const char * 
         const float bx    = ( bb.Min.x + bb.Max.x ) * 0.5f;
         dl->AddRectFilled( ImVec2( bx - bar_w * 0.5f, bb.Max.y - FluentDpx( style.SpacingXSmall ) ), ImVec2( bx + bar_w * 0.5f, bb.Max.y ), ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( style.StrokeThin ) );
     }
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, FluentDpx( style.ControlCornerRadius ) );
+    RenderNavFocusRing( dl, id, bb, FluentDpx( style.ControlCornerRadius ) );
     ImGui::SameLine();
     return pressed;
 }
@@ -3619,8 +3643,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
             const float bx = ( bb.Min.x + bb.Max.x ) * 0.5f;
             dl->AddRectFilled( ImVec2( bx - bw * 0.5f, bb.Max.y - FluentDpx( style.SelectionIndicatorThickness ) ), ImVec2( bx + bw * 0.5f, bb.Max.y ), ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( style.SpacingXSmall ) );
         }
-        if ( IsItemFocused( id ) )
-            RenderNavFocusRing( dl, bb, r );
+        RenderNavFocusRing( dl, id, bb, r );
         ImGui::SameLine();
         return pressed;
     }
@@ -3654,8 +3677,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
         dl->AddText( ImVec2( icon_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
     if ( g_Ctx.NavView.CurrentWidth > FluentDpx( style.AppBarButtonWidth ) )
         dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
     return pressed;
 }
 
@@ -4060,11 +4082,9 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     ImGuiContext & gctx = *ImGui::GetCurrentContext();
     bool hovered = false, held = false;
     ImGui::ButtonBehavior( bb, id, &hovered, &held );
-    const bool disabled = ( gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled ) != 0;
+    const bool disabled = IsLastItemDisabled();
 
-    ImGui::PushOverrideID( id );
-    const ImGuiID popup_id = ImGui::GetID( "##fl_cb_popup" );
-    ImGui::PopID();
+    const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_cb_popup" );
     const bool popup_open = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
 
     const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
@@ -4075,14 +4095,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     {
         if ( popup_open )
         {
-            for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
-            {
-                if ( gctx.OpenPopupStack[ i ].PopupId == popup_id )
-                {
-                    ImGui::ClosePopupToLevel( i, true );
-                    break;
-                }
-            }
+            ClosePopupById( gctx, popup_id );
         }
         else
         {
@@ -4129,8 +4142,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         RenderComboChevron( dl, chev_bb, chev_col, id ^ 0xCAFEu, popup_open );
     }
 
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
 
     bool changed              = false;
     const int popup_max_items = ResolveComboPopupMaxItems( flags );
@@ -4229,8 +4241,7 @@ bool ImFluent::Selectable( const char * label, bool selected, const char * glyph
     const ImRect text_clip( tmin, tmax );
     ImGui::RenderTextClipped( tmin, tmax, label, text_end, NULL, ImVec2( 0.f, 0.5f ), &text_clip );
 
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
     return pressed;
 }
 
@@ -4292,8 +4303,7 @@ bool ImFluent::ListViewItem( const char * label, bool selected, const char * gly
     if ( glyph )
         dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.StandardIconSize - 2.f ), cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
     dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
     return pressed;
 }
 
@@ -4414,8 +4424,7 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
 
     dl->AddText( ImVec2( label_x, cy - ImGui::GetFontSize() * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
 
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
     if ( isOpen )
         ImGui::Indent( FluentDpx( style.CheckboxSize ) );
     return isOpen;
@@ -4452,8 +4461,7 @@ bool ImFluent::GridViewItem( const char * label, bool selected, const ImVec2 & s
     ImGui::PushStyleColor( ImGuiCol_Text, label_col );
     ImGui::RenderTextClipped( ImVec2( bb.Min.x, bb.Max.y - ts.y - FluentDpx( style.SpacingLarge ) ), ImVec2( bb.Max.x, bb.Max.y - FluentDpx( style.SpacingLarge ) ), label, NULL, &ts, ImVec2( 0.5f, 0.5f ), &bb );
     ImGui::PopStyleColor();
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
     return pressed;
 }
 
@@ -4602,8 +4610,7 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
                 ImFormatString( num, sizeof( num ), "%d", page + 1 );
                 const ImU32 fg = ImFluent::GetColorU32( active_page ? ImFluentCol_TextOnAccentPrimary : ImFluentCol_TextPrimary );
                 RenderCenteredText( dl, ImVec2( ( bb.Min.x + bb.Max.x ) * 0.5f, ( bb.Min.y + bb.Max.y ) * 0.5f ), ImGui::GetFontSize(), fg, num );
-                if ( IsItemFocused( nid ) )
-                    RenderNavFocusRing( dl, bb, r );
+                RenderNavFocusRing( dl, nid, bb, r );
                 if ( pressed )
                 {
                     *current_page = page;
@@ -5512,8 +5519,7 @@ bool ImFluent::AppBarButton( const char * label, const char * glyph, const ImVec
     ImU32 fill         = ResolveSubtleFillState( false, held, hov );
     dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
     RenderAppBarContent( dl, bb, label, glyph, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), pos, style );
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
     return pressed;
 }
 
@@ -5565,8 +5571,7 @@ bool ImFluent::AppBarToggleButton( const char * label, const char * glyph, bool 
     dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, fill ), r );
     const ImU32 textCol = ImFluent::GetColorU32( on ? ImFluentCol_TextOnAccentPrimary : ImFluentCol_TextPrimary );
     RenderAppBarContent( dl, bb, label, glyph, textCol, pos, style );
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
     return pressed;
 }
 
@@ -6023,8 +6028,7 @@ namespace ImFluent
         const ImU32 text_col  = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
         dl->AddText( ImVec2( bb.Min.x + ( size.x - ts.x ) * 0.5f, bb.Min.y + ( size.y - ts.y ) * 0.5f ), text_col, label, text_end );
 
-        if ( IsItemFocused( id ) )
-            RenderNavFocusRing( dl, bb, r );
+        RenderNavFocusRing( dl, id, bb, r );
         return pressed;
     }
 
@@ -6079,20 +6083,9 @@ namespace ImFluent
         if ( toggle )
         {
             if ( popup_open )
-            {
-                for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
-                {
-                    if ( gctx.OpenPopupStack[ i ].PopupId == popup_id )
-                    {
-                        ImGui::ClosePopupToLevel( i, true );
-                        break;
-                    }
-                }
-            }
+                ClosePopupById( gctx, popup_id );
             else
-            {
                 ImGui::OpenPopupEx( popup_id, ImGuiPopupFlags_None );
-            }
         }
         return popup_open;
     }
@@ -6119,14 +6112,11 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
     if ( !ImGui::ItemAdd( bb, id ) )
         return false;
 
-    ImGuiContext & gctx = *ImGui::GetCurrentContext();
     bool hovered = false, held = false;
     ImGui::ButtonBehavior( bb, id, &hovered, &held );
-    const bool disabled = ( gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled ) != 0;
+    const bool disabled = IsLastItemDisabled();
 
-    ImGui::PushOverrideID( id );
-    const ImGuiID popup_id = ImGui::GetID( "##fl_dp_popup" );
-    ImGui::PopID();
+    const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_dp_popup" );
 
     const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
 
@@ -6156,8 +6146,7 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
     ImFormatString( buf, sizeof( buf ), "%d", date->Year );
     RenderCenteredColumnText( dl, c3_x, c_end, cy, text_col, buf );
 
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
 
     ImGuiStorage * st        = &w->StateStorage;
     const ImGuiID init_key   = id ^ PICKER_KEY_INIT;
@@ -6289,14 +6278,11 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
     if ( !ImGui::ItemAdd( bb, id ) )
         return false;
 
-    ImGuiContext & gctx = *ImGui::GetCurrentContext();
     bool hovered = false, held = false;
     ImGui::ButtonBehavior( bb, id, &hovered, &held );
-    const bool disabled = ( gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled ) != 0;
+    const bool disabled = IsLastItemDisabled();
 
-    ImGui::PushOverrideID( id );
-    const ImGuiID popup_id = ImGui::GetID( "##fl_tp_popup" );
-    ImGui::PopID();
+    const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_tp_popup" );
 
     const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
 
@@ -6335,8 +6321,7 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
         RenderCenteredColumnText( dl, bb.Min.x + col_step * 2.f, bb.Max.x, cy, text_col, kAmPm[ ap_idx ] );
     }
 
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
 
     ImGuiStorage * st        = &w->StateStorage;
     const ImGuiID init_key   = id ^ PICKER_KEY_INIT;
@@ -6950,14 +6935,11 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
     if ( !ImGui::ItemAdd( bb, id ) )
         return false;
 
-    ImGuiContext & gctx = *ImGui::GetCurrentContext();
     bool hovered = false, held = false;
     ImGui::ButtonBehavior( bb, id, &hovered, &held );
-    const bool disabled = ( gctx.LastItemData.ItemFlags & ImGuiItemFlags_Disabled ) != 0;
+    const bool disabled = IsLastItemDisabled();
 
-    ImGui::PushOverrideID( id );
-    const ImGuiID popup_id = ImGui::GetID( "##fl_cdp_popup" );
-    ImGui::PopID();
+    const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_cdp_popup" );
 
     const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
 
@@ -7000,8 +6982,7 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
         dl->AddText( ImVec2( cx - ts.x * 0.5f, cy - ts.y * 0.5f ), text_col, icon );
     }
 
-    if ( IsItemFocused( id ) )
-        RenderNavFocusRing( dl, bb, r );
+    RenderNavFocusRing( dl, id, bb, r );
 
     ImGuiStorage * st        = &w->StateStorage;
     const ImGuiID init_key   = id ^ CAL_KEY_INIT;
