@@ -1322,35 +1322,47 @@ namespace ImFluentGalleryApp
         PageHeader( "ContentDialog", "Modal dialog." );
         if ( BeginControlExample( "Open dialog" ) )
         {
+            static int s_result = 0;
             if ( Button( "Show dialog" ) )
+            {
+                s_result = 0;
                 OpenContentDialog( "##cd" );
+            }
             if ( BeginContentDialog( "##cd", "Save changes?" ) )
             {
                 TextBlock( "Your changes have not been saved. Do you want to save them now?", ImFluentTextStyle_Body );
                 const int r = EndContentDialog( "Save", "Don't save", "Cancel", ImFluentContentDialogButton_Primary );
-                if ( r == 1 )
-                    ControlExampleOutput( "Result: Save" );
-                else if ( r == 2 )
-                    ControlExampleOutput( "Result: Don't save" );
-                else if ( r == 3 )
-                    ControlExampleOutput( "Result: Cancel" );
+                if ( r != 0 )
+                    s_result = r;
             }
+            if ( s_result == 1 )
+                ControlExampleOutput( "Result: Save" );
+            else if ( s_result == 2 )
+                ControlExampleOutput( "Result: Don't save" );
+            else if ( s_result == 3 )
+                ControlExampleOutput( "Result: Cancel" );
         }
         EndControlExample();
 
         if ( BeginControlExample( "DefaultButton = Close (destructive close highlighted)" ) )
         {
+            static int s_result = 0;
             if ( Button( "Show destructive dialog" ) )
+            {
+                s_result = 0;
                 OpenContentDialog( "##cd-destructive" );
+            }
             if ( BeginContentDialog( "##cd-destructive", "Delete file?" ) )
             {
                 TextBlock( "This file will be permanently deleted from your device.", ImFluentTextStyle_Body );
                 const int r = EndContentDialog( "Delete", NULL, "Keep", ImFluentContentDialogButton_Close );
-                if ( r == 1 )
-                    ControlExampleOutput( "Result: Delete" );
-                else if ( r == 3 )
-                    ControlExampleOutput( "Result: Keep" );
+                if ( r != 0 )
+                    s_result = r;
             }
+            if ( s_result == 1 )
+                ControlExampleOutput( "Result: Delete" );
+            else if ( s_result == 3 )
+                ControlExampleOutput( "Result: Keep" );
         }
         EndControlExample();
     }

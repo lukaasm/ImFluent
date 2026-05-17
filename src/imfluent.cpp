@@ -4964,9 +4964,15 @@ bool ImFluent::BeginContentDialog( const char * id, const char * title )
     g.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXXLarge ), FluentDpx( style.SpacingXXLarge ) ) );
     const ImVec2 vp_size = ImGui::GetMainViewport()->WorkSize;
     const ImVec2 vp_pos  = ImGui::GetMainViewport()->WorkPos;
+    const float dlg_w    = FluentDpx( style.ControlMinWidth * 4.f );
     ImGui::SetNextWindowPos( ImVec2( vp_pos.x + vp_size.x * 0.5f, vp_pos.y + vp_size.y * 0.5f ), ImGuiCond_Always, ImVec2( 0.5f, 0.5f ) );
-    ImGui::SetNextWindowSize( ImVec2( FluentDpx( style.ControlMinWidth * 4.f ), 0.f ), ImGuiCond_Always );
-    if ( !ImGui::BeginPopupModal( id, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar ) )
+    // Lock width, let height auto-fit. ImGuiWindowFlags_AlwaysAutoResize is what
+    // makes ImGui hide the window for one frame to measure content — without it
+    // the first frame renders at height 0 (cursor advances past a 0-height area),
+    // which makes EndContentDialog's GetContentRegionAvail().x button layout and
+    // the pivot-0.5 vertical centering settle on frame 2 instead of frame 1.
+    ImGui::SetNextWindowSizeConstraints( ImVec2( dlg_w, 0.f ), ImVec2( dlg_w, FLT_MAX ) );
+    if ( !ImGui::BeginPopupModal( id, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize ) )
         return false;
     g.Forget();
     ImFluent::TextBlock( title, ImFluentTextStyle_Subtitle );
