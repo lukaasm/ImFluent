@@ -5851,7 +5851,7 @@ namespace ImFluent
                 const ImRect top_bb( wp, ImVec2( wp.x + ws.x, wp.y + row_h ) );
                 const bool top_hov     = ImGui::IsMouseHoveringRect( top_bb.Min, top_bb.Max, false );
                 const bool top_held    = top_hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
-                const bool top_clicked = top_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
+                const bool top_clicked = top_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, true );
                 RenderSpinnerChevronButton( dl, top_bb, ImGuiDir_Up, top_hov, top_held );
                 if ( top_clicked )
                     new_value = ImClamp( new_value - step, min_v, max_v );
@@ -5861,7 +5861,7 @@ namespace ImFluent
                 const ImRect bot_bb( ImVec2( wp.x, wp.y + ws.y - row_h ), ImVec2( wp.x + ws.x, wp.y + ws.y ) );
                 const bool bot_hov     = ImGui::IsMouseHoveringRect( bot_bb.Min, bot_bb.Max, false );
                 const bool bot_held    = bot_hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
-                const bool bot_clicked = bot_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
+                const bool bot_clicked = bot_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, true );
                 RenderSpinnerChevronButton( dl, bot_bb, ImGuiDir_Down, bot_hov, bot_held );
                 if ( bot_clicked )
                     new_value = ImClamp( new_value + step, min_v, max_v );
