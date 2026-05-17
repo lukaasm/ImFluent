@@ -2800,6 +2800,33 @@ void ImFluent::SetNextAutoSuggestBoxPredicate( ImFluentAutoSuggestPredicate pred
     g_Ctx.NextAutoSuggest.HasPredicate = ( predicate != NULL );
 }
 
+static const ImGuiID AutoSuggestPopupIdSalt   = 0xA17051E5u;
+static const ImGuiID AutoSuggestSelIdxKeySalt = 0x5E1Eu;
+static const ImGuiID AutoSuggestScrollKeySalt = 0x5C01u;
+
+// Returns the stack level of the open popup matching popup_id, or -1 if not open.
+static int FindOpenPopupLevel( ImGuiContext & g, ImGuiID popup_id )
+{
+    for ( int i = g.OpenPopupStack.Size - 1; i >= 0; --i )
+    {
+        if ( g.OpenPopupStack[ i ].PopupId == popup_id )
+            return i;
+    }
+    return -1;
+}
+
+static void CommitAutoSuggestSelection( char * buf, size_t buf_size, const char * item, int item_index, int * selected_index, ImGuiID input_id, bool & changed )
+{
+    ImStrncpy( buf, item, buf_size );
+    if ( selected_index )
+        *selected_index = item_index;
+    changed = true;
+
+    ImGuiInputTextState & state = ImGui::GetCurrentContext()->InputTextState;
+    if ( state.ID == input_id )
+        state.ReloadUserBufAndMoveToEnd();
+}
+
 bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, const char * const items[], int items_count, int * selected_index, const char * hint, ImGuiInputTextFlags flags, ImGuiComboFlags combo_flags )
 {
     RenderAndConsumePendingHeader();
@@ -2811,40 +2838,33 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
 
     bool changed = TextBox( label, buf, buf_size, hint, flags );
 
-    const ImGuiID input_id     = ImGui::GetCurrentContext()->LastItemData.ID;
-    const ImRect input_rect    = ImGui::GetCurrentContext()->LastItemData.Rect;
+    ImGuiContext & gctx        = *ImGui::GetCurrentContext();
+    const ImGuiID input_id     = gctx.LastItemData.ID;
+    const ImRect input_rect    = gctx.LastItemData.Rect;
     const bool input_activated = ImGui::IsItemActivated();
     const bool input_active    = ImGui::IsItemActive();
     const bool input_edited    = ImGui::IsItemEdited();
 
     const bool input_deactivated = ImGui::IsItemDeactivated();
 
-    const ImGuiID popup_id = input_id ^ 0xA17051E5u;
-    ImGuiContext & gctx    = *ImGui::GetCurrentContext();
-    const bool popup_open  = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
+    const ImGuiID popup_id      = input_id ^ AutoSuggestPopupIdSalt;
+    const int popup_level       = FindOpenPopupLevel( gctx, popup_id );
+    const bool popup_open       = ( popup_level >= 0 );
+    ImGuiWindow * popup_window  = popup_open ? gctx.OpenPopupStack[ popup_level ].Window : NULL;
+    const bool mouse_over_popup = popup_window && ImGui::IsMouseHoveringRect( popup_window->Rect().Min, popup_window->Rect().Max, false );
+    const bool mouse_clicked    = ImGui::IsMouseClicked( ImGuiMouseButton_Left );
 
-    // Locate the popup's resolved window (if it was previously rendered) so we can
-    // tell whether a mouse click landed inside it for the "click outside dismisses"
-    // path. Window may be NULL on the very frame OpenPopup was called.
-    ImGuiWindow * popup_window = NULL;
-    if ( popup_open )
-    {
-        for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
-        {
-            if ( gctx.OpenPopupStack[ i ].PopupId == popup_id )
-            {
-                popup_window = gctx.OpenPopupStack[ i ].Window;
-                break;
-            }
-        }
-    }
-
-    const bool click_in_input = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( input_rect.Min, input_rect.Max, false );
-    // Mouse click that landed outside both the input rect and the (already shown) popup
-    // window — we own the dismiss because the popup uses NoFocusOnAppearing + NoNav, so
-    // ImGui's own ClosePopupsOverWindow doesn't trigger when the click stays within the
-    // parent window.
-    const bool click_outside  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && !ImGui::IsMouseHoveringRect( input_rect.Min, input_rect.Max, false ) && ( popup_window == NULL || !ImGui::IsMouseHoveringRect( popup_window->Rect().Min, popup_window->Rect().Max, false ) );
+    // A click landing in our popup must NOT trigger any of the dismiss paths below:
+    // the click also deactivates the InputText (InputTextEx clears ActiveID on
+    // click-outside), and if we close the popup here, BeginPopupEx returns false
+    // and the Selectable that the user clicked never renders — swallowing the click.
+    // The Selectable's own pressed-handler will commit and call CloseCurrentPopup.
+    const bool click_in_popup = mouse_clicked && mouse_over_popup;
+    const bool click_in_input = mouse_clicked && ImGui::IsMouseHoveringRect( input_rect.Min, input_rect.Max, false );
+    // Click landed outside both input and popup — we own the dismiss because the
+    // popup uses NoFocusOnAppearing + NoNav, so ImGui's own ClosePopupsOverWindow
+    // doesn't fire when the click stays within the parent window.
+    const bool click_outside  = mouse_clicked && !click_in_input && !mouse_over_popup;
 
     if ( items_count > 0 )
     {
@@ -2881,13 +2901,13 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
         }
 
         ImGuiStorage * storage   = ImGui::GetStateStorage();
-        const ImGuiID sel_key    = popup_id ^ 0x5E1Eu;
-        const ImGuiID scroll_key = popup_id ^ 0x5C01u;
-        int sel_idx              = storage->GetInt( sel_key, 0 );
-        bool sel_changed_by_key  = false;
+        const ImGuiID sel_key    = popup_id ^ AutoSuggestSelIdxKeySalt;
+        const ImGuiID scroll_key = popup_id ^ AutoSuggestScrollKeySalt;
+        int selected_visible     = storage->GetInt( sel_key, 0 );
+        bool nav_key_pressed     = false;
 
         if ( input_activated || input_edited )
-            sel_idx = 0;
+            selected_visible = 0;
 
         const bool input_held = input_active || input_deactivated;
         const bool key_enter  = popup_open && input_held && visible.Size > 0 && ( ImGui::IsKeyPressed( ImGuiKey_Enter, false ) || ImGui::IsKeyPressed( ImGuiKey_KeypadEnter, false ) );
@@ -2895,47 +2915,33 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
         {
             if ( ImGui::IsKeyPressed( ImGuiKey_DownArrow, true ) )
             {
-                sel_idx            = ( sel_idx + 1 ) % visible.Size;
-                sel_changed_by_key = true;
+                selected_visible = ( selected_visible + 1 ) % visible.Size;
+                nav_key_pressed  = true;
             }
             else if ( ImGui::IsKeyPressed( ImGuiKey_UpArrow, true ) )
             {
-                sel_idx            = ( sel_idx - 1 + visible.Size ) % visible.Size;
-                sel_changed_by_key = true;
+                selected_visible = ( selected_visible - 1 + visible.Size ) % visible.Size;
+                nav_key_pressed  = true;
             }
         }
         if ( visible.Size > 0 )
-            sel_idx = ImClamp( sel_idx, 0, visible.Size - 1 );
+            selected_visible = ImClamp( selected_visible, 0, visible.Size - 1 );
         else
-            sel_idx = 0;
-        storage->SetInt( sel_key, sel_idx );
-        if ( sel_changed_by_key )
+            selected_visible = 0;
+        storage->SetInt( sel_key, selected_visible );
+        if ( nav_key_pressed )
             storage->SetInt( scroll_key, 1 );
 
         if ( key_enter )
         {
-            const int i = visible[ sel_idx ].Index;
-            ImStrncpy( buf, items[ i ], buf_size );
-            if ( selected_index )
-                *selected_index = i;
-            changed = true;
-
-            ImGuiInputTextState & state = ImGui::GetCurrentContext()->InputTextState;
-            if ( state.ID == input_id )
-                state.ReloadUserBufAndMoveToEnd();
+            const int i = visible[ selected_visible ].Index;
+            CommitAutoSuggestSelection( buf, buf_size, items[ i ], i, selected_index, input_id, changed );
         }
 
-        const bool dismiss_popup = popup_open && ( input_deactivated || click_outside || click_in_input || key_enter );
+        const bool dismiss_popup = popup_open && !click_in_popup && ( input_deactivated || click_outside || click_in_input || key_enter );
         if ( dismiss_popup )
         {
-            for ( int i = gctx.OpenPopupStack.Size - 1; i >= 0; --i )
-            {
-                if ( gctx.OpenPopupStack[ i ].PopupId == popup_id )
-                {
-                    ImGui::ClosePopupToLevel( i, true );
-                    break;
-                }
-            }
+            ImGui::ClosePopupToLevel( popup_level, true );
         }
         else if ( !popup_open && ( input_activated || ( input_active && ( input_edited || click_in_input ) ) ) )
         {
@@ -2961,8 +2967,8 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
             }
             else
             {
-                const bool want_scroll  = storage->GetInt( scroll_key, 0 ) != 0;
-                const float row_advance = h + ImGui::GetStyle().ItemSpacing.y;
+                const bool scroll_to_selected = storage->GetInt( scroll_key, 0 ) != 0;
+                const float row_advance       = h + ImGui::GetStyle().ItemSpacing.y;
                 ImGuiListClipper clipper;
                 clipper.Begin( visible.Size, row_advance );
                 while ( clipper.Step() )
@@ -2970,21 +2976,14 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
                     for ( int n = clipper.DisplayStart; n < clipper.DisplayEnd; ++n )
                     {
                         const int i               = visible[ n ].Index;
-                        const bool is_highlighted = ( n == sel_idx );
+                        const bool is_highlighted = ( n == selected_visible );
                         ImGui::PushID( i );
-                        if ( is_highlighted && want_scroll )
+                        if ( is_highlighted && scroll_to_selected )
                             ImGui::SetScrollHereY();
                         if ( ImFluent::Selectable( items[ i ], is_highlighted, NULL, h ) )
                         {
-                            ImStrncpy( buf, items[ i ], buf_size );
-                            if ( selected_index )
-                                *selected_index = i;
-                            changed = true;
+                            CommitAutoSuggestSelection( buf, buf_size, items[ i ], i, selected_index, input_id, changed );
                             ImGui::CloseCurrentPopup();
-
-                            ImGuiInputTextState & state = ImGui::GetCurrentContext()->InputTextState;
-                            if ( state.ID == input_id )
-                                state.ReloadUserBufAndMoveToEnd();
                         }
                         if ( is_highlighted && gctx.NavId == input_id && gctx.NavCursorVisible )
                         {
