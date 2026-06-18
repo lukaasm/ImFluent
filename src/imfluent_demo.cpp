@@ -747,7 +747,7 @@ namespace ImFluentGalleryApp
                 int size = std::min( ( int )strlen( items[ selected ] ), 30 );
                 memcpy( buf, items[ selected ], size );
 
-                buf[ size + 1 ] = '\0';
+                buf[ size ] = '\0';
             }
             else
                 ControlExampleOutput( "Selected: (none)" );
@@ -2036,9 +2036,13 @@ namespace ImFluentGalleryApp
         ImGui::Dummy( ImVec2( 0, FluentDpx( 16.f ) ) );
         TextBlock( "Accent color", ImFluentTextStyle_Subtitle );
         ImGui::Dummy( ImVec2( 0, FluentDpx( 8.f ) ) );
-        static ImVec4 accent = ImFluent::GetAccentColor().Value;
+        static ImVec4 accent  = ImFluent::GetAccentColor().Value;
+        static bool accentEdit = false;
+        if ( !accentEdit )
+            accent = ImFluent::GetAccentColor().Value;
         if ( ImGui::ColorEdit3( "##accent", &accent.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel ) )
             ImFluent::SetAccentColor( ImColor( accent ) );
+        accentEdit = ImGui::IsItemActive();
         ImGui::SameLine();
         static const struct
         {
@@ -2137,7 +2141,7 @@ namespace ImFluentGalleryApp
 
         const float searchW = FluentDpx( 280.f );
         const float rightW  = searchW + ( closeW > 0.f ? FluentDpx( 8.f ) + closeW : 0.f );
-        ImGui::SameLine( ImGui::GetContentRegionAvail().x - rightW + ImGui::GetCursorStartPos().x );
+        ImGui::SameLine( ImGui::GetContentRegionMax().x - rightW );
         ImGui::PushItemWidth( searchW );
         if ( ImFluent::TextBox( "##search", g_State.SearchBuf, sizeof( g_State.SearchBuf ), "Search controls..." ) )
         {

@@ -12,6 +12,8 @@ int main( int, char ** )
         return 1;
 
     float main_scale = SDL_GetDisplayContentScale( SDL_GetPrimaryDisplay() );
+    if ( main_scale <= 0.0f )
+        main_scale = 1.0f;
 
     SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
     SDL_Window * window          = SDL_CreateWindow( "Dear ImGui SDL3+SDL_GPU example", ( int )( 1280 * main_scale ), ( int )( 800 * main_scale ), window_flags );
@@ -90,8 +92,10 @@ int main( int, char ** )
         const bool is_minimized = ( draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f );
 
         SDL_GPUCommandBuffer * command_buffer = SDL_AcquireGPUCommandBuffer( gpu_device );
+        if ( !command_buffer )
+            continue;
 
-        SDL_GPUTexture * swapchain_texture;
+        SDL_GPUTexture * swapchain_texture = nullptr;
         SDL_WaitAndAcquireGPUSwapchainTexture( command_buffer, window, &swapchain_texture, nullptr, nullptr );
 
         if ( swapchain_texture != nullptr && !is_minimized )
