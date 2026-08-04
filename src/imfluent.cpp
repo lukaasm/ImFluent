@@ -104,6 +104,8 @@ struct ImFluentCommandBarState
     char Id[ 64 ];
     char PopupId[ 80 ];
     float Height;
+    bool HasItem              = false;
+    bool SuppressAutoSameLine = false;
 };
 
 struct ImFluentSplitViewState
@@ -5545,13 +5547,18 @@ bool ImFluent::BeginCommandBarOverflow()
 {
     if ( g_Ctx.CommandBarStack.empty() )
         return false;
-    const ImFluentCommandBarState & s = g_Ctx.CommandBarStack.back();
-    const ImFluentStyle & style       = ImFluent::GetStyle();
-    const float chev_w                = FluentDpx( style.AppBarButtonHeight );
-    const float right                 = ImGui::GetWindowContentRegionMax().x;
-    const float curX                  = ImGui::GetCursorPosX();
+    ImFluentCommandBarState & s = g_Ctx.CommandBarStack.back();
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const float chev_w          = FluentDpx( style.AppBarButtonHeight );
+    const float right           = ImGui::GetWindowContentRegionMax().x;
+    const float curX            = ImGui::GetCursorPosX();
     if ( curX < right - chev_w )
+    {
+        // This overflow chevron right-aligns itself, so the automatic SameLine must not run and re-pack it
+        // against the previous item.
         ImGui::SameLine( right - chev_w );
+        s.SuppressAutoSameLine = true;
+    }
     SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition_Collapsed );
     if ( AppBarButton( "##cb-more", ImFluentIcon_More, ImVec2( chev_w, s.Height ) ) )
         OpenMenuFlyout( s.PopupId );
@@ -5578,11 +5585,27 @@ void ImFluent::SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition pos )
     g_Ctx.NextAppBarLabelPosSet = true;
 }
 
+// A command bar is horizontal by definition, but the AppBar* items are ordinary ImGui items and ImGui starts a
+// new line after each one. Without this, every item after the first lands below the bar's fixed height and is
+// clipped away -- a bar of ten actions renders as one. Outside a command bar the stack is empty and layout is
+// left exactly as the caller arranged it.
+static void AppBarLayoutNextItem()
+{
+    if ( g_Ctx.CommandBarStack.empty() )
+        return;
+    ImFluentCommandBarState & s = g_Ctx.CommandBarStack.back();
+    if ( s.HasItem && !s.SuppressAutoSameLine )
+        ImGui::SameLine();
+    s.SuppressAutoSameLine = false;
+    s.HasItem              = true;
+}
+
 bool ImFluent::AppBarButton( const char * label, const char * glyph, const ImVec2 & size_arg )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems )
         return false;
+    AppBarLayoutNextItem();
     glyph                                 = ConsumePendingGlyph( glyph );
     const ImFluentAppBarLabelPosition pos = ConsumeAppBarLabelPos();
     const ImFluentStyle & style           = ImFluent::GetStyle();
@@ -5613,6 +5636,7 @@ bool ImFluent::AppBarToggleButton( const char * label, const char * glyph, bool 
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems )
         return false;
+    AppBarLayoutNextItem();
     glyph                                 = ConsumePendingGlyph( glyph );
     const ImFluentAppBarLabelPosition pos = ConsumeAppBarLabelPos();
     const ImFluentStyle & style           = ImFluent::GetStyle();
@@ -5653,6 +5677,7 @@ void ImFluent::AppBarSeparator()
     ImGuiWindow * w             = ImGui::GetCurrentWindow();
     if ( w->SkipItems )
         return;
+    AppBarLayoutNextItem();
     const float H    = FluentDpx( style.NavItemHeight );
     const ImVec2 pos = w->DC.CursorPos;
     const ImRect bb( ImVec2( pos.x + FluentDpx( style.SpacingSmall ), pos.y + FluentDpx( style.SpacingMedium ) ), ImVec2( pos.x + FluentDpx( style.SpacingSmall + 1.f ), pos.y + H - FluentDpx( style.SpacingMedium ) ) );
