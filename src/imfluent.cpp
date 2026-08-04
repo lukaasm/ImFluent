@@ -642,23 +642,28 @@ namespace ImFluent
 
     static const ImU32 kAnimSeed = 0xF1ECF1ECu;
 
-    static ImGuiID AnimStateKey( ImGuiID id, int channel, bool & out_continuous )
+    static bool AnimFrameContiguous( ImGuiStorage * s, ImGuiID frame_key )
     {
-        ImGuiStorage * s       = ImGui::GetStateStorage();
-        const ImGuiID kId      = id ^ kAnimSeed ^ ( ( ImGuiID )channel * 0x9E3779B9u );
-        const ImGuiID kFrame   = kId + 1;
         const int currentFrame = ImGui::GetFrameCount();
-        const int lastFrame    = s->GetInt( kFrame, -1 );
-        s->SetInt( kFrame, currentFrame );
-        out_continuous = ( lastFrame == currentFrame - 1 );
+        const bool contiguous  = ( s->GetInt( frame_key, -1 ) == currentFrame - 1 );
+        s->SetInt( frame_key, currentFrame );
+        return contiguous;
+    }
+
+    static ImGuiID AnimStateKey( ImGuiID id, int channel, bool & out_continuous, ImGuiStorage *& out_storage )
+    {
+        ImGuiStorage * s  = ImGui::GetStateStorage();
+        const ImGuiID kId = id ^ kAnimSeed ^ ( ( ImGuiID )channel * 0x9E3779B9u );
+        out_continuous    = AnimFrameContiguous( s, kId + 1 );
+        out_storage       = s;
         return kId;
     }
 
     static ImU32 AnimateColorU32( ImGuiID id, ImU32 target, float seconds = 0.083f, int channel = 0 )
     {
         bool continuous;
-        const ImGuiID kId = AnimStateKey( id, channel, continuous );
-        ImGuiStorage * s  = ImGui::GetStateStorage();
+        ImGuiStorage * s;
+        const ImGuiID kId = AnimStateKey( id, channel, continuous, s );
         if ( !continuous )
         {
             s->SetInt( kId, ( int )target );
@@ -677,8 +682,8 @@ namespace ImFluent
     static float AnimateFloat( ImGuiID id, float target, float seconds = 0.20f, int channel = 0 )
     {
         bool continuous;
-        const ImGuiID kId = AnimStateKey( id, channel, continuous );
-        ImGuiStorage * s  = ImGui::GetStateStorage();
+        ImGuiStorage * s;
+        const ImGuiID kId = AnimStateKey( id, channel, continuous, s );
         if ( !continuous )
         {
             s->SetFloat( kId, target );
@@ -981,6 +986,11 @@ namespace ImFluent
             if ( label )
                 dl->AddText( ImVec2( bb.Min.x + ( W - ts.x ) * 0.5f, bb.Max.y - ts.y - FluentDpx( style.SpacingMedium - 2.f ) ), textCol, label );
         }
+    }
+
+    static ImGuiID AppBarButtonId( ImGuiWindow * w, const char * label, const char * glyph )
+    {
+        return label ? w->GetID( label ) : w->GetID( ( const void * )glyph );
     }
 
     static ImVec2 CalcAppBarButtonSize( const char * label, const char * glyph, ImFluentAppBarLabelPosition pos, const ImVec2 & size_arg, const ImFluentStyle & style )
@@ -2755,12 +2765,7 @@ bool ImFluent::PasswordBox( const char * label, std::string & str, const char * 
 bool ImFluent::NumberBox( const char * label, double * v, double step, double step_fast, const char * format, ImGuiInputTextFlags flags )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
-    if ( w->SkipItems )
-    {
-        ClearPendingNextItem();
-        return false;
-    }
-    if ( !v )
+    if ( w->SkipItems || !v )
     {
         ClearPendingNextItem();
         return false;
@@ -3419,15 +3424,18 @@ bool ImFluent::BeginExpander( const char * label, bool * open, ImFluentExpandDir
     const ImGuiID prev_key = id ^ 0xEC0CACEDu;
     const bool prev_open   = st->GetBool( prev_key, false );
 
+    auto report = [&]( bool now_open ) {
+        if ( out_just_expanded )
+            *out_just_expanded = ( !prev_open && now_open );
+        if ( out_just_collapsed )
+            *out_just_collapsed = ( prev_open && !now_open );
+        st->SetBool( prev_key, now_open );
+    };
+
     if ( direction == ImFluentExpandDirection_Down )
     {
-        const bool isOpen   = ExpanderHeader( label, open, direction );
-        const bool cur_open = open && *open;
-        if ( out_just_expanded )
-            *out_just_expanded = ( !prev_open && cur_open );
-        if ( out_just_collapsed )
-            *out_just_collapsed = ( prev_open && !cur_open );
-        st->SetBool( prev_key, cur_open );
+        const bool isOpen = ExpanderHeader( label, open, direction );
+        report( open && *open );
         if ( !isOpen )
             return false;
         ImFluentExpanderState s;
@@ -3444,19 +3452,10 @@ bool ImFluent::BeginExpander( const char * label, bool * open, ImFluentExpandDir
         if ( !cur_open )
         {
             ExpanderHeader( label, open, direction );
-            const bool cur_open_post = open && *open;
-            if ( out_just_expanded )
-                *out_just_expanded = ( !prev_open && cur_open_post );
-            if ( out_just_collapsed )
-                *out_just_collapsed = ( prev_open && !cur_open_post );
-            st->SetBool( prev_key, cur_open_post );
+            report( open && *open );
             return false;
         }
-        if ( out_just_expanded )
-            *out_just_expanded = ( !prev_open && cur_open );
-        if ( out_just_collapsed )
-            *out_just_collapsed = ( prev_open && !cur_open );
-        st->SetBool( prev_key, cur_open );
+        report( cur_open );
         ImFluentExpanderState s;
         ImStrncpy( s.Label, label, sizeof( s.Label ) );
         s.Open       = open;
@@ -5587,7 +5586,7 @@ bool ImFluent::AppBarButton( const char * label, const char * glyph, const ImVec
     glyph                                 = ConsumePendingGlyph( glyph );
     const ImFluentAppBarLabelPosition pos = ConsumeAppBarLabelPos();
     const ImFluentStyle & style           = ImFluent::GetStyle();
-    const ImGuiID id                      = label ? w->GetID( label ) : w->GetID( (const void *)glyph );
+    const ImGuiID id                      = AppBarButtonId( w, label, glyph );
 
     const ImVec2 size = CalcAppBarButtonSize( label, glyph, pos, size_arg, style );
     const float W     = size.x;
@@ -5617,7 +5616,7 @@ bool ImFluent::AppBarToggleButton( const char * label, const char * glyph, bool 
     glyph                                 = ConsumePendingGlyph( glyph );
     const ImFluentAppBarLabelPosition pos = ConsumeAppBarLabelPos();
     const ImFluentStyle & style           = ImFluent::GetStyle();
-    const ImGuiID id                      = label ? w->GetID( label ) : w->GetID( (const void *)glyph );
+    const ImGuiID id                      = AppBarButtonId( w, label, glyph );
 
     const ImVec2 size = CalcAppBarButtonSize( label, glyph, pos, size_arg, style );
     const float W     = size.x;
@@ -6569,10 +6568,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     int today_y, today_m, today_d;
     GetTodayDate( today_y, today_m, today_d );
 
-    const int cur_frame  = ImGui::GetFrameCount();
-    const int last_frame = st->GetInt( frame_key, -1 );
-    const bool reopened  = ( last_frame != cur_frame - 1 );
-    st->SetInt( frame_key, cur_frame );
+    const bool reopened = !AnimFrameContiguous( st, frame_key );
 
     int view_y    = st->GetInt( viewy_key, date->Year > 0 ? date->Year : today_y );
     int view_m    = st->GetInt( viewm_key, date->Month > 0 ? date->Month : today_m );
