@@ -38,6 +38,9 @@ ImFluent::ShowDemoWindow();
 
 Define `IMFLUENT_DISABLE_DEMO_WINDOWS` to compile out the gallery.
 
+Without Segoe UI (macOS, Linux), `LoadFluentSystemFonts()` uses a common UI font and no icons.
+Pass your own files with `ImFluent::LoadFluentFonts(regular, semibold, icons)`.
+
 ## Build
 
 ImFluent is one static library (`ImFluent::ImFluent`) on top of `imgui`, built with CMake and vcpkg

@@ -435,7 +435,10 @@ namespace ImFluent
     IMGUI_API void RenderBackdrop( ImGuiViewport * viewport = NULL );
     IMGUI_API bool IsBackdropVisible();
 
+    // Segoe UI and the Segoe icon font where installed, else a common UI font and no icons.
     IMGUI_API void LoadFluentSystemFonts();
+    // Explicit font files; NULL or missing files fall back (text: Dear ImGui's default font; semibold: regular).
+    IMGUI_API void LoadFluentFonts( const char * regular_ttf, const char * semibold_ttf, const char * icons_ttf );
 
     IMGUI_API void PushFluentStyle();
     IMGUI_API void PopFluentStyle();

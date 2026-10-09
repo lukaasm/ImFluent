@@ -169,7 +169,7 @@ namespace ImFluentGalleryApp
         { "MenuBar", "MenusAndToolbars", "MenuBar", "A row of top-level menus inside the page.", ImFluentIcon_More, &Page_Item_MenuBar },
 
         { "DatePicker", "DateTime", "DatePicker", "Lets a user pick a date.", ImFluentIcon_Calendar, &Page_Item_DatePicker },
-        { "TimePicker", "DateTime", "TimePicker", "Lets a user pick a time.", ImFluentIcon_Clock, &Page_Item_TimePicker },
+        { "TimePicker", "DateTime", "TimePicker", "Lets a user pick a time.", ImFluentIcon_Recent, &Page_Item_TimePicker },
         { "CalendarDatePicker", "DateTime", "CalendarDatePicker", "Drop-down calendar for picking a date.", ImFluentIcon_Calendar, &Page_Item_CalendarDatePicker },
         { "CalendarView", "DateTime", "CalendarView", "A calendar with month, year and decade views.", ImFluentIcon_Calendar, &Page_Item_CalendarView },
 
@@ -240,14 +240,6 @@ namespace ImFluentGalleryApp
         if ( g_State.NavCursor > 0 )
         {
             g_State.NavCursor--;
-            g_State.ResetScroll = true;
-        }
-    }
-    static void NavigateForward()
-    {
-        if ( g_State.NavCursor + 1 < ( int )g_State.NavStack.size() )
-        {
-            g_State.NavCursor++;
             g_State.ResetScroll = true;
         }
     }
@@ -695,7 +687,7 @@ namespace ImFluentGalleryApp
                 SetNextItemGlyph( ImFluentIcon_Mail );
                 if ( MenuFlyoutItem( "Send now" ) )
                     picked_mode = 0;
-                SetNextItemGlyph( ImFluentIcon_Clock );
+                SetNextItemGlyph( ImFluentIcon_Recent );
                 if ( MenuFlyoutItem( "Send later" ) )
                     picked_mode = 1;
                 SetNextItemGlyph( ImFluentIcon_Save );

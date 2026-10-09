@@ -384,7 +384,6 @@ namespace ImFluent
 
     static void BuildDarkPalette( ImFluentStyle & s )
     {
-        FillCommon( s );
         ImVec4 * c = s.Colors;
 
         c[ ImFluentCol_TextPrimary ]   = ImColor( 255, 255, 255 );
@@ -629,7 +628,6 @@ namespace ImFluent
         const ImVec4 light3 = LerpVec4( base_opaque, white, 0.65f );
         const ImVec4 dark1  = LerpVec4( base_opaque, black, 0.20f );
         const ImVec4 dark2  = LerpVec4( base_opaque, black, 0.40f );
-        const ImVec4 dark3  = LerpVec4( base_opaque, black, 0.65f );
 
         c[ ImFluentCol_AccentFillDefault ]        = base_opaque;
         c[ ImFluentCol_AccentFillSecondary ]      = ImVec4( base_opaque.x, base_opaque.y, base_opaque.z, 230.f / 255.f );
@@ -778,13 +776,6 @@ namespace ImFluent
         ImFluent::PopFont();
         g_Ctx.NextItem.Error    = NULL;
         g_Ctx.NextItem.HasError = false;
-    }
-
-    static void RenderAndConsumePendingError()
-    {
-        if ( !g_Ctx.NextItem.HasError )
-            return;
-        RenderAndConsumePendingError( ImGui::GetCurrentContext()->LastItemData.Rect );
     }
 
     static const ImU32 kAnimSeed = 0xF1ECF1ECu;
@@ -944,12 +935,6 @@ namespace ImFluent
             const ImU32 col = IM_COL32( 0, 0, 0, ( int )( 40.f / k ) );
             dl->AddRectFilled( ImVec2( bb.Min.x - pad, bb.Min.y - pad + k ), ImVec2( bb.Max.x + pad, bb.Max.y + pad + k ), col, rounding + pad );
         }
-    }
-
-    static void RenderAcrylicSurrogate( ImDrawList * dl, const ImRect & bb, float rounding, ImU32 base )
-    {
-        dl->AddRectFilled( bb.Min, bb.Max, base, rounding );
-        dl->AddRectFilled( bb.Min, bb.Max, IM_COL32( 255, 255, 255, 8 ), rounding );
     }
 
     static ImU32 ResolveControlFillState( bool disabled, bool held, bool hovered )
@@ -1124,7 +1109,7 @@ namespace ImFluent
         ImGui::PopStyleColor( 2 );
     }
 
-    static const char * LocalizeGetMsg( ImFluentLocKey key )
+    const char * LocalizeGetMsg( ImFluentLocKey key )
     {
         if ( key < 0 || key >= ImFluentLocKey_COUNT )
             return "*Missing Text*";
@@ -1132,7 +1117,7 @@ namespace ImFluent
         return msg ? msg : "*Missing Text*";
     }
 
-    static void LocalizeRegisterEntries( const ImFluentLocEntry * entries, int count )
+    void LocalizeRegisterEntries( const ImFluentLocEntry * entries, int count )
     {
         if ( !entries || count <= 0 )
             return;
@@ -1680,8 +1665,10 @@ namespace ImFluent
 
 // [SECTION] Style & Theme
 
+// Metrics and texts once; SetThemePreset() then changes only the colours.
 IMGUI_API ImFluentStyle::ImFluentStyle()
 {
+    ImFluent::FillCommon( *this );
     ImFluent::BuildThemePalette( *this, g_Ctx.Preset );
 }
 
@@ -2260,68 +2247,53 @@ void ImFluent::EndDisabled()
 
 // [SECTION] Fonts (LoadFluentFonts / PushFont / PopFont)
 
-static ImFont * LoadFontAndMergeWithIcons( const char * fontsDirectory, const char * fontName )
+static bool FontFileExists( const char * path )
 {
-    const char * fontPath;
-    ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/%s", fontsDirectory, fontName );
+    if ( !path || !path[ 0 ] )
+        return false;
+    ImFileHandle f = ImFileOpen( path, "rb" );
+    if ( !f )
+        return false;
+    ImFileClose( f );
+    return true;
+}
 
+static const char * FirstExistingFont( const char * const * candidates, int count )
+{
+    for ( int i = 0; i < count; ++i )
+        if ( FontFileExists( candidates[ i ] ) )
+            return candidates[ i ];
+    return NULL;
+}
+
+// Text font with the icon font merged in. Missing files fall back to Dear ImGui's default font and no icons.
+static ImFont * LoadFontAndMergeWithIcons( const char * font_path, const char * icons_path )
+{
     ImFontConfig cfg;
-    cfg.SizePixels = 16.0; // Plain coverage (RasterizerMultiply 1): a heavier multiply makes text darker than WinUI's
-
-    ImFont * font = ImGui::GetIO().Fonts->AddFontFromFileTTF( fontPath, 0.0f, &cfg );
-    IM_ASSERT( font != nullptr );
-
-    bool iconFontMedged = false;
-
-    static const char * iconFonts[]         = { "SegoeIcons.ttf", "SegMDL2.ttf" };
-    static const ImWchar fluentIconsRange[] = { 0xE000, 0xF8FF, 0 };
-
-    for ( const char * iconFontName : iconFonts )
+    cfg.SizePixels = 16.0;
+    ImFont * font  = FontFileExists( font_path ) ? ImGui::GetIO().Fonts->AddFontFromFileTTF( font_path, 0.0f, &cfg ) : NULL;
+    if ( !font )
+        font = ImGui::GetIO().Fonts->AddFontDefault();
+    if ( FontFileExists( icons_path ) )
     {
-        ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/%s", fontsDirectory, iconFontName );
-
-        cfg.MergeMode   = true;
-        cfg.PixelSnapH  = true;
-        cfg.GlyphOffset = { 0.0f, cfg.SizePixels / 8.0f };
-
-        iconFontMedged = ImGui::GetIO().Fonts->AddFontFromFileTTF( fontPath, 0.0f, &cfg, fluentIconsRange );
-        if ( iconFontMedged )
-            break;
+        static const ImWchar fluentIconsRange[] = { 0xE000, 0xF8FF, 0 };
+        cfg.MergeMode                           = true;
+        cfg.PixelSnapH                          = true;
+        cfg.GlyphOffset                         = ImVec2( 0.0f, cfg.SizePixels / 8.0f );
+        ImGui::GetIO().Fonts->AddFontFromFileTTF( icons_path, 0.0f, &cfg, fluentIconsRange );
     }
-
-    IM_ASSERT( iconFontMedged );
     return font;
 }
 
-void ImFluent::LoadFluentSystemFonts()
+void ImFluent::LoadFluentFonts( const char * regular_ttf, const char * semibold_ttf, const char * icons_ttf )
 {
-    char windowsDirectory[ MAX_PATH ] = { 0 };
-    ::GetWindowsDirectoryA( windowsDirectory, MAX_PATH );
+    ImFont * regularFont = LoadFontAndMergeWithIcons( regular_ttf, icons_ttf );
+    ImFont * strongFont  = FontFileExists( semibold_ttf ) ? LoadFontAndMergeWithIcons( semibold_ttf, icons_ttf ) : regularFont;
 
-    char fontsDirectory[ MAX_PATH ] = { 0 };
-    ImFormatString( fontsDirectory, MAX_PATH, "%s/Fonts", windowsDirectory );
-
-    struct TextStyleFontInfo
-    {
-        ImFluentTextStyle style;
-        float dp;
-        const char * fontFile;
-    };
-
-    ImFont * regularFont = LoadFontAndMergeWithIcons( fontsDirectory, "segoeui.ttf" );
-
-    // The Fluent type ramp in em sizes (Caption 12, Body 14, Subtitle 20, Title 28, TitleLarge 40, Display 68).
-    // Dear ImGui sizes a font by ascent + descent, which is 1.33 em for Segoe UI ((2210 + 514) / 2048).
+    // Fluent type ramp in em; Dear ImGui sizes Segoe UI by ascent + descent = 1.33 em.
     const float em = 2724.f / 2048.f;
     SetFluentTextStyleFont( ImFluentTextStyle_Caption, regularFont, 12.f * em );
     SetFluentTextStyleFont( ImFluentTextStyle_Body, regularFont, 14.f * em );
-
-    // BodyStrong, Subtitle, Title, TitleLarge and Display are Semibold (Bold where Segoe UI Semibold is missing).
-    char semiboldPath[ MAX_PATH ];
-    ImFormatString( semiboldPath, MAX_PATH, "%s/seguisb.ttf", fontsDirectory );
-    const bool hasSemibold = ::GetFileAttributesA( semiboldPath ) != INVALID_FILE_ATTRIBUTES;
-    ImFont * strongFont    = LoadFontAndMergeWithIcons( fontsDirectory, hasSemibold ? "seguisb.ttf" : "segoeuib.ttf" );
-
     SetFluentTextStyleFont( ImFluentTextStyle_BodyStrong, strongFont, 14.f * em );
     SetFluentTextStyleFont( ImFluentTextStyle_Subtitle, strongFont, 20.f * em );
     SetFluentTextStyleFont( ImFluentTextStyle_Title, strongFont, 28.f * em );
@@ -2330,10 +2302,37 @@ void ImFluent::LoadFluentSystemFonts()
 
     if ( ImGui::GetIO().FontDefault == NULL )
     {
-        // Widget text (buttons, check boxes, lists) uses the Body size, as in WinUI.
         ImGui::GetIO().FontDefault     = g_Ctx.Fonts[ ImFluentTextStyle_Body ].Font;
         ImGui::GetStyle().FontSizeBase = g_Ctx.Fonts[ ImFluentTextStyle_Body ].FontSize;
     }
+}
+
+// Segoe UI, Segoe UI Semibold and the Segoe icon font where they are installed; elsewhere a common UI font.
+void ImFluent::LoadFluentSystemFonts()
+{
+#if defined( _WIN32 )
+    char dir[ MAX_PATH ] = { 0 };
+    ::GetWindowsDirectoryA( dir, MAX_PATH );
+    char regular[ MAX_PATH ], semibold[ MAX_PATH ], bold[ MAX_PATH ], icons[ MAX_PATH ], mdl2[ MAX_PATH ];
+    ImFormatString( regular, MAX_PATH, "%s/Fonts/segoeui.ttf", dir );
+    ImFormatString( semibold, MAX_PATH, "%s/Fonts/seguisb.ttf", dir );
+    ImFormatString( bold, MAX_PATH, "%s/Fonts/segoeuib.ttf", dir );
+    ImFormatString( icons, MAX_PATH, "%s/Fonts/SegoeIcons.ttf", dir ); // Windows 11
+    ImFormatString( mdl2, MAX_PATH, "%s/Fonts/segmdl2.ttf", dir );     // Windows 10
+    const char * semibolds[] = { semibold, bold };
+    const char * iconsets[]  = { icons, mdl2 };
+    LoadFluentFonts( regular, FirstExistingFont( semibolds, 2 ), FirstExistingFont( iconsets, 2 ) );
+#elif defined( __APPLE__ )
+    static const char * regulars[]  = { "/Library/Fonts/Segoe UI.ttf", "/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc" };
+    static const char * semibolds[] = { "/Library/Fonts/Segoe UI Semibold.ttf", "/Library/Fonts/Segoe UI Bold.ttf" };
+    static const char * iconsets[]  = { "/Library/Fonts/Segoe Fluent Icons.ttf", "/Library/Fonts/Segoe MDL2 Assets.ttf" };
+    LoadFluentFonts( FirstExistingFont( regulars, IM_ARRAYSIZE( regulars ) ), FirstExistingFont( semibolds, IM_ARRAYSIZE( semibolds ) ), FirstExistingFont( iconsets, IM_ARRAYSIZE( iconsets ) ) );
+#else
+    static const char * regulars[]  = { "/usr/share/fonts/truetype/msttcorefonts/segoeui.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/noto/NotoSans-Regular.ttf", "/usr/share/fonts/google-noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf" };
+    static const char * semibolds[] = { "/usr/share/fonts/truetype/msttcorefonts/seguisb.ttf", "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf", "/usr/share/fonts/noto/NotoSans-SemiBold.ttf", "/usr/share/fonts/google-noto/NotoSans-SemiBold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf" };
+    static const char * iconsets[]  = { "/usr/share/fonts/truetype/msttcorefonts/SegoeIcons.ttf", "/usr/share/fonts/truetype/msttcorefonts/segmdl2.ttf" };
+    LoadFluentFonts( FirstExistingFont( regulars, IM_ARRAYSIZE( regulars ) ), FirstExistingFont( semibolds, IM_ARRAYSIZE( semibolds ) ), FirstExistingFont( iconsets, IM_ARRAYSIZE( iconsets ) ) );
+#endif
 }
 
 void ImFluent::PushFont( ImFluentTextStyle style, float size )
@@ -2395,21 +2394,18 @@ void ImFluent::SetFluentTextStyleFont( ImFluentTextStyle style, ImFont * font, f
 
 bool ImFluent::Button( const char * label, const ImVec2 & size )
 {
-    const ImFluentStyle & style = ImFluent::GetStyle();
     return ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ), ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ), ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ), ImFluent::GetColorU32( ImFluentCol_ControlFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::GetColorU32( ImFluentCol_TextDisabled ),
         ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlTop ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
 }
 
 bool ImFluent::AccentButton( const char * label, const ImVec2 & size )
 {
-    const ImFluentStyle & style = ImFluent::GetStyle();
     return ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), ImFluent::GetColorU32( ImFluentCol_AccentFillSecondary ), ImFluent::GetColorU32( ImFluentCol_AccentFillTertiary ), ImFluent::GetColorU32( ImFluentCol_AccentFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), ImFluent::GetColorU32( ImFluentCol_TextOnAccentDisabled ),
         ImFluent::GetColorU32( ImFluentCol_ControlStrokeOnAccentDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentTop ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentBottom ), ImGuiButtonFlags_None );
 }
 
 bool ImFluent::RepeatButton( const char * label, const ImVec2 & size )
 {
-    const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushItemFlag( ImGuiItemFlags_ButtonRepeat, true );
     const bool pressed = ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ), ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ), ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ), ImFluent::GetColorU32( ImFluentCol_ControlFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::GetColorU32( ImFluentCol_TextDisabled ),
         ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlTop ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
@@ -2447,7 +2443,6 @@ bool ImFluent::HyperlinkButton( const char * label )
 
 bool ImFluent::ToggleButton( const char * label, bool * v, const ImVec2 & size )
 {
-    const ImFluentStyle & style = ImFluent::GetStyle();
     bool pressed;
     if ( v && *v )
     {
@@ -2775,8 +2770,12 @@ static void LooseRadioGroupNav( const int * group, ImGuiID id )
         return;
     const ImGuiID first     = ( ImGuiID )st->GetInt( gkey ^ KEY_FIRST, 0 );
     const ImGuiID prev_last = ( ImGuiID )st->GetInt( gkey ^ KEY_PREV_LAST, 0 );
-    const bool fwd          = ImFluent::ConsumeNavArrow( id, ImGuiDir_Down ) | ImFluent::ConsumeNavArrow( id, ImGuiDir_Right );
-    const bool back         = ImFluent::ConsumeNavArrow( id, ImGuiDir_Up ) | ImFluent::ConsumeNavArrow( id, ImGuiDir_Left );
+    const bool down         = ImFluent::ConsumeNavArrow( id, ImGuiDir_Down ); // Consume both keys of each pair
+    const bool right        = ImFluent::ConsumeNavArrow( id, ImGuiDir_Right );
+    const bool up           = ImFluent::ConsumeNavArrow( id, ImGuiDir_Up );
+    const bool left         = ImFluent::ConsumeNavArrow( id, ImGuiDir_Left );
+    const bool fwd          = down || right;
+    const bool back         = up || left;
     ImGuiID target          = 0;
     if ( fwd )
         target = ( id == prev_last ) ? first : ( ImGuiID )st->GetInt( id ^ KEY_NEXT, 0 );
@@ -4270,7 +4269,6 @@ void ImFluent::Separator()
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems )
         return;
-    const ImFluentStyle & style = ImFluent::GetStyle();
     const float thickness       = 1.f;
     const ImVec2 pos            = w->DC.CursorPos;
     const float W               = ImGui::GetContentRegionAvail().x;
@@ -4800,7 +4798,8 @@ bool ImFluent::SelectorBarItem( const char * label, bool selected, const char * 
         return false;
     }
     bool hovered = false, held = false;
-    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held ) | TabGroupItemNav( id );
+    const bool clicked = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    const bool pressed = TabGroupItemNav( id ) || clicked;
     ReportItemInfo( id, label, CheckedFlags( selected ) );
     ImDrawList * dl    = w->DrawList;
     ImU32 fillTarget;
@@ -6123,7 +6122,6 @@ bool ImFluent::GridViewItem( const char * label, bool selected, const ImVec2 & s
     if ( in_grid_view )
         pressed |= TabGroupItemNav( id );
     ReportItemInfo( id, label, CheckedFlags( selected ) );
-    ImDrawList * dl    = w->DrawList;
     const float r      = FluentDpx( style.OverlayCornerRadius );
     ImU32 fill         = ImFluent::GetColorU32( selected ? ImFluentCol_AccentFillSecondary : held ? ImFluentCol_ControlFillTertiary : hovered ? ImFluentCol_ControlFillSecondary : ImFluentCol_CardBgDefault );
     ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ) );
@@ -7647,7 +7645,6 @@ namespace ImFluent
     static const ImGuiID PICKER_KEY_MINUTE           = 0xD117u;
     static const float DATEPICKER_DAY_RATIO          = 56.f / 256.f;
     static const float DATEPICKER_MON_RATIO          = 120.f / 256.f;
-    static const ImGuiID CAL_KEY_INIT                = 0xC9FEu;
     static const ImGuiID CAL_KEY_WAS                 = 0xC7FEu;
     static const ImGuiID CAL_KEY_VIEW_Y              = 0xC1FEu;
     static const ImGuiID CAL_KEY_VIEW_M              = 0xC2FEu;
@@ -9461,7 +9458,8 @@ bool ImFluent::PivotItem( const char * header, bool selected )
         return false;
     }
     bool hovered = false, held = false;
-    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held ) | TabGroupItemNav( id );
+    const bool clicked = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    const bool pressed = TabGroupItemNav( id ) || clicked;
     ReportItemInfo( id, header, CheckedFlags( selected ) );
     ImDrawList * dl          = w->DrawList;
     const ImFluentCol text_c = selected ? ImFluentCol_TextPrimary : held ? ImFluentCol_TextTertiary : hovered ? ImFluentCol_TextPrimary : ImFluentCol_TextSecondary;

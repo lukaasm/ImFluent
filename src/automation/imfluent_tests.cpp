@@ -1846,4 +1846,89 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         }
         actions.RepeatStepButtons = backup;
     };
+
+    // [SECTION] API
+
+    t           = IM_REGISTER_TEST( engine, "api", "theme_preset_round_trip" );
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        const ImFluentThemePreset backup    = ImFluent::GetThemePreset();
+        const ImFluentThemePreset presets[] = { ImFluentThemePreset_Light, ImFluentThemePreset_Dark, ImFluentThemePreset_HighContrast };
+        for ( ImFluentThemePreset p : presets )
+        {
+            ImFluent::SetThemePreset( p );
+            IM_CHECK_EQ( ImFluent::GetThemePreset(), p );
+        }
+        ImFluent::SetThemePreset( backup );
+    };
+
+    // An app's metric and text overrides survive a theme change.
+    t           = IM_REGISTER_TEST( engine, "api", "theme_change_keeps_style_overrides" );
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        ImFluentStyle & style                                              = ImFluent::GetStyle();
+        const ImFluentThemePreset preset                                   = ImFluent::GetThemePreset();
+        const float height                                                 = style.ControlHeight;
+        const char * text                                                  = style.LocalizationTable[ ImFluentLocKey_AutoSuggestNoSuggestions ];
+        style.ControlHeight                                                = 40.f;
+        style.LocalizationTable[ ImFluentLocKey_AutoSuggestNoSuggestions ] = "Nichts gefunden";
+        ImFluent::SetThemePreset( preset == ImFluentThemePreset_Dark ? ImFluentThemePreset_Light : ImFluentThemePreset_Dark );
+        IM_CHECK_EQ( style.ControlHeight, 40.f );
+        IM_CHECK_STR_EQ( style.LocalizationTable[ ImFluentLocKey_AutoSuggestNoSuggestions ], "Nichts gefunden" );
+        style.ControlHeight                                                = height;
+        style.LocalizationTable[ ImFluentLocKey_AutoSuggestNoSuggestions ] = text;
+        ImFluent::SetThemePreset( preset );
+    };
+
+    t           = IM_REGISTER_TEST( engine, "api", "style_color_and_var_stacks" );
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        ImFluentStyle & style = ImFluent::GetStyle();
+        const ImVec4 color    = style.Colors[ ImFluentCol_AccentFillDefault ];
+        const float height    = style.ControlHeight;
+        ImFluent::PushStyleColor( ImFluentCol_AccentFillDefault, IM_COL32( 255, 0, 0, 255 ) );
+        ImFluent::PushStyleVar( ImFluentStyleVar_ControlHeight, 48.f );
+        IM_CHECK_EQ( style.ControlHeight, 48.f );
+        IM_CHECK( style.Colors[ ImFluentCol_AccentFillDefault ].x == 1.f && style.Colors[ ImFluentCol_AccentFillDefault ].y == 0.f );
+        ImFluent::PopStyleVar();
+        ImFluent::PopStyleColor();
+        IM_CHECK_EQ( style.ControlHeight, height );
+        IM_CHECK( style.Colors[ ImFluentCol_AccentFillDefault ].x == color.x && style.Colors[ ImFluentCol_AccentFillDefault ].z == color.z );
+    };
+
+    t           = IM_REGISTER_TEST( engine, "api", "actions_defaults" );
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        const ImFluentActions a;
+        IM_CHECK_EQ( a.RevealPassword, ImGuiMod_Alt | ImGuiKey_F8 );
+        IM_CHECK_EQ( a.TogglePopup, ( ImGuiKeyChord )ImGuiKey_F4 );
+        IM_CHECK_EQ( a.NextTab, ImGuiMod_Ctrl | ImGuiKey_Tab );
+        IM_CHECK_EQ( a.CloseDialog, ( ImGuiKeyChord )ImGuiKey_Escape );
+        IM_CHECK( a.RepeatStepButtons );
+    };
+
+    // Without platform hooks the backdrop is the solid fallback colour; high contrast turns it off.
+    t          = IM_REGISTER_TEST( engine, "api", "backdrop_without_hooks" );
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        ImFluent::RenderBackdrop();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        ImFluentBackdropHooks & hooks      = ImFluent::GetBackdropHooks();
+        const ImFluentBackdropHooks backup = hooks;
+        const ImFluentThemePreset preset   = ImFluent::GetThemePreset();
+        hooks                              = ImFluentBackdropHooks();
+        ImFluent::SetBackdrop( ImFluentBackdrop_Mica );
+        ImFluent::SetThemePreset( ImFluentThemePreset_Dark );
+        IM_CHECK_EQ( ImFluent::GetBackdrop(), ImFluentBackdrop_Mica );
+        IM_CHECK( ImFluent::IsBackdropVisible() );
+        ctx->Yield( 2 );
+        ImFluent::SetThemePreset( ImFluentThemePreset_HighContrast );
+        IM_CHECK( !ImFluent::IsBackdropVisible() );
+        ImFluent::SetBackdrop( ImFluentBackdrop_None );
+        IM_CHECK( !ImFluent::IsBackdropVisible() );
+        ImFluent::SetThemePreset( preset );
+        hooks = backup;
+    };
 }
