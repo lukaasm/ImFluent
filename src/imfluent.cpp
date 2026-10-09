@@ -1069,6 +1069,41 @@ namespace ImFluent
             RenderNavFocusRing( bb, rounding );
     }
 
+    // WinUI controls use the arrow keys themselves (sliders, ratings, pickers, tree items, submenus).
+    // When item `id` has nav focus and the pending nav move goes in `dir`, cancel ImGui's focus move and
+    // report the key to the widget instead. Same idiom as ImGui's TreeNode Left/Right handling.
+    static bool ConsumeNavArrow( ImGuiID id, ImGuiDir dir )
+    {
+        ImGuiContext & g = *GImGui;
+        if ( g.NavId != id || g.NavMoveDir != dir || !g.NavMoveSubmitted )
+            return false;
+        ImGui::NavClearPreferredPosForAxis( ( dir == ImGuiDir_Left || dir == ImGuiDir_Right ) ? ImGuiAxis_X : ImGuiAxis_Y );
+        ImGui::NavMoveRequestCancel();
+        g.NavCursorVisible = true;
+        return true;
+    }
+
+    // Key press for the item that has nav focus. While focused, the item owns `key`, so ImGui's
+    // navigation does not also use it (Home/End/PageUp/PageDown would otherwise scroll the window).
+    static bool IsFocusedItemKeyPressed( ImGuiID id, ImGuiKey key, bool repeat = true )
+    {
+        ImGuiContext & g = *GImGui;
+        if ( g.NavId != id || g.ActiveId != 0 )
+            return false;
+        ImGui::SetKeyOwner( key, id );
+        return ImGui::IsKeyPressed( key, repeat ? ImGuiInputFlags_Repeat : ImGuiInputFlags_None, id );
+    }
+
+    // -1 / +1 for a focused item that takes Left/Down as "decrease" and Right/Up as "increase".
+    static int ConsumeNavIncrement( ImGuiID id )
+    {
+        if ( ConsumeNavArrow( id, ImGuiDir_Left ) || ConsumeNavArrow( id, ImGuiDir_Down ) )
+            return -1;
+        if ( ConsumeNavArrow( id, ImGuiDir_Right ) || ConsumeNavArrow( id, ImGuiDir_Up ) )
+            return +1;
+        return 0;
+    }
+
     // Derive a stable popup id keyed by an owning widget id + popup name. Keeps
     // PushOverrideID / GetID / PopID boilerplate out of the call site.
     static ImGuiID GetWidgetPopupId( ImGuiID widget_id, const char * popup_name )
@@ -2071,6 +2106,24 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
     const bool hovered = ImGui::ItemHoverable( bb, id, ImGuiItemFlags_None );
     bool changed       = false;
     ReportItemInfo( id, label );
+
+    // Keyboard: arrows step by one star, Home clears, End fills (WinUI RatingControl).
+    if ( value && !IsCurrentItemDisabled() )
+    {
+        float new_val = *value;
+        if ( const int step = ConsumeNavIncrement( id ) )
+            new_val = ImClamp( ImFloor( new_val + ( step > 0 ? 1.f : -0.5f ) ), 0.f, ( float )max_stars );
+        if ( IsFocusedItemKeyPressed( id, ImGuiKey_Home ) )
+            new_val = 0.f;
+        if ( IsFocusedItemKeyPressed( id, ImGuiKey_End ) )
+            new_val = ( float )max_stars;
+        if ( new_val != *value )
+        {
+            *value  = new_val;
+            changed = true;
+            ImGui::MarkItemEdited( id );
+        }
+    }
     if ( hovered && ImGui::IsMouseDown( ImGuiMouseButton_Left ) )
     {
         const float mx = ImGui::GetMousePos().x - bb.Min.x;
@@ -2110,6 +2163,108 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
 
 // [SECTION] Sliders & Progress
 
+static double SliderValueToDouble( ImGuiDataType dtype, const void * p )
+{
+    switch ( dtype )
+    {
+        case ImGuiDataType_S8:
+            return *( const ImS8 * )p;
+        case ImGuiDataType_U8:
+            return *( const ImU8 * )p;
+        case ImGuiDataType_S16:
+            return *( const ImS16 * )p;
+        case ImGuiDataType_U16:
+            return *( const ImU16 * )p;
+        case ImGuiDataType_S32:
+            return *( const ImS32 * )p;
+        case ImGuiDataType_U32:
+            return *( const ImU32 * )p;
+        case ImGuiDataType_S64:
+            return ( double )*( const ImS64 * )p;
+        case ImGuiDataType_U64:
+            return ( double )*( const ImU64 * )p;
+        case ImGuiDataType_Float:
+            return *( const float * )p;
+        case ImGuiDataType_Double:
+            return *( const double * )p;
+        default:
+            return 0.0;
+    }
+}
+
+static void SliderValueFromDouble( ImGuiDataType dtype, void * p, double d )
+{
+    const bool is_float = ( dtype == ImGuiDataType_Float || dtype == ImGuiDataType_Double );
+    if ( !is_float )
+        d = ( d < 0.0 ) ? ( double )( ImS64 )( d - 0.5 ) : ( double )( ImS64 )( d + 0.5 );
+    switch ( dtype )
+    {
+        case ImGuiDataType_S8:
+            *( ImS8 * )p = ( ImS8 )d;
+            break;
+        case ImGuiDataType_U8:
+            *( ImU8 * )p = ( ImU8 )d;
+            break;
+        case ImGuiDataType_S16:
+            *( ImS16 * )p = ( ImS16 )d;
+            break;
+        case ImGuiDataType_U16:
+            *( ImU16 * )p = ( ImU16 )d;
+            break;
+        case ImGuiDataType_S32:
+            *( ImS32 * )p = ( ImS32 )d;
+            break;
+        case ImGuiDataType_U32:
+            *( ImU32 * )p = ( ImU32 )d;
+            break;
+        case ImGuiDataType_S64:
+            *( ImS64 * )p = ( ImS64 )d;
+            break;
+        case ImGuiDataType_U64:
+            *( ImU64 * )p = ( ImU64 )d;
+            break;
+        case ImGuiDataType_Float:
+            *( float * )p = ( float )d;
+            break;
+        case ImGuiDataType_Double:
+            *( double * )p = d;
+            break;
+        default:
+            break;
+    }
+}
+
+// Keyboard for a focused slider, as WinUI Slider: arrows take a small step (1 for integers, 1% of the range
+// otherwise), PageUp/PageDown a large step (10%), Home/End jump to the ends. The value stays within
+// [v_min, v_max]; the step sizes come from [step_min, step_max] when given (a range slider thumb is clamped
+// by the other thumb but steps over the full range).
+static bool SliderKeyboardStep( ImGuiID id, ImGuiDataType dtype, void * v, const void * v_min, const void * v_max, const void * step_min = NULL, const void * step_max = NULL )
+{
+    const double lo    = SliderValueToDouble( dtype, v_min );
+    const double hi    = SliderValueToDouble( dtype, v_max );
+    const double range = ImAbs( SliderValueToDouble( dtype, step_max ? step_max : v_max ) - SliderValueToDouble( dtype, step_min ? step_min : v_min ) );
+    const bool is_int  = !( dtype == ImGuiDataType_Float || dtype == ImGuiDataType_Double );
+    const double small = is_int ? 1.0 : range / 100.0;
+    const double large = is_int ? ImMax( 1.0, floor( range / 10.0 ) ) : range / 10.0;
+    const double cur   = SliderValueToDouble( dtype, v );
+    double next        = cur;
+    if ( const int step = ImFluent::ConsumeNavIncrement( id ) )
+        next += step * small;
+    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_PageUp ) )
+        next += large;
+    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_PageDown ) )
+        next -= large;
+    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_Home ) )
+        next = ImMin( lo, hi );
+    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_End ) )
+        next = ImMax( lo, hi );
+    next = ImClamp( next, ImMin( lo, hi ), ImMax( lo, hi ) );
+    if ( next == cur )
+        return false;
+    SliderValueFromDouble( dtype, v, next );
+    return true;
+}
+
 bool ImFluent::Slider( const char * label, ImGuiDataType dtype, void * v, const void * v_min, const void * v_max, const char * format, ImGuiSliderFlags flags )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
@@ -2142,7 +2297,12 @@ bool ImFluent::Slider( const char * label, ImGuiDataType dtype, void * v, const 
     }
 
     ImRect grab_bb;
-    const bool changed = ImGui::SliderBehavior( frame_bb, id, dtype, v, v_min, v_max, format, flags, &grab_bb );
+    bool changed = ImGui::SliderBehavior( frame_bb, id, dtype, v, v_min, v_max, format, flags, &grab_bb );
+    if ( g.ActiveId != id && !IsCurrentItemDisabled() && SliderKeyboardStep( id, dtype, v, v_min, v_max ) )
+    {
+        changed = true;
+        ImGui::SliderBehavior( frame_bb, id, dtype, v, v_min, v_max, format, flags | ImGuiSliderFlags_ReadOnly, &grab_bb ); // Grab rect for the new value
+    }
     if ( changed )
         ImGui::MarkItemEdited( id );
     ReportItemInfo( id, label );
@@ -2248,6 +2408,20 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
     bool hi_hov = false, hi_held = false;
     ImGui::ButtonBehavior( lo_bb, id_lo, &lo_hov, &lo_held );
     ImGui::ButtonBehavior( hi_bb, id_hi, &hi_hov, &hi_held );
+    // Space/Enter also "hold" a button; only a mouse drag moves a thumb to the pointer.
+    if ( ImGui::GetCurrentContext()->ActiveIdSource != ImGuiInputSource_Mouse )
+        lo_held = hi_held = false;
+
+    // Keyboard: each thumb is a tab stop with its own focus, stepped like a Slider.
+    if ( !IsCurrentItemDisabled() )
+    {
+        const float lo_cur = *v_min, hi_cur = *v_max;
+        const float hi_lim = hi_cur, lo_lim = lo_cur;
+        SliderKeyboardStep( id_lo, ImGuiDataType_Float, v_min, &v_lo, &hi_lim, &v_lo, &v_hi );
+        SliderKeyboardStep( id_hi, ImGuiDataType_Float, v_max, &lo_lim, &v_hi, &v_lo, &v_hi );
+        if ( *v_min != lo_cur || *v_max != hi_cur )
+            changed = true;
+    }
     if ( lo_held )
     {
         const float nv = ImClamp( x_to_value( ImGui::GetMousePos().x ), v_lo, *v_max );
@@ -2287,6 +2461,7 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
         dl->AddCircleFilled( c, thumb_r, col_thumb_solid, 32 );
         dl->AddCircle( c, thumb_r, col_thumb_stroke, 32, stroke_thin );
         dl->AddCircleFilled( c, inner_r, col_thumb_inner, 24 );
+        RenderNavFocusRing( side == 0 ? id_lo : id_hi, ImRect( c.x - thumb_r, c.y - thumb_r, c.x + thumb_r, c.y + thumb_r ), thumb_r );
     }
 
     if ( format && *format )
@@ -2655,7 +2830,7 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
         // the InputText, which activates naturally and fires all its usual callbacks.
         const ImGuiID button_id = input_id ^ 0xC1EA8u;
         ImGui::KeepAliveID( button_id );
-        ImGui::ItemAdd( btn_bb, button_id );
+        ImGui::ItemAdd( btn_bb, button_id, NULL, ImGuiItemFlags_NoTabStop );
         ReportItemInfo( button_id, "Clear" );
 
         const ImGuiContext & g = *ImGui::GetCurrentContext();
@@ -2858,7 +3033,7 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
     for ( int i = 0; i < 2; ++i )
     {
         const SpinBtn & b = btns[ i ];
-        ImGui::ItemAdd( b.bb, b.id );
+        ImGui::ItemAdd( b.bb, b.id, NULL, ImGuiItemFlags_NoNav ); // WinUI spin buttons are not tab stops
         ReportItemInfo( b.id, b.sign > 0.0 ? "Increase" : "Decrease" );
         bool hov = false, held = false;
         const bool pr = ImGui::ButtonBehavior( b.bb, b.id, &hov, &held );
@@ -2895,6 +3070,28 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
     }
 
     ImGui::PopItemFlag();
+
+    // Keyboard while editing (WinUI NumberBox): Up/Down step by `step`, PageUp/PageDown by `step_fast`.
+    if ( input_active && v )
+    {
+        double delta = 0.0;
+        if ( ImGui::IsKeyPressed( ImGuiKey_UpArrow, ImGuiInputFlags_Repeat, input_id ) )
+            delta += step;
+        if ( ImGui::IsKeyPressed( ImGuiKey_DownArrow, ImGuiInputFlags_Repeat, input_id ) )
+            delta -= step;
+        if ( ImGui::IsKeyPressed( ImGuiKey_PageUp, ImGuiInputFlags_Repeat, input_id ) )
+            delta += step_fast;
+        if ( ImGui::IsKeyPressed( ImGuiKey_PageDown, ImGuiInputFlags_Repeat, input_id ) )
+            delta -= step_fast;
+        if ( delta != 0.0 )
+        {
+            *v += delta;
+            changed = true;
+            if ( ImGuiInputTextState * state = ImGui::GetInputTextState( input_id ) )
+                state->ReloadUserBufAndSelectAll(); // Show the new value in the field being edited
+        }
+    }
+
     RenderAndConsumePendingDescription();
     RenderAndConsumePendingError( input_rect );
     return changed;
@@ -3248,7 +3445,7 @@ bool ImFluent::BeginCard( const char * id, const ImVec2 & size, ImFluentCardStyl
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 1.f );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.CardPadding ), FluentDpx( style.CardPadding ) ) );
-    return ImGui::BeginChild( id, size, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY );
+    return ImGui::BeginChild( id, size, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened );
 }
 
 void ImFluent::EndCard()
@@ -3441,7 +3638,7 @@ static bool ExpanderPushBody( const char * label )
     ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_CardBgDefault ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, r );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( ImFluent::FluentDpx( style.SpacingXLarge ), ImFluent::FluentDpx( style.SpacingLarge ) ) );
-    const bool open = ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders );
+    const bool open = ImGui::BeginChild( label, ImVec2( W, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders | ImGuiChildFlags_NavFlattened );
     if ( !open )
     {
         ImGui::EndChild();
@@ -3531,7 +3728,7 @@ bool ImFluent::BeginScrollView( const char * id, const ImVec2 & size )
     const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_SubtleFillTransparent ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.ControlCornerRadius ) );
-    if ( !ImGui::BeginChild( id, size, ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar ) )
+    if ( !ImGui::BeginChild( id, size, ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_HorizontalScrollbar ) )
     {
         ImGui::EndChild();
         ImGui::PopStyleVar();
@@ -3703,7 +3900,7 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
         ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
-        const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( 0, h + FluentDpx( style.SpacingSmall ) * 2.f ), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
+        const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( 0, h + FluentDpx( style.SpacingSmall ) * 2.f ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar );
         return pane_open ? true : true;
     }
 
@@ -3715,7 +3912,7 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
     ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
-    const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( g_Ctx.NavView.CurrentWidth, 0.f ), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
+    const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( g_Ctx.NavView.CurrentWidth, 0.f ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar );
     if ( !pane_open )
         return true;
 
@@ -3723,17 +3920,21 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
         return true;
 
     const float row_h = FluentDpx( style.NavItemHeight );
-    if ( ImGui::InvisibleButton( "##nav-toggle", ImVec2( g_Ctx.NavView.CurrentWidth - FluentDpx( style.SpacingMedium ), row_h ) ) )
+    // InvisibleButton is NoNav by default: EnableNav keeps the pane toggle reachable with Tab.
+    if ( ImGui::InvisibleButton( "##nav-toggle", ImVec2( g_Ctx.NavView.CurrentWidth - FluentDpx( style.SpacingMedium ), row_h ), ImGuiButtonFlags_EnableNav ) )
     {
         if ( mode_io )
             *mode_io = ( g_Ctx.NavView.Mode == ImFluentNavViewMode_LeftOpen ) ? ImFluentNavViewMode_LeftCompact : ImFluentNavViewMode_LeftOpen;
     }
     {
-        const ImRect bb = ImGui::GetCurrentContext()->LastItemData.Rect;
-        ImDrawList * dl = ImGui::GetWindowDrawList();
-        const bool hov  = ImGui::IsItemHovered();
+        const ImGuiLastItemData & item = ImGui::GetCurrentContext()->LastItemData;
+        const ImRect bb                = item.Rect;
+        ImDrawList * dl                = ImGui::GetWindowDrawList();
+        const bool hov                 = ImGui::IsItemHovered();
+        ReportItemInfo( item.ID, "Toggle pane" );
         if ( hov )
             dl->AddRectFilled( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary ), FluentDpx( style.ControlCornerRadius ) );
+        RenderNavFocusRing( item.ID, bb, FluentDpx( style.ControlCornerRadius ) );
 
         const float cx = bb.Min.x + FluentDpx( style.SpacingXXLarge );
         const float cy = ( bb.Min.y + bb.Max.y ) * 0.5f;
@@ -3851,6 +4052,12 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     ImGuiStorage * storage = ImGui::GetStateStorage();
     bool expanded          = storage->GetBool( id, false );
     if ( pressed )
+    {
+        expanded = !expanded;
+        storage->SetBool( id, expanded );
+    }
+    // Keyboard (WinUI NavigationView): Right expands a collapsed parent item, Left collapses an expanded one.
+    if ( ( expanded && ConsumeNavArrow( id, ImGuiDir_Left ) ) || ( !expanded && ConsumeNavArrow( id, ImGuiDir_Right ) ) )
     {
         expanded = !expanded;
         storage->SetBool( id, expanded );
@@ -4021,7 +4228,7 @@ void ImFluent::NavigationViewBeginContent()
     const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillAlt ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXXLarge ), FluentDpx( style.SpacingXXLarge ) ) );
-    ImGui::BeginChild( "##nav-content", ImVec2( 0, 0 ), ImGuiChildFlags_AlwaysUseWindowPadding );
+    ImGui::BeginChild( "##nav-content", ImVec2( 0, 0 ), ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened );
     g_Ctx.NavView.ContentStarted = true;
 }
 
@@ -4111,7 +4318,7 @@ bool ImFluent::BeginSplitViewPane()
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
     char child_id[ 80 ];
     ImFormatString( child_id, sizeof( child_id ), "##sv-pane-%s", s.Id );
-    const bool pane_open = ImGui::BeginChild( child_id, ImVec2( s.CurrentPaneWidth, s.Height ), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar );
+    const bool pane_open = ImGui::BeginChild( child_id, ImVec2( s.CurrentPaneWidth, s.Height ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar );
     if ( !pane_open )
     {
         ImGui::EndChild();
@@ -4157,7 +4364,7 @@ bool ImFluent::BeginSplitViewContent()
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( pad, pad ) );
     char child_id[ 80 ];
     ImFormatString( child_id, sizeof( child_id ), "##sv-content-%s", s.Id );
-    const bool open = ImGui::BeginChild( child_id, ImVec2( s.ContentWidth, s.Height ), ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+    const bool open = ImGui::BeginChild( child_id, ImVec2( s.ContentWidth, s.Height ), ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
     if ( !open )
     {
         ImGui::EndChild();
@@ -4239,7 +4446,9 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
 
     const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
     const bool nav_activate = ( gctx.NavActivateId == id );
-    const bool toggle       = ( click_in_bb || nav_activate ) && !disabled;
+    // WinUI ComboBox also opens with Alt+Down and F4.
+    const bool key_open     = !popup_open && !disabled && ( IsFocusedItemKeyPressed( id, ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ConsumeNavArrow( id, ImGuiDir_Down ) ) );
+    const bool toggle       = ( click_in_bb || nav_activate || key_open ) && !disabled;
 
     if ( toggle )
     {
@@ -4324,9 +4533,14 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
                     changed = true;
                     ImGui::CloseCurrentPopup();
                 }
+                if ( sel )
+                    ImGui::SetItemDefaultFocus(); // Keyboard focus starts on the selected item
                 ImGui::PopID();
             }
         }
+        // Only a list that was already open closes: the key press that opened it must not close it again.
+        if ( popup_open && ( ImGui::IsKeyPressed( ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ImGui::IsKeyPressed( ImGuiKey_UpArrow, false ) ) ) )
+            ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
     PopOverlayWindowStyle();
@@ -4532,6 +4746,11 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     }
     if ( row_pressed && !check_pressed && p_open )
         *p_open = !*p_open;
+    // Keyboard (WinUI TreeView): Right expands a collapsed node, Left collapses an expanded one.
+    if ( p_open && *p_open && ConsumeNavArrow( id, ImGuiDir_Left ) )
+        *p_open = false;
+    else if ( p_open && !*p_open && ConsumeNavArrow( id, ImGuiDir_Right ) )
+        *p_open = true;
 
     const bool isOpen   = p_open && *p_open;
     const bool selected = p_checked && *p_checked;
@@ -4567,6 +4786,7 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
         ImGui::PushStyleColor( ImGuiCol_Border, box_stroke_anim );
         ImGui::RenderFrame( check_bb.Min, check_bb.Max, box_fill_anim, true, box_r );
         ImGui::PopStyleColor();
+        RenderNavFocusRing( cid, check_bb, box_r );
         if ( *p_checked )
         {
             const ImU32 mark = ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary );
@@ -4940,6 +5160,25 @@ bool ImFluent::BeginMenuFlyout( const char * id )
     return true;
 }
 
+// Invoking a menu item closes the whole menu, submenus included (WinUI MenuFlyout). The chain is the run of
+// open popups where each one was begun inside the previous one.
+static void CloseMenuFlyoutChain()
+{
+    ImGuiContext & g = *GImGui;
+    int level        = -1;
+    for ( int i = g.OpenPopupStack.Size - 1; i >= 0; --i )
+        if ( g.OpenPopupStack[ i ].Window == g.CurrentWindow )
+        {
+            level = i;
+            break;
+        }
+    if ( level < 0 )
+        return;
+    while ( level > 0 && g.OpenPopupStack[ level ].Window && g.OpenPopupStack[ level ].Window->ParentWindow == g.OpenPopupStack[ level - 1 ].Window )
+        --level;
+    ImGui::ClosePopupToLevel( level, true );
+}
+
 bool ImFluent::MenuFlyoutItem( const char * label, const char * shortcut, const char * glyph, bool selected, bool enabled )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
@@ -4956,20 +5195,30 @@ bool ImFluent::MenuFlyoutItem( const char * label, const char * shortcut, const 
     const float W               = ImMax( min_w, ts.x + ss.x + FluentDpx( style.AppBarButtonWidth ) );
     const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
     ImGui::ItemSize( bb );
-    if ( !ImGui::ItemAdd( bb, id ) )
+    // A disabled item carries ImGuiItemFlags_Disabled so keyboard navigation skips it, as in WinUI.
+    if ( !enabled )
+        ImGui::PushItemFlag( ImGuiItemFlags_Disabled, true );
+    const bool added = ImGui::ItemAdd( bb, id );
+    if ( !enabled )
+        ImGui::PopItemFlag();
+    if ( !added )
         return false;
     bool hov = false, held = false;
     const bool pressed    = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held ) : false;
     ReportItemInfo( id, label );
     ImDrawList * dl       = w->DrawList;
-    const ImU32 mf_target = ResolveSubtleFillState( selected, held, hov );
-    dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, mf_target ), FluentDpx( style.ControlCornerRadius ) );
+    const float r         = FluentDpx( style.ControlCornerRadius );
+    const ImU32 mf_target = ResolveSubtleFillState( selected, held, hov || IsItemFocused( id ) );
+    dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, mf_target ), r );
+    RenderNavFocusRing( id, bb, r );
     const float cy = ( bb.Min.y + bb.Max.y - ts.y ) * 0.5f;
     if ( glyph )
         dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingLarge ), cy ), ImFluent::GetColorU32( enabled ? ImFluentCol_TextPrimary : ImFluentCol_TextDisabled ), glyph );
     dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.NavItemHeight ), cy ), ImFluent::GetColorU32( enabled ? ImFluentCol_TextPrimary : ImFluentCol_TextDisabled ), label );
     if ( shortcut )
         dl->AddText( ImVec2( bb.Max.x - FluentDpx( style.SpacingLarge ) - ss.x, cy ), ImFluent::GetColorU32( ImFluentCol_TextSecondary ), shortcut );
+    if ( pressed )
+        CloseMenuFlyoutChain();
     return pressed;
 }
 
@@ -5010,21 +5259,34 @@ bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, b
     const float W               = ImMax( min_w, ts.x + FluentDpx( style.AppBarButtonWidth ) );
     const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
     ImGui::ItemSize( bb );
-    if ( !ImGui::ItemAdd( bb, id ) )
+    if ( !enabled )
+        ImGui::PushItemFlag( ImGuiItemFlags_Disabled, true );
+    const bool added = ImGui::ItemAdd( bb, id );
+    if ( !enabled )
+        ImGui::PopItemFlag();
+    if ( !added )
         return false;
 
+    // Keyboard: Enter, Space or Right opens the submenu and moves focus into it; Left or Escape inside closes it.
+    // Hover opens it only while the mouse is in use: NoHoveredOnFocus ignores keyboard focus, and
+    // NavHighlightItemUnderNav (set by keyboard use, cleared by mouse motion) ignores a pointer that rests on
+    // the item, so Escape is not undone by a re-open on the next frame. Same rule as ImGui's BeginMenu.
     bool hov = false, held = false;
-    const bool pressed = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held, ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_NoNavFocus ) : false;
-    const bool open    = ImGui::IsPopupOpen( label, ImGuiPopupFlags_None );
-    if ( pressed || ( hov && !open ) )
+    const bool pressed     = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held, ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_NoHoveredOnFocus ) : false;
+    const bool open        = ImGui::IsPopupOpen( label, ImGuiPopupFlags_None );
+    const bool nav_open    = enabled && !open && ConsumeNavArrow( id, ImGuiDir_Right );
+    const bool mouse_hover = hov && !GImGui->NavHighlightItemUnderNav;
+    if ( pressed || nav_open || ( mouse_hover && !open ) )
     {
         ImGui::OpenPopup( label );
     }
     ReportItemInfo( id, label, OpenedFlags( open ) );
 
     ImDrawList * dl        = w->DrawList;
-    const ImU32 mfs_target = ResolveSubtleFillState( open, held, hov );
-    dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, mfs_target ), FluentDpx( style.ControlCornerRadius ) );
+    const float r          = FluentDpx( style.ControlCornerRadius );
+    const ImU32 mfs_target = ResolveSubtleFillState( open, held, hov || IsItemFocused( id ) );
+    dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, mfs_target ), r );
+    RenderNavFocusRing( id, bb, r );
     const float cy = ( bb.Min.y + bb.Max.y - ts.y ) * 0.5f;
     if ( glyph )
         dl->AddText( ImVec2( bb.Min.x + FluentDpx( style.SpacingLarge ), cy ), ImFluent::GetColorU32( enabled ? ImFluentCol_TextPrimary : ImFluentCol_TextDisabled ), glyph );
@@ -5050,6 +5312,13 @@ bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, b
 
 void ImFluent::EndMenuFlyoutSubItem()
 {
+    // Left closes this submenu when it has keyboard focus; ImGui then restores focus to the parent item.
+    ImGuiContext & g = *GImGui;
+    if ( g.NavWindow == ImGui::GetCurrentWindow() && g.NavMoveDir == ImGuiDir_Left && g.NavMoveSubmitted )
+    {
+        ImGui::NavMoveRequestCancel();
+        ImGui::CloseCurrentPopup();
+    }
     ImGui::EndPopup();
     ImGui::PopStyleVar( 3 );
     ImGui::PopStyleColor( 4 );
@@ -5141,6 +5410,8 @@ int ImFluent::EndContentDialog( const char * primary, const char * secondary, co
     {
         const bool use_accent = ( default_button == kind );
         const bool clicked    = use_accent ? ImFluent::AccentButton( label, btn_sz ) : ImFluent::Button( label, btn_sz );
+        if ( use_accent )
+            ImGui::SetItemDefaultFocus();
         if ( clicked )
         {
             result = code;
@@ -5164,6 +5435,12 @@ int ImFluent::EndContentDialog( const char * primary, const char * secondary, co
     if ( close_text )
     {
         run( close_text, ImFluentContentDialogButton_Close, 3 );
+    }
+    // Escape works like the close button (WinUI ContentDialog). ImGui does not close modals on Escape by itself.
+    if ( close_text && result == 0 && ImGui::IsWindowFocused( ImGuiFocusedFlags_RootAndChildWindows ) && ImGui::IsKeyPressed( ImGuiKey_Escape, false ) )
+    {
+        result = 3;
+        ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
     ImGui::PopStyleVar( 2 );
@@ -5283,6 +5560,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         const float ax = btn_bb.Min.x + ( btn_bb.GetWidth() - action_text_sz.x ) * 0.5f;
         const float ay = btn_bb.Min.y + ( btn_bb.GetHeight() - action_text_sz.y ) * 0.5f;
         dl->AddText( ImVec2( ax, ay ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), action_label );
+        RenderNavFocusRing( aid, btn_bb, r_btn );
     }
 
     if ( is_open )
@@ -5306,6 +5584,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         const float L = FluentDpx( style.ChevronGlyphSize + 1.f );
         dl->AddLine( ImVec2( cc.x - L, cc.y - L ), ImVec2( cc.x + L, cc.y + L ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
         dl->AddLine( ImVec2( cc.x - L, cc.y + L ), ImVec2( cc.x + L, cc.y - L ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
+        RenderNavFocusRing( cid, close_bb, FluentDpx( style.ControlCornerRadius ) );
     }
     return action_clicked;
 }
@@ -5441,7 +5720,7 @@ bool ImFluent::BeginTitleBar( const char * title, float height )
     g.PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_SolidBgBase ) );
     g.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingMedium ), pad_y ) );
     g.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingMedium ), 0.f ) );
-    if ( !ImGui::BeginChild( "##fluent-titlebar", ImVec2( 0, h ), ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
+    if ( !ImGui::BeginChild( "##fluent-titlebar", ImVec2( 0, h ), ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
     {
         ImGui::EndChild();
         return false;
@@ -5494,6 +5773,8 @@ static bool TitleBarChromeButton( const char * id, const char * name, const char
     const ImU32 textCol = ImFluent::GetColorU32( enabled ? ImFluentCol_TextPrimary : ImFluentCol_TextDisabled );
     const ImVec2 ts     = ImGui::CalcTextSize( glyph );
     dl->AddText( ImVec2( bb.Min.x + ( btn_w - ts.x ) * 0.5f, bb.Min.y + ( bar_h - ts.y ) * 0.5f ), textCol, glyph );
+    if ( enabled )
+        ImFluent::RenderNavFocusRing( iid, bb, r );
     ImGui::SameLine();
     return pressed;
 }
@@ -5587,7 +5868,7 @@ bool ImFluent::BeginCommandBar( const char * id, float height )
     g.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingMedium ), 0.f ) );
     g.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingXSmall ), 0.f ) );
 
-    if ( !ImGui::BeginChild( id, ImVec2( 0, h ), ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
+    if ( !ImGui::BeginChild( id, ImVec2( 0, h ), ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
     {
         ImGui::EndChild();
         return false;

@@ -1158,7 +1158,7 @@ namespace ImFluentGalleryApp
             static int back_clicks             = 0;
             static char search_buf[ 64 ]       = "";
             static const char * search_items[] = { "Home", "Inbox", "Folders", "Contacts", "Settings" };
-            ImGui::BeginChild( "##nav-host-1", ImVec2( 0, pane_demo_h ), ImGuiChildFlags_None );
+            ImGui::BeginChild( "##nav-host-1", ImVec2( 0, pane_demo_h ), ImGuiChildFlags_NavFlattened );
             BeginNavigationView( "##demoNav", &mode );
             NavPaneTitle( "My App" );
             NavPaneAutoSuggestBox( "##nav-search", search_buf, sizeof( search_buf ), search_items, IM_ARRAYSIZE( search_items ), NULL, "Search" );
@@ -1213,7 +1213,7 @@ namespace ImFluentGalleryApp
         {
             static ImFluentNavViewMode mode = ImFluentNavViewMode_LeftCompact;
             static int sel                  = 0;
-            ImGui::BeginChild( "##nav-host-3", ImVec2( 0, pane_demo_h ), ImGuiChildFlags_None );
+            ImGui::BeginChild( "##nav-host-3", ImVec2( 0, pane_demo_h ), ImGuiChildFlags_NavFlattened );
             SetNextNavPaneToggleButtonVisible( false );
             BeginNavigationView( "##demoNavNoToggle", &mode );
             if ( NavItem( "Home", sel == 0, ImFluentIcon_Home ) )
@@ -1694,7 +1694,7 @@ namespace ImFluentGalleryApp
             ToggleSwitch( "Pane open", &pane_open );
 
             ImGui::Dummy( ImVec2( 0, FluentDpx( 8.f ) ) );
-            ImGui::BeginChild( "##sv-host", ImVec2( FluentDpx( 560.f ), FluentDpx( 280.f ) ), ImGuiChildFlags_Borders );
+            ImGui::BeginChild( "##sv-host", ImVec2( FluentDpx( 560.f ), FluentDpx( 280.f ) ), ImGuiChildFlags_Borders | ImGuiChildFlags_NavFlattened );
             if ( BeginSplitView( "##sv1", &pane_open, ( ImFluentSplitViewDisplayMode )mode_pick, ( ImFluentSplitViewPanePlacement )place_pick ) )
             {
                 if ( BeginSplitViewContent() )
@@ -2122,7 +2122,7 @@ namespace ImFluentGalleryApp
 
         ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_SolidBgBase ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 8.f ), FluentDpx( 4.f ) ) );
-        ImGui::BeginChild( "##titlebar", ImVec2( 0, h ), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        ImGui::BeginChild( "##titlebar", ImVec2( 0, h ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
 
         ImGui::BeginDisabled( g_State.NavCursor <= 0 );
         if ( AppBarButton( ImFluentIcon_Back, nullptr, ImVec2( FluentDpx( 40.f ), FluentDpx( 32.f ) ) ) )

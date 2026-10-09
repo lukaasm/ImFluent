@@ -67,6 +67,12 @@ namespace
         bool EngineQueued = false;
         bool ShuttingDown = false;
 
+        // A test starts in mouse input mode, which hides the keyboard focus cursor. Each MCP call is one test,
+        // so the cursor state is saved before the call and restored inside it: a key sequence split over several
+        // calls behaves like one continuous session.
+        bool SavedNavCursorVisible     = false;
+        bool SavedNavHighlightUnderNav = false;
+
         // --run-tests
         bool CliTestsQueued = false;
         bool CliTestsDone   = false;
@@ -211,6 +217,28 @@ namespace
         if ( g.IO.WantTextInput )
             j[ "text_input" ] = true;
         return j;
+    }
+
+    // Labels are only known to the Test Engine for items it queried recently. Querying the focused, active,
+    // hovered and popup-opener items (one or two frames) lets NavState() report their labels.
+    void RefreshLabels( ImGuiTestContext * ctx )
+    {
+        ImGuiContext & g = *GImGui;
+        ImVector< ImGuiID > ids;
+        ids.push_back( g.NavId );
+        ids.push_back( g.ActiveId );
+        ids.push_back( g.HoveredId );
+        for ( const ImGuiPopupData & p : g.OpenPopupStack )
+            ids.push_back( p.OpenParentId );
+        for ( ImGuiID id : ids )
+            if ( id != 0 && FindLabel( id )[ 0 ] == 0 )
+                ctx->ItemInfo( id, ImGuiTestOpFlags_NoError );
+    }
+
+    json NavStateWithLabels( ImGuiTestContext * ctx )
+    {
+        RefreshLabels( ctx );
+        return NavState();
     }
 
     json ListWindows( bool include_hidden )
@@ -630,7 +658,7 @@ namespace
         if ( ctx->IsError() )
             return "step '" + action + "' failed";
         if ( step.value( "state", false ) )
-            out[ "state" ] = NavState();
+            out[ "state" ] = NavStateWithLabels( ctx );
         return std::string();
     }
 
@@ -646,6 +674,8 @@ namespace
         JobPtr job = g_Auto.Current;
         if ( !job )
             return;
+        ctx->UiContext->NavCursorVisible         = g_Auto.SavedNavCursorVisible;
+        ctx->UiContext->NavHighlightItemUnderNav = g_Auto.SavedNavHighlightUnderNav;
         const json & args        = job->Args;
         const std::string window = args.value( "window", std::string() );
         json result              = json::object();
@@ -695,6 +725,8 @@ namespace
             if ( skipped )
                 result[ "truncated" ] = skipped;
         }
+        else if ( job->Tool == "nav_state" )
+            result = NavStateWithLabels( ctx );
         else if ( job->Tool == "item_info" )
         {
             std::string storage;
@@ -746,7 +778,7 @@ namespace
             ctx->Yield( 2 ); // Let the UI settle so the reported state matches the next screenshot
             if ( !step_results.empty() )
                 result[ "steps" ] = step_results;
-            result[ "state" ] = NavState();
+            result[ "state" ] = NavStateWithLabels( ctx );
         }
         g_Auto.EngineResult = result;
     }
@@ -755,7 +787,7 @@ namespace
 
     bool IsEngineTool( const std::string & tool )
     {
-        return tool == "list_items" || tool == "item_info" || tool == "click" || tool == "hover" || tool == "key" || tool == "type_text" || tool == "mouse" || tool == "run_steps" || tool == "run_tests";
+        return tool == "list_items" || tool == "item_info" || tool == "nav_state" || tool == "click" || tool == "hover" || tool == "key" || tool == "type_text" || tool == "mouse" || tool == "run_steps" || tool == "run_tests";
     }
 
     json ToolDefinitions()
@@ -793,6 +825,8 @@ namespace
         add( "click", "Move the mouse to an item and click it.", { { "ref", { { "type", "string" }, { "description", ref_desc } } }, { "window", { { "type", "string" }, { "description", window_desc } } }, { "button", { { "type", "string" }, { "enum", { "left", "right", "middle" } } } }, { "double", { { "type", "boolean" } } }, { "speed", { { "type", "string" }, { "description", speed_desc } } } },
             json::array( { "ref" } ) );
         add( "hover", "Move the mouse over an item.", { { "ref", { { "type", "string" }, { "description", ref_desc } } }, { "window", { { "type", "string" }, { "description", window_desc } } } }, json::array( { "ref" } ) );
+        add( "debug_log", "Read Dear ImGui's internal event log. Pass 'channels' to choose what it records from now on (activeid, focus, popup, nav, io, inputrouting, selection; [] stops it).",
+            { { "channels", { { "type", "array" }, { "items", { { "type", "string" } } } } }, { "clear", { { "type", "boolean" }, { "description", "Clear the log after reading (default true)." } } }, { "max_chars", { { "type", "integer" } } } }, json::array() );
         add( "key", "Press keys. 'keys' holds chords separated by spaces, e.g. \"Tab\", \"Shift+Tab\", \"Alt+Down\", \"Down Down Enter\". Returns the keyboard focus afterwards.", { { "keys", { { "type", "string" } } }, { "count", { { "type", "integer" }, { "description", "Repeat the whole sequence." } } }, { "speed", { { "type", "string" }, { "description", speed_desc } } } },
             json::array( { "keys" } ) );
         add( "type_text", "Type characters into the focused text field, or click 'ref' first.",
@@ -900,8 +934,34 @@ namespace
             return TakeScreenshot( a );
         if ( job.Tool == "list_windows" )
             return ToolText( ListWindows( a.value( "include_hidden", false ) ) );
-        if ( job.Tool == "nav_state" )
-            return ToolText( NavState() );
+        if ( job.Tool == "debug_log" )
+        {
+            // Dear ImGui's internal event log (Tools > Debug Log in the Metrics window).
+            struct Channel
+            {
+                const char * Name;
+                ImGuiDebugLogFlags Flag;
+            };
+            static const Channel channels[] = { { "activeid", ImGuiDebugLogFlags_EventActiveId }, { "focus", ImGuiDebugLogFlags_EventFocus }, { "popup", ImGuiDebugLogFlags_EventPopup }, { "nav", ImGuiDebugLogFlags_EventNav }, { "io", ImGuiDebugLogFlags_EventIO }, { "inputrouting", ImGuiDebugLogFlags_EventInputRouting }, { "selection", ImGuiDebugLogFlags_EventSelection } };
+            if ( a.contains( "channels" ) && a[ "channels" ].is_array() )
+            {
+                g.DebugLogFlags &= ~ImGuiDebugLogFlags_EventMask_;
+                for ( const json & c : a[ "channels" ] )
+                    for ( const Channel & ch : channels )
+                        if ( c.is_string() && c.get< std::string >() == ch.Name )
+                            g.DebugLogFlags |= ch.Flag;
+            }
+            std::string text       = g.DebugLogBuf.c_str();
+            const size_t max_chars = ( size_t )a.value( "max_chars", 12000 );
+            if ( text.size() > max_chars )
+                text = "...\n" + text.substr( text.size() - max_chars );
+            if ( a.value( "clear", true ) )
+            {
+                g.DebugLogBuf.clear();
+                g.DebugLogIndex.clear();
+            }
+            return { { "content", json::array( { { { "type", "text" }, { "text", text.empty() ? std::string( "(empty)" ) : text } } } ) }, { "isError", false } };
+        }
         return ToolError( "unknown tool '" + job.Tool + "'" );
     }
 
@@ -939,7 +999,9 @@ namespace
     void StartEngineJob( Job & job )
     {
         SetRunSpeed( job.Args );
-        g_Auto.EngineResult = json();
+        g_Auto.EngineResult              = json();
+        g_Auto.SavedNavCursorVisible     = GImGui->NavCursorVisible;
+        g_Auto.SavedNavHighlightUnderNav = GImGui->NavHighlightItemUnderNav;
         if ( job.Tool == "run_tests" )
         {
             ResetTestStatuses();
