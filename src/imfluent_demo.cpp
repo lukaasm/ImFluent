@@ -1536,22 +1536,31 @@ namespace ImFluentGalleryApp
         if ( BeginControlExample( "Files" ) )
         {
             static bool a = true, b = false;
+            static int sel              = 3;
+            static const char * names[] = { "Documents", "Work", "report.docx", "notes.txt" };
             BeginTreeView( "##files" );
             SetNextItemGlyph( ImFluentIcon_Folder );
-            if ( TreeNode( "Documents", &a ) )
+            if ( TreeViewItem( names[ 0 ], sel == 0, &a ) )
+                sel = 0;
+            if ( a )
             {
                 SetNextItemGlyph( ImFluentIcon_Folder );
-                if ( TreeNode( "Work", &b ) )
+                if ( TreeViewItem( names[ 1 ], sel == 1, &b ) )
+                    sel = 1;
+                if ( b )
                 {
                     SetNextItemGlyph( ImFluentIcon_Document );
-                    ListViewItem( "report.docx", false );
+                    if ( TreeViewItem( names[ 2 ], sel == 2 ) )
+                        sel = 2;
                     TreePop();
                 }
                 SetNextItemGlyph( ImFluentIcon_Document );
-                ListViewItem( "notes.txt", false );
+                if ( TreeViewItem( names[ 3 ], sel == 3 ) )
+                    sel = 3;
                 TreePop();
             }
             EndTreeView();
+            ControlExampleOutput( "Selected: %s", names[ sel ] );
         }
         EndControlExample();
 

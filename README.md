@@ -77,8 +77,8 @@ automation described below.
 
 Composite controls (RadioButtons, ListView, SelectorBar, NavigationView, TabView, ...) are one Tab stop,
 arrows move inside them, and popups close with Escape and give focus back to their owner. Put `ListViewItem`,
-`GridViewItem` and `TreeNode` rows between `BeginListView` / `BeginGridView` / `BeginTreeView` and the matching
-`End` call to make the list one Tab stop too.
+`GridViewItem`, `TreeViewItem` and `TreeNode` rows between `BeginListView` / `BeginGridView` / `BeginTreeView`
+and the matching `End` call to make the list one Tab stop too.
 
 Command shortcuts are key chords in `ImFluentActions`, with WinUI defaults. Change one, or set it to 0 to turn
 it off:

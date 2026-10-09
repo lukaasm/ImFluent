@@ -6079,9 +6079,9 @@ void ImFluent::EndGridView()
     EndItemsContainer();
 }
 
-void ImFluent::BeginTreeView( const char * id )
+void ImFluent::BeginTreeView( const char * id, ImFluentItemsViewFlags flags )
 {
-    BeginItemsContainer( id, ImFluentTabGroupFlags_Vertical );
+    BeginItemsContainer( id, ImFluentTabGroupFlags_Vertical | ItemsViewSelectFlags( flags ) );
 }
 
 void ImFluent::EndTreeView()
@@ -6132,16 +6132,26 @@ bool ImFluent::ListViewItem( const char * label, bool selected, const char * gly
     return pressed;
 }
 
-bool ImFluent::TreeNode( const char * label, bool * p_open )
+// An open row indents its children and is their parent for Left (TreePop undoes it).
+static bool TreeRowBeginChildren( ImGuiID id, bool open )
 {
-    return TreeNode( label, p_open, NULL );
+    if ( open )
+    {
+        ImGui::Indent( ImFluent::FluentDpx( ImFluent::GetStyle().CheckboxSize ) );
+        g_Ctx.TreeParentStack.push_back( id );
+    }
+    return open;
 }
 
-bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
+// A TreeView row. single_selected < 0: TreeNode (a click toggles *p_open, optional checkbox for multiple selection).
+// Else TreeViewItem: a click, Space/Enter or Up/Down arrival sets *out_select, the chevron toggles *p_open (WinUI single selection).
+static bool TreeRow( const char * label, bool * p_open, bool * p_checked, int single_selected, bool * out_select )
 {
-    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    using namespace ImFluent;
+    ImGuiWindow * w   = ImGui::GetCurrentWindow();
+    const bool single = single_selected >= 0;
     if ( w->SkipItems )
-        return false;
+        return single && p_open && TreeRowBeginChildren( w->GetID( label ), *p_open ); // TreeViewItem callers TreePop() while *p_open
     const ImFluentStyle & style = ImFluent::GetStyle();
     const ImGuiID id            = w->GetID( label );
     const float h               = FluentDpx( style.ControlHeight );
@@ -6178,19 +6188,12 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
         x += glyph_w + glyph_gap;
     const float label_x = x;
 
-    if ( p_checked )
+    const bool chevron_button = single && p_open;
+    if ( p_checked || chevron_button )
         ImGui::SetNextItemAllowOverlap();
     const bool in_tree_view = InItemsContainer();
-    if ( !ImGui::ItemAdd( bb, id, NULL, in_tree_view ? TabGroupItemFlags( id, false ) : ImGuiItemFlags_None ) )
-    {
-        const bool clipped_open = p_open && *p_open;
-        if ( clipped_open )
-        {
-            ImGui::Indent( FluentDpx( style.CheckboxSize ) );
-            g_Ctx.TreeParentStack.push_back( id );
-        }
-        return clipped_open;
-    }
+    if ( !ImGui::ItemAdd( bb, id, NULL, in_tree_view ? TabGroupItemFlags( id, single_selected > 0 ) : ImGuiItemFlags_None ) )
+        return TreeRowBeginChildren( id, p_open && *p_open );
 
     bool hovered = false, held = false;
     const bool row_pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
@@ -6208,8 +6211,22 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
         *p_open = true;
     else
         TreeRowLeftToParent( id );
-    if ( in_tree_view )
-        TabGroupItemNav( id );
+    const bool arrived = in_tree_view && TabGroupItemNav( id );
+
+    if ( chevron_button )
+    {
+        const float half  = ( chevron_w + chevron_gap ) * 0.5f;
+        const ImGuiID vid = w->GetID( ( const void * )( ( intptr_t )id ^ 0xC4EDu ) );
+        const ImRect chevron_bb( ImVec2( chevron_cx - half, bb.Min.y ), ImVec2( chevron_cx + half, bb.Max.y ) );
+        ImGui::ItemAdd( chevron_bb, vid, NULL, ImGuiItemFlags_NoTabStop | ImGuiItemFlags_NoNav );
+        bool chevron_hov = false, chevron_held = false;
+        if ( ImGui::ButtonBehavior( chevron_bb, vid, &chevron_hov, &chevron_held ) )
+            *p_open = !*p_open;
+        ReportItemInfo( vid, "Expand", OpenedFlags( *p_open ) );
+        hovered |= chevron_hov;
+    }
+    if ( out_select )
+        *out_select = row_pressed || arrived;
 
     // The checkbox is not a tab stop: Space toggles it (WinUI TreeView multiple selection); Enter and clicks expand/collapse.
     const bool space_check = p_checked && row_pressed && GImGui->NavActivatePressedId == id && !IsEnterActivation( id );
@@ -6223,12 +6240,12 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
             *p_checked = !*p_checked;
         ReportItemInfo( cid, "Check", CheckedFlags( *p_checked ) );
     }
-    if ( row_pressed && !check_pressed && !space_check && p_open )
+    if ( !single && row_pressed && !check_pressed && !space_check && p_open )
         *p_open = !*p_open;
 
     const bool isOpen   = p_open && *p_open;
-    const bool selected = p_checked && *p_checked;
-    ReportItemInfo( id, label, OpenedFlags( isOpen ) );
+    const bool selected = single ? single_selected > 0 : p_checked && *p_checked;
+    ReportItemInfo( id, label, OpenedFlags( isOpen ) | ( single ? CheckedFlags( selected ) : 0 ) );
 
     ImDrawList * dl = w->DrawList;
     const float r   = FluentDpx( style.ControlCornerRadius );
@@ -6272,7 +6289,8 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
         }
     }
 
-    RenderChevron( dl, ImVec2( chevron_cx, cy ), isOpen ? ImGuiDir_Down : ImGuiDir_Right, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.ChevronGlyphSize ) );
+    if ( !single || p_open ) // A TreeViewItem leaf has no chevron
+        RenderChevron( dl, ImVec2( chevron_cx, cy ), isOpen ? ImGuiDir_Down : ImGuiDir_Right, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.ChevronGlyphSize ) );
 
     if ( glyph )
         dl->AddText( ImVec2( glyph_x, cy - ImGui::GetFontSize() * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
@@ -6280,12 +6298,24 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     dl->AddText( ImVec2( label_x, cy - ImGui::GetFontSize() * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
 
     RenderNavFocusRing( id, bb, r );
-    if ( isOpen )
-    {
-        ImGui::Indent( FluentDpx( style.CheckboxSize ) );
-        g_Ctx.TreeParentStack.push_back( id );
-    }
-    return isOpen;
+    return TreeRowBeginChildren( id, isOpen );
+}
+
+bool ImFluent::TreeNode( const char * label, bool * p_open )
+{
+    return TreeRow( label, p_open, NULL, -1, NULL );
+}
+
+bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
+{
+    return TreeRow( label, p_open, p_checked, -1, NULL );
+}
+
+bool ImFluent::TreeViewItem( const char * label, bool selected, bool * p_open )
+{
+    bool select = false;
+    TreeRow( label, p_open, NULL, selected ? 1 : 0, &select );
+    return select;
 }
 
 void ImFluent::TreePop()

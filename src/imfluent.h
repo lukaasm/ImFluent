@@ -592,12 +592,15 @@ namespace ImFluent
     IMGUI_API void EndListView();
     IMGUI_API void BeginGridView( const char * id, ImFluentItemsViewFlags flags = 0 );
     IMGUI_API void EndGridView();
-    IMGUI_API void BeginTreeView( const char * id );
+    IMGUI_API void BeginTreeView( const char * id, ImFluentItemsViewFlags flags = 0 );
     IMGUI_API void EndTreeView();
     IMGUI_API bool ListViewItem( const char * label, bool selected = false, const char * glyph = NULL );
     IMGUI_API bool TreeNode( const char * label, bool * p_open );
 
     IMGUI_API bool TreeNode( const char * label, bool * p_open, bool * p_checked );
+    // Single selection row: returns true when clicked or when Up/Down focus it (as ListViewItem); the chevron toggles *p_open.
+    // With p_open it has children: call TreePop() while *p_open.
+    IMGUI_API bool TreeViewItem( const char * label, bool selected, bool * p_open = NULL );
     IMGUI_API void TreePop();
     IMGUI_API bool GridViewItem( const char * label, bool selected, const ImVec2 & size );
     IMGUI_API bool PipsPager( const char * id, int * current_item, int total_pages );

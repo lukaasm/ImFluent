@@ -78,6 +78,7 @@ struct KeyboardVars
     double Number    = 5.0;
     bool TreeOpen    = false;
     bool TreeChild   = false;
+    int TreeSel      = 0;
 
     ImFluent::ImFluentDate Date = { 2026, 5, 9 };
     ImFluent::ImFluentTime Time = { 14, 30 };
@@ -1629,6 +1630,73 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
+    };
+
+    // WinUI TreeView single selection: Up/Down select, Left/Right and Ctrl+arrows move focus only, Space selects,
+    // the chevron expands without selecting.
+    t = IM_REGISTER_TEST( engine, "keyboard", "tree_view_item_single_selection" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        ImFluent::BeginTreeView( "single" );
+        if ( ImFluent::TreeViewItem( "Docs", v.TreeSel == 0, &v.TreeOpen ) )
+            v.TreeSel = 0;
+        if ( v.TreeOpen )
+        {
+            if ( ImFluent::TreeViewItem( "Work", v.TreeSel == 1 ) )
+                v.TreeSel = 1;
+            if ( ImFluent::TreeViewItem( "Notes", v.TreeSel == 2 ) )
+                v.TreeSel = 2;
+            ImFluent::TreePop();
+        }
+        if ( ImFluent::TreeViewItem( "Music", v.TreeSel == 3 ) )
+            v.TreeSel = 3;
+        ImFluent::EndTreeView();
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Docs" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK( v.TreeOpen );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Work" );
+        IM_CHECK_EQ( v.TreeSel, 0 );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Notes" );
+        IM_CHECK_EQ( v.TreeSel, 2 );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_EQ( v.TreeSel, 3 );
+        ctx->KeyPress( ImGuiKey_UpArrow );
+        IM_CHECK_EQ( v.TreeSel, 2 );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Docs" );
+        IM_CHECK_EQ( v.TreeSel, 2 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Notes" );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Music" );
+        IM_CHECK_EQ( v.TreeSel, 2 );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( v.TreeSel, 3 );
+
+        ctx->SetInputMode( ImGuiInputSource_Mouse );
+        ctx->ItemClick( "**/Expand" );
+        IM_CHECK( !v.TreeOpen );
+        IM_CHECK_EQ( v.TreeSel, 3 );
+        ctx->ItemClick( "**/Docs" );
+        IM_CHECK_EQ( v.TreeSel, 0 );
+        IM_CHECK( !v.TreeOpen );
     };
 
     // WinUI CommandBar: Left/Right stop at the first command and at More; Down on More opens the overflow, Escape focuses More.
