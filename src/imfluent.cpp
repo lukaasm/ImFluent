@@ -5282,7 +5282,7 @@ static int ComboTypeAheadSearch( ImGuiID id, int current, const char * const ite
     return -1;
 }
 
-bool ImFluent::ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags )
+bool ImFluent::ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags, const char * placeholder )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems )
@@ -5395,8 +5395,11 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     else
         ImFluent::StrokeRect( dl, bb.Min, bb.Max, stroke, r );
 
-    const ImU32 text_col = ImFluent::GetColorU32( disabled ? ImFluentCol_TextDisabled : ImFluentCol_TextPrimary );
-    if ( !( flags & ImGuiComboFlags_NoPreview ) && preview && *preview )
+    // No selection shows the placeholder (WinUI PlaceholderText) in the secondary text colour.
+    const bool is_placeholder = !( preview && *preview ) && placeholder && *placeholder;
+    const char * shown        = is_placeholder ? placeholder : preview;
+    const ImU32 text_col      = ImFluent::GetColorU32( disabled ? ImFluentCol_TextDisabled : is_placeholder ? ImFluentCol_TextSecondary : ImFluentCol_TextPrimary );
+    if ( !( flags & ImGuiComboFlags_NoPreview ) && shown && *shown )
     {
         const float pad_x = FluentDpx( style.SpacingLarge );
         ImFluentStackGuard g;
@@ -5404,7 +5407,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         const ImVec2 tmin( bb.Min.x + pad_x, bb.Min.y );
         const ImVec2 tmax( bb.Max.x - chev_w, bb.Max.y );
         const ImRect text_clip( tmin, tmax );
-        ImGui::RenderTextClipped( tmin, tmax, preview, ImGui::FindRenderedTextEnd( preview ), NULL, ImVec2( 0.f, 0.5f ), &text_clip );
+        ImGui::RenderTextClipped( tmin, tmax, shown, ImGui::FindRenderedTextEnd( shown ), NULL, ImVec2( 0.f, 0.5f ), &text_clip );
     }
 
     if ( chev_w > 0.f )

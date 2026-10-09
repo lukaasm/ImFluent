@@ -525,7 +525,7 @@ namespace ImFluent
     IMGUI_API bool IsNavPaneOpening();
     IMGUI_API bool IsNavPaneClosing();
 
-    IMGUI_API bool ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags = 0 );
+    IMGUI_API bool ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags = 0, const char * placeholder = NULL ); // placeholder: shown while *current_item < 0
     IMGUI_API bool ListBox( const char * label, int * current_item, const char * const items[], int items_count, int height_in_items = 7 );
     IMGUI_API bool Selectable( const char * label, bool selected = false, const char * glyph = NULL, float height = 0.f );
     // ListViewItem/GridViewItem/TreeNode between these are one Tab stop with WinUI arrow keys (optional).
