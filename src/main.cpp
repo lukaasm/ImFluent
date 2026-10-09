@@ -17,8 +17,7 @@
 #include "automation/imfluent_automation.h"
 #endif
 
-// The gallery renders into an offscreen "scene" texture and blits it to the swapchain.
-// Keeping the last frame in a texture we own lets automation read pixels back (screenshots).
+// Renders into an offscreen scene texture blitted to the swapchain, so automation can read pixels back.
 struct GalleryRenderer
 {
     SDL_GPUDevice * Device         = nullptr;
@@ -133,8 +132,7 @@ int main( int argc, char ** argv )
     if ( window == nullptr )
         return 1;
 
-    // --hidden: never show the window; the gallery renders offscreen, which is enough for automation and screenshots.
-    // --no-activate: show the window without taking keyboard focus from the application in front.
+    // --hidden: never show the window (offscreen only). --no-activate: show it without taking keyboard focus.
     const bool hidden = HasArg( argc, argv, "--hidden" );
     if ( HasArg( argc, argv, "--no-activate" ) )
         SDL_SetHint( SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0" );
@@ -237,7 +235,6 @@ int main( int argc, char ** argv )
         if ( ImFluentAutomation::WantsExit( &exit_code ) )
             done = true;
 
-        // Skip vsync while the Test Engine runs in fast mode.
         const SDL_GPUPresentMode want_mode = ( ImFluentAutomation::WantsMaxSpeed() && SDL_WindowSupportsGPUPresentMode( gpu_device, window, SDL_GPU_PRESENTMODE_IMMEDIATE ) ) ? SDL_GPU_PRESENTMODE_IMMEDIATE : SDL_GPU_PRESENTMODE_VSYNC;
         if ( want_mode != renderer.PresentMode )
         {
@@ -275,7 +272,6 @@ int main( int argc, char ** argv )
         Uint32 swapchain_w = 0, swapchain_h = 0;
         if ( hidden )
         {
-            // No swapchain: render into the offscreen scene only, at the window's pixel size.
             int pw = 0, ph = 0;
             SDL_GetWindowSizeInPixels( window, &pw, &ph );
             swapchain_w = ( Uint32 )( pw > 0 ? pw : 0 );
@@ -315,8 +311,7 @@ int main( int argc, char ** argv )
 
         SDL_SubmitGPUCommandBuffer( command_buffer );
 
-        // Without presenting there is no vsync: cap a hidden gallery near 60 frames per second,
-        // unless the Test Engine asks for maximum speed.
+        // Without presenting there is no vsync: cap a hidden gallery near 60 fps.
         bool max_speed = false;
 #if defined( IMFLUENT_GALLERY_AUTOMATION )
         max_speed = ImFluentAutomation::WantsMaxSpeed();

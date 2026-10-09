@@ -82,7 +82,7 @@ static bool EqualsNoCase( const char * a, const char * b, size_t n )
     return true;
 }
 
-// Browsers attach Origin; local tools usually do not. Only loopback origins may talk to us (DNS rebinding guard).
+// DNS rebinding guard: browsers send Origin, which must be loopback; local tools usually send none.
 static bool IsOriginAllowed( const std::string & origin )
 {
     if ( origin.empty() )
@@ -140,7 +140,7 @@ void ImFluentMcpHttpServer::Stop()
     }
     if ( AcceptThread.joinable() )
         AcceptThread.join();
-    // Client threads poll Running every second (SO_RCVTIMEO), so they leave quickly.
+    // Client threads poll Running every second (SO_RCVTIMEO).
     for ( int i = 0; i < 300 && ActiveClients.load() > 0; ++i )
         std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
 #if defined( _WIN32 )
@@ -170,7 +170,7 @@ void ImFluentMcpHttpServer::ServeClient( intptr_t client )
 {
     ImSocket s = ( ImSocket )client;
 
-    // Drop idle keep-alive connections after a while, and wake up regularly so Stop() can join us.
+    // Wake up every second so Stop() can join us.
 #if defined( _WIN32 )
     DWORD timeout_ms = 1000;
     setsockopt( s, SOL_SOCKET, SO_RCVTIMEO, ( const char * )&timeout_ms, sizeof( timeout_ms ) );
@@ -184,7 +184,6 @@ void ImFluentMcpHttpServer::ServeClient( intptr_t client )
     bool keep_alive  = true;
     while ( keep_alive && Running.load() )
     {
-        // Read the header block.
         size_t header_end = buf.find( "\r\n\r\n" );
         while ( header_end == std::string::npos )
         {
@@ -205,7 +204,6 @@ void ImFluentMcpHttpServer::ServeClient( intptr_t client )
             header_end = buf.find( "\r\n\r\n" );
         }
 
-        // Parse the request line and the headers we care about.
         std::string method, target, origin;
         size_t content_length = 0;
         {
@@ -244,7 +242,6 @@ void ImFluentMcpHttpServer::ServeClient( intptr_t client )
             goto done;
         }
 
-        // Read the body.
         const size_t body_start = header_end + 4;
         while ( buf.size() < body_start + content_length )
         {

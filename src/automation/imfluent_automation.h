@@ -1,14 +1,13 @@
 #pragma once
 
-// ImFluentGallery automation: Dear ImGui Test Engine + an MCP server (Streamable HTTP on 127.0.0.1).
-// Compiled into the gallery only when the vcpkg feature `test-engine` is enabled.
+// Gallery automation: Dear ImGui Test Engine + MCP server. Built only with the vcpkg feature `test-engine`.
 
 struct ImGuiTestEngine;
 
 struct ImFluentAutomationHost
 {
-    // Copies a rectangle of the last rendered frame as RGBA8 (R in the low byte), top row first.
-    // Coordinates are framebuffer pixels. Called on the main thread after the frame was submitted.
+    // Copies framebuffer pixels of the last frame as RGBA8 (R in the low byte), top row first.
+    // Called on the main thread after the frame was submitted.
     bool ( *CaptureFramebuffer )( int x, int y, int w, int h, unsigned int * out_rgba, void * user_data ) = nullptr;
     // Resizes the OS window (window coordinates). Optional.
     void ( *SetWindowSize )( int w, int h, void * user_data )                                             = nullptr;

@@ -13,7 +13,7 @@ enum ImFluentThemePreset_
 };
 typedef int ImFluentThemePreset;
 
-// Window backdrop material (WinUI SystemBackdrop): the desktop wallpaper, blurred and tinted, behind the app.
+// Window backdrop material (WinUI SystemBackdrop): the desktop wallpaper, blurred and tinted.
 enum ImFluentBackdrop_
 {
     ImFluentBackdrop_None = 0,
@@ -38,9 +38,9 @@ struct ImFluentWallpaper
 // Platform hooks for backdrops, all optional; see backends/imfluent_backdrop_*.cpp.
 struct ImFluentBackdropHooks
 {
-    // The wallpaper of the viewport's monitor, polled about once a second. False: no wallpaper (fallback colour).
+    // Wallpaper of the viewport's monitor, polled about once a second. False: no wallpaper (fallback colour).
     bool ( *GetWallpaper )( ImGuiViewport * viewport, ImFluentWallpaper * out, void * user_data )                   = NULL;
-    // Client and monitor rects (x1, y1, x2, y2) in one screen unit, so the wallpaper stays still. False: unknown.
+    // Client and monitor rects (x1, y1, x2, y2) in the same screen units. False: unknown.
     bool ( *GetScreenRects )( ImGuiViewport * viewport, ImVec4 * client, ImVec4 * monitor, void * user_data )       = NULL;
     // The OS backdrop (Windows 11 Mica, macOS vibrancy). True: ImFluent draws nothing; present cleared alpha.
     bool ( *SetNativeBackdrop )( ImGuiViewport * viewport, ImFluentBackdrop backdrop, bool dark, void * user_data ) = NULL;
@@ -389,9 +389,7 @@ struct ImFluentStyle
     const char * LocalizationTable[ ImFluentLocKey_COUNT ];
 };
 
-// Key chords of the ImFluent keyboard commands, with WinUI defaults. Change them through ImFluent::GetActions().
-// A chord is an ImGuiKey plus optional ImGuiMod_ flags, e.g. ImGuiMod_Ctrl | ImGuiKey_Tab; 0 turns the command off.
-// The modifiers must match exactly. Basic navigation stays with Dear ImGui: arrows, Tab, Enter, Space, Escape.
+// Key chords (ImGuiKey | ImGuiMod_ flags, modifiers match exactly; 0 = off) of the ImFluent commands, with WinUI defaults.
 struct ImFluentActions
 {
     ImGuiKeyChord RevealPassword;      // PasswordBox: show the password while the key is held. Alt+F8
@@ -430,8 +428,7 @@ namespace ImFluent
     IMGUI_API ImColor GetAccentColor();
     IMGUI_API bool HasUserAccentColor();
 
-    // Backdrop: call RenderBackdrop() once per frame after ImGui::NewFrame(); it draws behind every window of the
-    // viewport. While IsBackdropVisible(), give the app's root window no background (ImGuiWindowFlags_NoBackground).
+    // Call RenderBackdrop() once per frame after ImGui::NewFrame(); while IsBackdropVisible(), give the root window ImGuiWindowFlags_NoBackground.
     IMGUI_API void SetBackdrop( ImFluentBackdrop backdrop );
     IMGUI_API ImFluentBackdrop GetBackdrop();
     IMGUI_API ImFluentBackdropHooks & GetBackdropHooks();
@@ -603,8 +600,7 @@ namespace ImFluent
     IMGUI_API void MenuFlyoutSeparator();
     IMGUI_API void EndMenuFlyout();
 
-    // A flyout with a row of icon-only primary commands (AppBarButton/AppBarToggleButton) and, after
-    // CommandBarFlyoutSecondary(), a list of MenuFlyoutItem. Open it with OpenFlyout( id ).
+    // Icon-only primary commands, then MenuFlyoutItems after CommandBarFlyoutSecondary(). Open it with OpenFlyout( id ).
     IMGUI_API bool BeginCommandBarFlyout( const char * id );
     IMGUI_API void CommandBarFlyoutSecondary();
     IMGUI_API void EndCommandBarFlyout();
@@ -616,26 +612,22 @@ namespace ImFluent
     IMGUI_API bool InfoBar( ImFluentInfoSeverity severity, const char * title, const char * message, bool * is_open = NULL, const char * glyph_override = NULL, bool show_icon = true, const char * action_label = NULL );
     IMGUI_API void InfoBadge( int count = -1, const char * glyph = NULL );
 
-    // A round avatar: the texture when set, else the initials of display_name (or `initials`), else a person glyph.
-    // size 0 = 100 dp. badge_number > 0 draws a count badge.
+    // The texture, else the initials of display_name (or `initials`), else a person glyph. size 0 = 100 dp.
     IMGUI_API void PersonPicture( const char * display_name, float size = 0.f, int badge_number = 0, ImTextureRef texture = ImTextureRef(), const char * initials = NULL );
     // A texture with rounded corners (corner_radius < 0: the overlay corner radius).
     IMGUI_API void Image( ImTextureRef texture, const ImVec2 & size, float corner_radius = -1.f, const ImVec2 & uv0 = ImVec2( 0, 0 ), const ImVec2 & uv1 = ImVec2( 1, 1 ) );
 
-    // A framed container. A zero size fits the content on that axis; corner_radius/padding < 0 use the style.
-    // Call EndBorder() whatever BeginBorder() returns (as BeginChild).
+    // A zero size fits the content; corner_radius/padding < 0 use the style. Call EndBorder() whatever BeginBorder() returns.
     IMGUI_API bool BeginBorder( const char * id, const ImVec2 & size = ImVec2( 0, 0 ), ImFluentCol background = ImFluentCol_CardBgDefault, ImFluentCol stroke = ImFluentCol_CardStrokeDefault, float thickness = 1.f, float corner_radius = -1.f, const ImVec2 & padding = ImVec2( -1.f, -1.f ) );
     IMGUI_API void EndBorder();
     // A scrolling region with Fluent scroll bars. Call EndScrollViewer() whatever it returns.
     IMGUI_API bool BeginScrollViewer( const char * id, const ImVec2 & size, bool horizontal = false );
     IMGUI_API void EndScrollViewer();
 
-    // One item at a time: draw item *current_item between Begin and End. Left/Right (and the overlay buttons) change
-    // it. Call EndFlipView() whatever BeginFlipView() returns.
+    // Draw item *current_item between Begin and End; Left/Right change it. Call EndFlipView() whatever BeginFlipView() returns.
     IMGUI_API bool BeginFlipView( const char * id, int * current_item, int items_count, const ImVec2 & size );
     IMGUI_API void EndFlipView();
-    // Large header tabs; PivotItem returns true when clicked or reached with the arrow keys. Draw the selected
-    // item's content after EndPivot().
+    // PivotItem returns true when clicked or reached with the arrow keys; draw the selected item's content after EndPivot().
     IMGUI_API bool BeginPivot( const char * id );
     IMGUI_API bool PivotItem( const char * header, bool selected );
     IMGUI_API void EndPivot();
@@ -653,9 +645,7 @@ namespace ImFluent
     IMGUI_API void TitleBarSubtitle( const char * subtitle );
     IMGUI_API void EndTitleBar();
 
-    // BeginMenuBar(): the application's main menu bar (ImGui::BeginMainMenuBar). BeginMenuBar( id ): a WinUI MenuBar
-    // inside the page; BeginMenuBarItem returns true while its menu is open: submit MenuFlyoutItem, then
-    // EndMenuBarItem(). Both end with EndMenuBar().
+    // BeginMenuBar(): main menu bar; BeginMenuBar( id ): in-page WinUI MenuBar. EndMenuBarItem() only when BeginMenuBarItem() is true.
     IMGUI_API bool BeginMenuBar();
     IMGUI_API bool BeginMenuBar( const char * id );
     IMGUI_API bool BeginMenuBarItem( const char * label );

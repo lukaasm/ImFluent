@@ -1,10 +1,5 @@
-// ImFluent regression tests for the Dear ImGui Test Engine.
-// Run them with `ImFluentGallery --run-tests [filter]` or the MCP tool `run_tests`.
-//
-// - "smoke/..."    drive the gallery (ImFluent::ShowDemoWindow) the way a person does.
-// - "keyboard/..." put widgets in their own "Test Window" (GuiFunc) and drive them with keys only,
-//                  checking WinUI keyboard behaviour: arrows, Home/End, popups that open from the keyboard,
-//                  take focus, close with Escape, give focus back to their owner and open again.
+// ImFluent regression tests for the Dear ImGui Test Engine: `ImFluentGallery --run-tests [filter]` or the MCP tool `run_tests`.
+// "smoke" tests drive the gallery; the others put widgets in their own "Test Window" (GuiFunc).
 
 #include "imfluent_automation.h"
 
@@ -19,7 +14,6 @@
 
 static const char * kRoot = "//##imfluent-demo-root";
 
-// Opens a gallery page and waits until it is laid out.
 static void GotoPage( ImGuiTestContext * ctx, const char * page )
 {
     ImFluent::SetDemoWindowPage( page );
@@ -27,7 +21,6 @@ static void GotoPage( ImGuiTestContext * ctx, const char * page )
     ctx->SetRef( kRoot );
 }
 
-// Label of the item that has keyboard focus ("" when nothing has focus).
 static const char * FocusLabel( ImGuiTestContext * ctx )
 {
     static ImGuiTestItemInfo info;
@@ -61,7 +54,6 @@ static void EndTestWindow()
     ImGui::End();
 }
 
-// Keyboard-only start: no popup left over, focus ring visible, item references relative to the test window.
 static void StartKeyboardTest( ImGuiTestContext * ctx )
 {
     ctx->PopupCloseAll();
@@ -153,7 +145,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         GotoPage( ctx, "Item_Button" );
         ctx->SetInputMode( ImGuiInputSource_Keyboard );
         ctx->NavMoveTo( "**/Settings" );
-        ctx->KeyPress( ImGuiKey_Tab ); // The page header's first button
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK( strstr( FocusLabel( ctx ), "Documentation" ) != NULL );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Settings" );
@@ -166,7 +158,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         GotoPage( ctx, "Item_Button" );
         ctx->SetInputMode( ImGuiInputSource_Keyboard );
         ctx->NavMoveTo( "**/Home" );
-        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab ); // The search box
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Toggle pane" );
     };
@@ -198,7 +190,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK( NearlyEqual( v.SliderF, 0.0 ) );
         ctx->KeyPress( ImGuiKey_PageUp );
         IM_CHECK( NearlyEqual( v.SliderF, 0.1 ) );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "slider" ); // Arrows change the value, they do not move focus
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "slider" );
 
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "islider" );
@@ -272,7 +264,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "number" );
-        ctx->KeyPress( ImGuiKey_Enter ); // Start editing
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK( ctx->UiContext->ActiveId != 0 );
         ctx->KeyPress( ImGuiKey_UpArrow );
         IM_CHECK( NearlyEqual( v.Number, 6.0 ) );
@@ -282,7 +274,6 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK( NearlyEqual( v.Number, 15.0 ) );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK( NearlyEqual( v.Number, 15.0 ) );
-        // The spin buttons are not tab stops: Tab goes from the field to the next control.
         ctx->KeyPress( ImGuiKey_Escape );
         ctx->NavMoveTo( "number" );
         ctx->KeyPress( ImGuiKey_Tab );
@@ -308,14 +299,14 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "combo" );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Red" ); // Focus starts on the selected item
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Red" );
         ctx->KeyPress( ImGuiKey_DownArrow );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.Combo, 1 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "combo" );
 
-        ctx->KeyPress( ImGuiKey_Space ); // Open again
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Green" );
         ctx->KeyPress( ImGuiKey_Escape );
@@ -487,28 +478,28 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Cut" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // The disabled item is skipped
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zoom" );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Right opens the submenu and moves focus into it
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_EQ( PopupCount( ctx ), 2 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "50%" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Left closes it and returns to the parent item
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zoom" );
-        ctx->KeyPress( ImGuiKey_Enter ); // Enter opens it too
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( PopupCount( ctx ), 2 );
-        ctx->KeyPress( ImGuiKey_Escape ); // Escape closes one level
+        ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zoom" );
         ctx->KeyPress( ImGuiKey_Space );
-        ctx->KeyPress( ImGuiKey_Space ); // Invoke "50%": the whole menu closes
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( v.Zoom, 50 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "menu" );
 
-        ctx->KeyPress( ImGuiKey_Space ); // Open again from the keyboard
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        ctx->KeyPress( ImGuiKey_Enter ); // Invoke "Cut"
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.MenuClicks, 1 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         ctx->KeyPress( ImGuiKey_Space );
@@ -540,15 +531,15 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "show dialog" );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Save" ); // The default button starts with focus
-        ctx->KeyPress( ImGuiKey_Escape );             // Escape = close button
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Save" );
+        ctx->KeyPress( ImGuiKey_Escape ); // Escape = close button
         IM_CHECK_EQ( v.DialogResult, 3 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "show dialog" );
 
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        ctx->KeyPress( ImGuiKey_Enter ); // Enter presses the focused default button
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.DialogResult, 1 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
     };
@@ -626,31 +617,31 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "date" );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Day" ); // Focus starts on the left-most column
-        ctx->KeyPress( ImGuiKey_DownArrow );         // Day 10
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Day" );
+        ctx->KeyPress( ImGuiKey_DownArrow );
         ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Month" );
-        ctx->KeyPress( ImGuiKey_UpArrow ); // April
+        ctx->KeyPress( ImGuiKey_UpArrow );
         ctx->KeyPress( ImGuiKey_RightArrow );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // No wrap past the last column
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Year" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Accept" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Dismiss" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Tab cycles inside the flyout
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Day" );
-        IM_CHECK( DateIs( v.Date, 2026, 5, 9 ) ); // Nothing committed yet
-        ctx->KeyPress( ImGuiKey_Enter );          // Enter on a column commits
+        IM_CHECK( DateIs( v.Date, 2026, 5, 9 ) );
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK( DateIs( v.Date, 2026, 4, 10 ) );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "date" );
 
-        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_DownArrow ); // Alt+Down opens
+        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_DownArrow );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        ctx->KeyPress( ImGuiKey_Home );    // Day 1
+        ctx->KeyPress( ImGuiKey_Home );
         ctx->KeyPress( ImGuiKey_UpArrow ); // Day loops: 30 (April)
-        ctx->KeyPress( ImGuiKey_Escape );  // Escape cancels
+        ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK( DateIs( v.Date, 2026, 4, 10 ) );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "date" );
@@ -660,9 +651,9 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_UpArrow );
         ctx->KeyPress( ImGuiKey_RightArrow );
         ctx->KeyPress( ImGuiKey_RightArrow );
-        ctx->KeyPress( ImGuiKey_End );                    // Year 2100
-        ctx->KeyPress( ImGuiKey_DownArrow );              // Year does not loop
-        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_UpArrow ); // Alt+Up commits
+        ctx->KeyPress( ImGuiKey_End );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_UpArrow );
         IM_CHECK( DateIs( v.Date, 2100, 4, 30 ) );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
     };
@@ -684,11 +675,11 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "time24" );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Hour" );
-        ctx->KeyPress( ImGuiKey_UpArrow ); // 13
+        ctx->KeyPress( ImGuiKey_UpArrow );
         ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Minute" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // 31
-        ctx->KeyPress( ImGuiKey_Space );     // Space on a column commits
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( v.Time.Hour, 13 );
         IM_CHECK_EQ( v.Time.Minute, 31 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "time24" );
@@ -697,12 +688,12 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_Space );
         ctx->KeyPress( ImGuiKey_RightArrow, 2 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Period" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // PM stays PM: Period does not loop
+        ctx->KeyPress( ImGuiKey_DownArrow );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.Time.Hour, 13 );
         ctx->KeyPress( ImGuiKey_Space );
         ctx->KeyPress( ImGuiKey_RightArrow, 2 );
-        ctx->KeyPress( ImGuiKey_UpArrow ); // AM
+        ctx->KeyPress( ImGuiKey_UpArrow );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.Time.Hour, 1 );
     };
@@ -726,9 +717,9 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Previous" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Next" );
-        ctx->KeyPress( ImGuiKey_Tab ); // The grid is one stop, on the selected date
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-09" );
-        ctx->KeyPress( ImGuiKey_Tab ); // ... and Tab leaves it at once
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-09" );
@@ -739,24 +730,24 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-17" );
         ctx->KeyPress( ImGuiKey_Home );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-01" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Crosses into April
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-04-30" );
         ctx->KeyPress( ImGuiKey_PageDown );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-30" );
         ctx->KeyPress( ImGuiKey_End );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-31" );
-        IM_CHECK( DateIs( v.Date, 2026, 5, 9 ) ); // Arrows move focus only
+        IM_CHECK( DateIs( v.Date, 2026, 5, 9 ) );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK( DateIs( v.Date, 2026, 5, 31 ) );
 
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow ); // Year view
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "May" );
         ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Jun" );
-        ctx->KeyPress( ImGuiKey_Enter ); // Drill down: the same day, clamped to June
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-06-30" );
         ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow );
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow ); // Decade view
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026" );
         ctx->KeyPress( ImGuiKey_PageUp );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2016" );
@@ -780,15 +771,15 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "pick" );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "May 2026" ); // WinUI: focus starts on the header button
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "May 2026" );
         ctx->KeyPress( ImGuiKey_Tab, 3 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-09" );
         ctx->KeyPress( ImGuiKey_RightArrow );
-        ctx->KeyPress( ImGuiKey_Space ); // Selecting a day commits and closes
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK( DateIs( v.Date, 2026, 5, 10 ) );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "pick" );
-        ctx->KeyPress( ImGuiKey_Space ); // Open again
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
@@ -813,32 +804,32 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "fruit" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Closed: Down selects the next item without opening
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_EQ( v.Combo, 1 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         ctx->KeyPress( ImGuiKey_End );
         IM_CHECK_EQ( v.Combo, 3 );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Clamped, no wrap
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_EQ( v.Combo, 3 );
         ctx->KeyPress( ImGuiKey_Home );
         IM_CHECK_EQ( v.Combo, 0 );
         ctx->KeyPress( ImGuiKey_UpArrow );
         IM_CHECK_EQ( v.Combo, 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "fruit" );
-        ctx->KeyChars( "bl" ); // Type-ahead: prefix match
+        ctx->KeyChars( "bl" );
         IM_CHECK_EQ( v.Combo, 2 );
         ctx->SleepNoSkip( 1.2f, 0.1f ); // The search string resets after one second
         ctx->KeyChars( "c" );
         IM_CHECK_EQ( v.Combo, 3 );
 
-        ctx->KeyPress( ImGuiKey_Space ); // Open: the list does not wrap
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Cherry" );
         ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Cherry" );
         ctx->KeyPress( ImGuiKey_Home );
         ctx->KeyPress( ImGuiKey_UpArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Apple" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Tab closes without committing
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_EQ( v.Combo, 3 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "fruit" );
@@ -870,16 +861,16 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "send" );
-        ctx->KeyPress( ImGuiKey_Space ); // Primary action
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( v.SplitPrimary, 1 );
         IM_CHECK_EQ( v.SplitFlyouts, 0 );
-        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_DownArrow ); // Flyout
+        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_DownArrow );
         IM_CHECK_EQ( v.SplitFlyouts, 1 );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Send later" );
         ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "send" );
-        ctx->KeyPress( ImGuiKey_F4 ); // F4 opens it again at once
+        ctx->KeyPress( ImGuiKey_F4 );
         IM_CHECK_EQ( v.SplitFlyouts, 2 );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         ctx->KeyPress( ImGuiKey_Escape );
@@ -905,13 +896,13 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "root" );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Expanded: Right moves to the first child
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
         IM_CHECK( v.TreeOpen2 );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Collapsed child: Left moves to the parent
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "root" );
         IM_CHECK( v.TreeOpen2 );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Expanded parent: Left collapses
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK( !v.TreeOpen2 );
     };
 
@@ -952,9 +943,9 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_Tab );
         IM_CHECK_EQ( v.TabSelectedIdx, 1 );
         ctx->KeyPress( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab );
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab ); // Wraps to the last tab
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_EQ( v.TabSelectedIdx, 2 );
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F4 ); // Close the selected tab
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F4 );
         IM_CHECK( !v.TabOpen[ 2 ] );
         ctx->UiContext->ConfigNavWindowingKeyNext = backup_next;
         ctx->UiContext->ConfigNavWindowingKeyPrev = backup_prev;
@@ -979,21 +970,21 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "before" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected item
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Green" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Selection follows focus
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Blue" );
         IM_CHECK_EQ( v.Radio, 2 );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Stops at the end
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Blue" );
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow ); // Ctrl: focus only
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Green" );
         IM_CHECK_EQ( v.Radio, 2 );
-        ctx->KeyPress( ImGuiKey_Enter ); // Enter does not check a radio button
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.Radio, 2 );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( v.Radio, 1 );
-        ctx->KeyPress( ImGuiKey_Tab ); // One stop: Tab leaves the group
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Green" );
@@ -1050,14 +1041,14 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_End );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zeta" );
         IM_CHECK_EQ( v.List, 5 );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Stops at the end
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zeta" );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Left/Right do not move focus out of a vertical list
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zeta" );
         ctx->KeyPress( ImGuiKey_Home );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Alpha" );
         IM_CHECK_EQ( v.List, 0 );
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_DownArrow ); // Ctrl: focus only
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Beta" );
         IM_CHECK_EQ( v.List, 0 );
         ctx->KeyPress( ImGuiKey_Space );
@@ -1099,7 +1090,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_End );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Favorites" );
         IM_CHECK_EQ( v.Sel, 2 );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // No wrap
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Favorites" );
         ctx->KeyPress( ImGuiKey_Home );
         IM_CHECK_EQ( v.Sel, 0 );
@@ -1123,12 +1114,12 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "before" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected pip
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page 3" );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Focus only
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page 4" );
         IM_CHECK_EQ( v.Pip, 2 );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Down works like Right
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page 5" );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( v.Pip, 4 );
@@ -1155,15 +1146,15 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "before" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the first item
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Home" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // No wrap
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Home" );
         ctx->KeyPress( ImGuiKey_RightArrow, 2 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page" );
         ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page" );
-        ctx->KeyPress( ImGuiKey_Enter ); // The current (last) item is clickable too
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.Crumb, 2 );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
@@ -1199,18 +1190,18 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "before" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected tab
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
-        ctx->KeyPress( ImGuiKey_Tab ); // One stop: the next stop is the tab content
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "content" );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Wraps to the last tab, focus only
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Three" );
         IM_CHECK_EQ( v.TabSel, 0 );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Wraps back
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Stays in the strip
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
         ctx->KeyPress( ImGuiKey_End );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Three" );
@@ -1238,17 +1229,17 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "A" );
         ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "B" );
-        IM_CHECK_EQ( v.Loose, 0 ); // Focus only
+        IM_CHECK_EQ( v.Loose, 0 );
         ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "C" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Wraps, does not leave the group
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "A" );
         ctx->KeyPress( ImGuiKey_UpArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "C" );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( v.Loose, 2 );
         ctx->NavMoveTo( "A" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Each loose radio button is its own tab stop
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "B" );
     };
 
@@ -1267,13 +1258,13 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "name" );
-        ctx->KeyPress( ImGuiKey_Enter ); // Edit
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( ctx->UiContext->ActiveId, ctx->GetID( "name" ) );
         ctx->KeyCharsAppend( "abc" );
         ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_STR_EQ( v.Text, "abc" );
         IM_CHECK_EQ( ctx->UiContext->ActiveId, ( ImGuiID )0 );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "name" ); // Escape leaves edit mode; focus stays
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "name" );
     };
 
     // WinUI PasswordBox: Alt+F8 reveals the password while F8 is held.
@@ -1302,7 +1293,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK( win->StateStorage.GetBool( key, false ) );
         ctx->KeyUp( ImGuiMod_Alt );
         ctx->Yield( 2 );
-        IM_CHECK( win->StateStorage.GetBool( key, false ) ); // Held F8 keeps the peek
+        IM_CHECK( win->StateStorage.GetBool( key, false ) );
         ctx->KeyUp( ImGuiKey_F8 );
         ctx->Yield( 2 );
         IM_CHECK( !win->StateStorage.GetBool( key, false ) );
@@ -1330,9 +1321,9 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 ); // Closes the open list too
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
-        actions.TogglePopup = 0; // Turned off
+        actions.TogglePopup = 0;
         ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         actions.TogglePopup = backup;
@@ -1361,14 +1352,14 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "before" );
-        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected item
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Sent" );
         ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Drafts" );
         IM_CHECK_EQ( v.ListView, 2 );
         ctx->KeyPress( ImGuiKey_End );
         IM_CHECK_EQ( v.ListView, 3 );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Stops at the end
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Junk" );
         ctx->KeyPress( ImGuiKey_Home );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Inbox" );
@@ -1409,20 +1400,20 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_RightArrow, 2 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T3" );
         IM_CHECK_EQ( v.Grid, 2 );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Row end: stays
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T3" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Shorter last row: nearest tile
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T5" );
         IM_CHECK_EQ( v.Grid, 4 );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Bottom edge: stays, does not leave the grid
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T5" );
         ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T4" );
         ctx->KeyPress( ImGuiKey_UpArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T1" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Left edge: stays
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T1" );
-        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_RightArrow ); // Ctrl: focus only
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "T2" );
         IM_CHECK_EQ( v.Grid, 0 );
         ctx->KeyPress( ImGuiKey_Tab );
@@ -1455,25 +1446,24 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "before" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "root" );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Expanded: first child
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "leaf" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Leaf: parent
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "root" );
         ctx->KeyPress( ImGuiKey_DownArrow, 2 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Last row: stays
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
-        ctx->KeyPress( ImGuiKey_Space ); // Space toggles the checkbox, not the node
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK( v.TreeSubChk );
         IM_CHECK( !v.TreeSubOpen );
-        ctx->KeyPress( ImGuiKey_Tab ); // One stop: the checkbox is not a stop either
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
-        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab ); // Back to the last focused row
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
     };
 
-    // WinUI CommandBar: Left/Right stop at the first command and at More; Down on More opens the overflow, Escape
-    // gives focus back to More.
+    // WinUI CommandBar: Left/Right stop at the first command and at More; Down on More opens the overflow, Escape focuses More.
     t          = IM_REGISTER_TEST( engine, "keyboard", "command_bar_left_right_and_more" );
     t->GuiFunc = []( ImGuiTestContext * ctx )
     {
@@ -1496,11 +1486,11 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
     {
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "**/Save" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // First command: stays
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Save" );
         ctx->KeyPress( ImGuiKey_RightArrow, 2 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "##cb-more" );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // More: stays
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "##cb-more" );
         ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
@@ -1537,9 +1527,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
 
     // [SECTION] Keyboard: popups opened by a button (open, focus inside, Escape, focus back, open again)
 
-    // Flyout, TeachingTip (light dismiss) and DropDownButton share the WinUI popup rules: Space/Enter on the owner
-    // opens, focus goes to the first focusable element, Tab stays inside, Escape closes and focus returns to the
-    // owner, which opens it again at once.
+    // Flyout, TeachingTip (light dismiss) and DropDownButton share the WinUI popup rules; Tab stays inside.
     struct PopupCase
     {
         const char * Name;
@@ -1603,7 +1591,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
             ctx->KeyPress( ImGuiKey_Escape );
             IM_CHECK_EQ( PopupCount( ctx ), 0 );
             IM_CHECK_STR_EQ( FocusLabel( ctx ), "owner" );
-            ctx->KeyPress( ImGuiKey_Enter ); // Opens again at once
+            ctx->KeyPress( ImGuiKey_Enter );
             IM_CHECK_EQ( PopupCount( ctx ), 1 );
             IM_CHECK_STR_EQ( FocusLabel( ctx ), "first" );
             ctx->KeyPress( ImGuiKey_Escape );
@@ -1644,22 +1632,22 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
         StartKeyboardTest( ctx );
         ctx->NavMoveTo( "before" );
-        ctx->KeyPress( ImGuiKey_Tab ); // The bar is one tab stop
+        ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "File" );
         ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Edit" );
         ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "File" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Opens the menu
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "New" );
-        ctx->KeyPress( ImGuiKey_RightArrow ); // Switches to the next menu
+        ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Undo" );
-        ctx->KeyPress( ImGuiKey_Escape ); // Focus back on that menu's bar item
+        ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Edit" );
-        ctx->KeyPress( ImGuiKey_Enter ); // Opens again at once
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Undo" );
         ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.MenuCmd, 2 );
@@ -1694,14 +1682,14 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "show" );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Share" ); // First primary command
-        ctx->KeyPress( ImGuiKey_LeftArrow );           // Row start: stays
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Share" );
-        ctx->KeyPress( ImGuiKey_RightArrow, 2 ); // Row end: stays on the last command
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Share" );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Save" );
-        ctx->KeyPress( ImGuiKey_DownArrow ); // Into the secondary commands
+        ctx->KeyPress( ImGuiKey_DownArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Resize" );
-        ctx->KeyPress( ImGuiKey_Enter ); // A secondary command closes the flyout
+        ctx->KeyPress( ImGuiKey_Enter );
         IM_CHECK_EQ( v.CbfCmd, 1 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "show" );
@@ -1729,7 +1717,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "flip" );
         ctx->KeyPress( ImGuiKey_RightArrow );
         IM_CHECK_EQ( v.Flip, 1 );
-        ctx->KeyPress( ImGuiKey_RightArrow, 2 ); // No wrap
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
         IM_CHECK_EQ( v.Flip, 2 );
         ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_EQ( v.Flip, 1 );
@@ -1763,7 +1751,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "before" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "A" );
-        ctx->KeyPress( ImGuiKey_LeftArrow ); // Wraps to the last header and selects it
+        ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "C" );
         IM_CHECK_EQ( v.PivotSel, 2 );
         ctx->KeyPress( ImGuiKey_RightArrow );
@@ -1776,8 +1764,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
 
     // [SECTION] Library behaviour
 
-    // SetNextItemHeader() for a widget that never runs (clipped, skipped) must not reach another widget later: here
-    // a TextBox in another window keeps its position.
+    // SetNextItemHeader() for a widget that never runs must not reach a later widget in another window.
     t = IM_REGISTER_TEST( engine, "library", "next_item_header_does_not_leak" );
     t->SetVarsDataType< KeyboardVars >();
     t->GuiFunc = []( ImGuiTestContext * ctx )

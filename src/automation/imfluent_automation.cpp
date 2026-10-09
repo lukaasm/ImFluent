@@ -62,14 +62,13 @@ namespace
 
         std::mutex QueueMutex;
         std::deque< JobPtr > Queue;
-        JobPtr Current;    // Job at the front, being executed
+        JobPtr Current;
         json EngineResult; // Written by the test coroutine for the current job
         bool EngineQueued = false;
         bool ShuttingDown = false;
 
-        // A test starts in mouse input mode, which hides the keyboard focus cursor. Each MCP call is one test,
-        // so the cursor state is saved before the call and restored inside it: a key sequence split over several
-        // calls behaves like one continuous session.
+        // Each MCP call is a test, which starts in mouse mode (focus cursor hidden): the cursor state is saved before the
+        // call and restored inside it, so a key sequence split over several calls behaves like one session.
         bool SavedNavCursorVisible     = false;
         bool SavedNavHighlightUnderNav = false;
 
@@ -117,12 +116,8 @@ namespace
         return true;
     }
 
-    // Turns a user reference into a Test Engine path:
-    //  "0x1234ABCD"            -> item id
-    //  "//Window/Item"         -> absolute path, unchanged
-    //  "Group/Label"           -> "//<root>/Group/Label"
-    //  "Label"                 -> "//<root>/**/Label" (search by label)
-    // `window` replaces <root>; "$FOCUSED" names the focused window (useful for popups and flyouts).
+    // "0x1234ABCD" -> id, "//Window/Item" unchanged, "Group/Label" -> "//<root>/Group/Label", "Label" -> "//<root>/**/Label".
+    // `window` replaces <root>; "$FOCUSED" names the focused window (popups, flyouts).
     std::string ResolveRefPath( const std::string & ref, const std::string & window )
     {
         if ( ref.size() >= 2 && ref[ 0 ] == '/' && ref[ 1 ] == '/' )
@@ -219,8 +214,8 @@ namespace
         return j;
     }
 
-    // Labels are only known to the Test Engine for items it queried recently. Querying the focused, active,
-    // hovered and popup-opener items (one or two frames) lets NavState() report their labels.
+    // The Test Engine only knows labels of items it queried recently: query the focused, active, hovered
+    // and popup-opener items so NavState() can report their labels.
     void RefreshLabels( ImGuiTestContext * ctx )
     {
         ImGuiContext & g = *GImGui;
@@ -399,7 +394,6 @@ namespace
         return out;
     }
 
-    // Box-filter downscale of an RGBA8 image.
     void DownscaleRgba( const std::vector< unsigned int > & src, int sw, int sh, float scale, std::vector< unsigned int > & dst, int & dw, int & dh )
     {
         dw = ImMax( 1, ( int )( sw * scale ) );
@@ -547,7 +541,7 @@ namespace
         return ImGuiMouseButton_Left;
     }
 
-    // Executes one step. Returns an error message, or an empty string on success.
+    // Returns an error message, or an empty string on success.
     std::string RunStep( ImGuiTestContext * ctx, const json & step, const std::string & window, json & out )
     {
         const std::string action = step.value( "action", std::string() );
@@ -738,7 +732,6 @@ namespace
         }
         else
         {
-            // Every action tool is a list of steps.
             json steps = json::array();
             if ( job->Tool == "run_steps" )
                 steps = args.value( "steps", json::array() );

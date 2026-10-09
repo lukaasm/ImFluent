@@ -266,8 +266,7 @@ namespace ImFluentGalleryApp
             pio.Platform_OpenInShellFn( ImGui::GetCurrentContext(), url );
     }
 
-    // WinUI Gallery PageHeader (Controls/PageHeader.xaml): the title, then a row with the Documentation and Source
-    // drop-down buttons and the theme toggle on the right, then the description.
+    // WinUI Gallery PageHeader (Controls/PageHeader.xaml).
     static void PageHeader( const char * title, const char * subtitle = nullptr )
     {
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -315,11 +314,7 @@ namespace ImFluentGalleryApp
         }
     }
 
-    // WinUI Gallery ControlExample (Controls/ControlExample.xaml): a BodyStrong header with 12 above and below, then a
-    // card (8 corner radius, CardStroke border). Its top part shows the example on SolidBackgroundFillColorBase with 12
-    // padding, then two optional columns on the right: "Output:" over the output, and the options (16 padding, at most
-    // 320 wide, on CardBackgroundFillColorDefault with a divider on its left). Its bottom row is the "Source code"
-    // expander.
+    // WinUI Gallery ControlExample (Controls/ControlExample.xaml).
     struct ControlExampleState
     {
         char Output[ 512 ]  = {};
@@ -357,8 +352,7 @@ namespace ImFluentGalleryApp
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
         ImGui::BeginChild( header, ImVec2( -FLT_MIN, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground );
         {
-            // The card fill inside its border, and the border on whole pixels (ImGui's child border straddles half
-            // pixels): the border then blends with the page, as WinUI's does.
+            // Card fill and border on whole pixels (ImGui's child border straddles half pixels), so it blends with the page as in WinUI.
             ImGuiWindow * cw = ImGui::GetCurrentWindow();
             const float s    = ExampleStroke();
             const float r    = FluentDpx( style.OverlayCornerRadius );
@@ -386,7 +380,6 @@ namespace ImFluentGalleryApp
             ImGui::PopClipRect();
         }
 
-        // The example itself, left of the output and options columns, with 12 padding.
         const float out_w = st->GetFloat( EXAMPLE_KEY_OUTPUT_W, 0.f );
         const float opt_w = st->GetFloat( EXAMPLE_KEY_OPTIONS_W, 0.f );
         const float pad   = ExampleDp( 12.f );
@@ -398,8 +391,7 @@ namespace ImFluentGalleryApp
         return true;
     }
 
-    // The example's options column (ControlExample.Options): ends the example, then the widgets between this and
-    // EndControlExampleOptions() go in a column at the right of the card.
+    // ControlExample.Options: the widgets until EndControlExampleOptions() go in a column at the right of the card.
     static void BeginControlExampleOptions()
     {
         IM_ASSERT( g_Example.ExampleOpen );
@@ -481,7 +473,6 @@ namespace ImFluentGalleryApp
             ImGui::PopClipRect();
         }
 
-        // "Source code" expander row, 48 high.
         const float row_y = w->Pos.y + top_h;
         const float row_h = ExampleDp( 48.f );
         const ImRect row( w->Pos.x, row_y, w->Pos.x + w->Size.x, row_y + row_h );
@@ -851,8 +842,7 @@ namespace ImFluentGalleryApp
 
         if ( BeginControlExample( "Using a 3-state CheckBox." ) )
         {
-            // "Select all" shows the options' state; a click checks all from unchecked, else unchecks all (a click
-            // never makes it indeterminate).
+            // "Select all": a click checks all from unchecked, else unchecks all (never indeterminate).
             static bool s_options[ 3 ] = { false, true, false };
             const int checked          = ( int )s_options[ 0 ] + ( int )s_options[ 1 ] + ( int )s_options[ 2 ];
             const int before           = checked == 3 ? 1 : checked == 0 ? 0 : -1;
@@ -898,7 +888,6 @@ namespace ImFluentGalleryApp
             RadioButtons( "Border", &s_border, colors, IM_ARRAYSIZE( colors ), 3 );
             ImGui::EndGroup();
 
-            // The Border the two groups style: 50 high, a 10 thick border.
             ImGui::Dummy( ImVec2( 0.f, FluentDpx( 10.f ) ) );
             const ImVec2 p = ImGui::GetCursorScreenPos();
             const ImVec2 q( p.x + ImGui::GetContentRegionAvail().x, p.y + FluentDpx( 50.f ) );
@@ -1449,7 +1438,6 @@ namespace ImFluentGalleryApp
             ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
             SetNextItemHeader( "Colors" );
             ComboBox( "##cb-colors", &s_sel, colors, IM_ARRAYSIZE( colors ), 0, "Pick a color" );
-            // The output: a 100x30 rectangle in the picked colour.
             ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
             const ImVec2 p = ImGui::GetCursorScreenPos();
             const ImVec2 size( FluentDpx( 100.f ), FluentDpx( 30.f ) );
@@ -2874,8 +2862,7 @@ namespace ImFluentGalleryApp
         return ( col & ~IM_COL32_A_MASK ) | ( ( ImU32 )alpha << IM_COL32_A_SHIFT );
     }
 
-    // A WinUI Gallery home card: a glyph, a title and a description on a card. icon_left puts the glyph left of the
-    // text (the "Recently visited" cards); external adds the open-in-browser glyph (the link tiles).
+    // WinUI Gallery home card. icon_left: glyph left of the text ("Recently visited"); external: open-in-browser glyph.
     static bool HomeCard( const char * title, const char * glyph, const char * desc, const ImVec2 & size, bool icon_left, bool external )
     {
         ImGuiWindow * w  = ImGui::GetCurrentWindow();
@@ -2929,8 +2916,7 @@ namespace ImFluentGalleryApp
         return pressed;
     }
 
-    // WinUI Gallery home page: a hero area with the title, a row of link tiles over its lower edge, then recently
-    // visited controls and the categories. The hero has no image here: soft accent shapes stand in for the artwork.
+    // WinUI Gallery home page. No hero image: soft accent shapes stand in for the artwork.
     static void Page_Home()
     {
         ImGuiWindow * w    = ImGui::GetCurrentWindow();
@@ -2946,7 +2932,6 @@ namespace ImFluentGalleryApp
             dl->AddCircleFilled( ImVec2( cx, hero.Min.y + hero_h * 0.35f ), hero_h * 0.75f, WithAlpha( acc, 28 ), 96 );
             dl->AddCircleFilled( ImVec2( cx + hero_h * 0.35f, hero.Min.y + hero_h * 0.15f ), hero_h * 0.45f, WithAlpha( acc, 40 ), 96 );
             dl->AddCircleFilled( ImVec2( cx - hero_h * 0.45f, hero.Min.y + hero_h * 0.55f ), hero_h * 0.30f, WithAlpha( GetColorU32( ImFluentCol_SystemFillAttention ), 36 ), 96 );
-            // Fade into the page at the bottom.
             dl->AddRectFilledMultiColor( ImVec2( hero.Min.x, hero.Min.y + hero_h * 0.55f ), hero.Max, WithAlpha( page, 0 ), WithAlpha( page, 0 ), page, page );
             ImGui::PopClipRect();
         }
@@ -2958,7 +2943,6 @@ namespace ImFluentGalleryApp
         ImGui::SetCursorPosX( FluentDpx( 36.f ) );
         TextBlock( "ImFluent Gallery", ImFluentTextStyle_TitleLarge );
 
-        // Link tiles, over the lower edge of the hero.
         struct LinkTile
         {
             const char * title;
@@ -2981,7 +2965,6 @@ namespace ImFluentGalleryApp
                 OpenUrl( links[ i ].url );
         }
 
-        // Recently visited control pages, newest first; a few defaults before any visit.
         ImGui::Dummy( ImVec2( 0.f, FluentDpx( 28.f ) ) );
         TextBlock( "Recently visited", ImFluentTextStyle_Subtitle );
         ImGui::Dummy( ImVec2( 0.f, FluentDpx( 4.f ) ) );
@@ -3022,7 +3005,6 @@ namespace ImFluentGalleryApp
             ImGui::PopID();
         }
 
-        // All categories.
         ImGui::Dummy( ImVec2( 0.f, FluentDpx( 28.f ) ) );
         TextBlock( "Controls by category", ImFluentTextStyle_Subtitle );
         ImGui::Dummy( ImVec2( 0.f, FluentDpx( 4.f ) ) );
@@ -3226,8 +3208,7 @@ namespace ImFluentGalleryApp
 
     static void DrawTitleBar( bool * p_open )
     {
-        // WinUI Gallery title bar: 48 high; back, pane toggle, app icon, title and a secondary tag on the left, the search
-        // box centered.
+        // WinUI Gallery title bar: 48 high, the search box centered.
         const float h      = FluentDpx( 48.f );
         const float closeW = p_open ? FluentDpx( 46.f ) : 0.f;
 
@@ -3240,7 +3221,6 @@ namespace ImFluentGalleryApp
         if ( TitleBarPaneToggleButton() )
             g_State.NavMode = ( g_State.NavMode == ImFluentNavViewMode_LeftOpen ) ? ImFluentNavViewMode_LeftCompact : ImFluentNavViewMode_LeftOpen;
 
-        // App icon: an accent tile with a glyph, 16 dp.
         {
             ImGuiWindow * w = ImGui::GetCurrentWindow();
             const float d   = FluentDpx( 16.f );
@@ -3282,8 +3262,7 @@ namespace ImFluentGalleryApp
     // [SECTION] Navigation pane
     static void DrawNavigationPane()
     {
-        // As the WinUI Gallery: the pane toggle lives in the title bar; Home, then a "Controls" header over All and the
-        // categories (their items without icons); Settings pinned at the bottom.
+        // As the WinUI Gallery: pane toggle in the title bar; Home, a "Controls" header over the categories; Settings at the bottom.
         SetNextNavPaneToggleButtonVisible( false );
         BeginNavigationView( "##gallery-nav", &g_State.NavMode );
         if ( NavItem( "Home", std::strcmp( CurrentPageId(), "Home" ) == 0, ImFluentIcon_Home ) )

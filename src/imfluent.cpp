@@ -143,8 +143,7 @@ struct ImFluentTextStyleFont
     float FontSize;
 };
 
-// A composite control that is ONE tab stop (WinUI TabFocusNavigation="Once"): Tab lands on its selected item, or
-// the last focused one, or the first; arrows move inside. See BeginTabGroup().
+// A control that is ONE tab stop (WinUI TabFocusNavigation="Once"): Tab lands on the selected, else last focused, else first item.
 enum ImFluentTabGroupFlags_
 {
     ImFluentTabGroupFlags_None                  = 0,
@@ -879,15 +878,13 @@ namespace ImFluent
         dl->AddText( font, fs, pos, col, text );
     }
 
-    // Width of a 1 dp stroke in whole pixels, as WinUI layout rounding draws it: 1 at 100% and 125%, 2 at 150% and
-    // 200%.
+    // A 1 dp stroke in whole pixels, as WinUI layout rounding draws it: 1 at 100% and 125%, 2 at 150% and 200%.
     static float StrokeWidth()
     {
         return ImMax( 1.f, IM_ROUND( FluentDpx( 1.f ) ) );
     }
 
-    // A 1 dp outline inside [a, b], on whole pixels (ImDrawList::AddRect centres any stroke half a pixel in, which
-    // blurs strokes wider than 1 px over three pixels).
+    // A 1 dp outline inside [a, b] on whole pixels (AddRect centres a stroke half a pixel in, which blurs wider strokes).
     static void StrokeRect( ImDrawList * dl, const ImVec2 & a, const ImVec2 & b, ImU32 col, float rounding, ImDrawFlags flags = 0 )
     {
         const float t = StrokeWidth();
@@ -896,8 +893,7 @@ namespace ImFluent
         dl->PathStroke( col, ImDrawFlags_Closed, t );
     }
 
-    // A control's fill inside its 1 dp border (WinUI BackgroundSizing="InnerBorderEdge"): the border then blends with
-    // what is behind the control, not with the fill, and reads as strong as WinUI's.
+    // Fill inside the 1 dp border (WinUI BackgroundSizing="InnerBorderEdge"), so the border blends with what is behind the control.
     static void FillInsideBorder( ImDrawList * dl, const ImVec2 & a, const ImVec2 & b, ImU32 col, float rounding, ImDrawFlags flags = 0 )
     {
         const float t = StrokeWidth();
@@ -922,9 +918,8 @@ namespace ImFluent
         return out;
     }
 
-    // WinUI's elevation border is one gradient brush: the side colour, with a 1 dp edge of another colour at the
-    // bottom (light theme, accent controls) or at the top (dark theme controls). Here the edge strip goes over the
-    // side stroke, in the colour that composites to the edge colour.
+    // WinUI elevation border: the side colour with a 1 dp edge of another colour at the bottom (light theme, accent controls)
+    // or at the top (dark theme); the edge strip goes over the side stroke, in the colour that composites to the edge colour.
     static void RenderElevationBorder( ImDrawList * dl, const ImRect & bb, float rounding, ImU32 sides, ImU32 top, ImU32 bottom, float edge_thickness )
     {
         StrokeRect( dl, bb.Min, bb.Max, sides, rounding );
@@ -1069,10 +1064,8 @@ namespace ImFluent
         ImGui::PopStyleVar( 2 );
     }
 
-    // A text control's frame as WinUI draws it, around the ImGui text input submitted between Begin and End: the fill
-    // inside the border (by state), the 1 dp border and the 1 dp strong bottom edge (TextControlElevationBorderBrush).
-    // ImGui draws only the text: its frame fill is transparent and its border off, and the fill goes on a draw
-    // channel under the text.
+    // A WinUI text control frame around the InputText between Begin and End: fill by state, 1 dp border, 1 dp strong bottom edge.
+    // ImGui draws only the text (transparent frame, no border); the fill goes on a draw channel under it.
     static void BeginTextControlFrame( float h )
     {
         PushControlFrameStyle( h );
@@ -1279,9 +1272,7 @@ namespace ImFluent
         return g.NavId == id && g.NavCursorVisible;
     }
 
-    // Reports the item label and state to the Dear ImGui Test Engine, the way ImGui's own widgets do,
-    // so tests and automation can find items by label and read checked/opened state.
-    // Compiles to nothing unless IMGUI_ENABLE_TEST_ENGINE is defined.
+    // Item label and state for the Dear ImGui Test Engine, as ImGui's own widgets report them (no-op without IMGUI_ENABLE_TEST_ENGINE).
     static void ReportItemInfo( ImGuiID id, const char * label, ImGuiItemStatusFlags flags = 0 )
     {
 #ifdef IMGUI_ENABLE_TEST_ENGINE
@@ -1312,9 +1303,7 @@ namespace ImFluent
             RenderNavFocusRing( bb, rounding );
     }
 
-    // WinUI controls use the arrow keys themselves (sliders, ratings, pickers, tree items, submenus).
-    // When item `id` has nav focus and the pending nav move goes in `dir`, cancel ImGui's focus move and
-    // report the key to the widget instead. Same idiom as ImGui's TreeNode Left/Right handling.
+    // WinUI controls take arrow keys themselves: if `id` has nav focus and the nav move goes in `dir`, cancel it and return true.
     static bool ConsumeNavArrow( ImGuiID id, ImGuiDir dir )
     {
         ImGuiContext & g = *GImGui;
@@ -1332,8 +1321,7 @@ namespace ImFluent
         return chord != 0 && ImGui::IsKeyChordPressed( chord );
     }
 
-    // Chord press (exact modifiers) whose key `owner_id` takes, so ImGui's navigation does not also use it
-    // (Home/End/PageUp/PageDown would otherwise scroll the window). A 0 chord is never pressed.
+    // Chord press (exact modifiers) whose key `owner_id` takes, so ImGui's navigation does not also use it (Home/End/PageUp/PageDown scroll).
     static bool IsChordPressedOwned( ImGuiKeyChord chord, ImGuiID owner_id, bool repeat = true )
     {
         if ( chord == 0 )
@@ -1342,8 +1330,7 @@ namespace ImFluent
         return ImGui::IsKeyChordPressed( chord, repeat ? ImGuiInputFlags_Repeat : ImGuiInputFlags_None, owner_id );
     }
 
-    // Chord press for the item that has nav focus (an ImFluentActions entry). An arrow-key chord is read from
-    // the nav move request and cancels it; other keys are owned by the item while it has focus.
+    // Chord press for the nav-focused item: an arrow chord is taken from the nav move request, other keys are owned by the item.
     static bool IsFocusedItemChordPressed( ImGuiID id, ImGuiKeyChord chord, bool repeat = true )
     {
         ImGuiContext & g = *GImGui;
@@ -1367,9 +1354,8 @@ namespace ImFluent
         return g.NavActivatePressedId == id && ( g.NavActivateFlags & ImGuiActivateFlags_PreferInput ) != 0;
     }
 
-    // WinUI TextBox, PasswordBox and RichEditBox keep their text on Escape, where ImGui's InputText reverts the
-    // edit. Call before the InputText: Escape then only leaves edit mode, and the same press is not also a nav
-    // cancel. NumberBox keeps the ImGui revert (WinUI NumberBox reverts to its value too).
+    // WinUI TextBox, PasswordBox and RichEditBox keep their text on Escape (ImGui's InputText reverts). Call before the InputText:
+    // Escape then only leaves edit mode and is not also a nav cancel. NumberBox keeps the revert, as in WinUI.
     static void TextInputEscapeKeepsText( ImGuiID input_id )
     {
         ImGuiContext & g = *GImGui;
@@ -1386,10 +1372,8 @@ namespace ImFluent
     static const ImGuiID TABGROUP_KEY_PENDING        = 0x7A6B0005u;
     static const ImGuiID TABGROUP_KEY_PENDING_SELECT = 0x7A6B0006u;
 
-    // One-tab-stop group. Call BeginTabGroup()/EndTabGroup() around the members, in one window. For each member:
-    // pass TabGroupItemFlags() to its ItemAdd (or PushItemFlag( ImGuiItemFlags_NoTabStop, ... ) around it), then
-    // call TabGroupItemNav() after its behavior; it returns true when keyboard focus just arrived on the item in a
-    // SelectionFollowsFocus group, so the caller selects it.
+    // One-tab-stop group around members in one window. Each member: TabGroupItemFlags() on its ItemAdd, then TabGroupItemNav() after
+    // its behavior, which returns true when focus just arrived in a SelectionFollowsFocus group (the caller selects it).
     static void BeginTabGroup( ImGuiID group_id, int flags )
     {
         ImGuiStorage * st      = ImGui::GetStateStorage();
@@ -1426,8 +1410,7 @@ namespace ImFluent
         lay->NextRects.push_back( bb );
     }
 
-    // Nearest member of the previous frame from `from` in `dir`; 0 at the edge. Left/Right stay in the row;
-    // Up/Down prefer the same column, then the nearest one (a shorter last row).
+    // Nearest previous-frame member from `from` in `dir`, 0 at the edge: Left/Right stay in the row, Up/Down prefer the column.
     static ImGuiID TabGroupNeighbour( const ImFluentTabGroupLayout & lay, ImGuiID from, ImGuiDir dir )
     {
         int fi = -1;
@@ -1560,14 +1543,12 @@ namespace ImFluent
         g_Ctx.TabGroupStack.pop_back();
     }
 
-    // Inside BeginListView/BeginGridView/BeginTreeView: ListViewItem, GridViewItem and TreeNode join its tab group.
     static bool InItemsContainer()
     {
         return !g_Ctx.TabGroupStack.empty() && ( g_Ctx.TabGroupStack.back().Flags & ImFluentTabGroupFlags_ItemsContainer ) != 0;
     }
 
-    // Tree rows (TreeNode, and ListViewItem leaves inside a TreeNode): Right on an expanded node gives focus to
-    // its first child row; Left on a row whose own Left did nothing focuses the parent node (WinUI TreeView).
+    // WinUI TreeView rows: Right on an expanded node focuses its first child; a Left that did nothing on a row focuses the parent.
     static void TreeRowTakeFirstChildFocus( ImGuiID id )
     {
         if ( g_Ctx.TreeParentStack.empty() || g_Ctx.TreeFocusFirstChildOf != g_Ctx.TreeParentStack.back() )
@@ -1791,8 +1772,7 @@ bool ImFluent::HasUserAccentColor()
 }
 
 // [SECTION] Backdrop (Mica)
-// Mica shows only the blurred, tinted wallpaper: ImFluent builds that into a small texture and draws it behind all
-// windows, mapped to the monitor so it stays still while the window moves.
+// The blurred, tinted wallpaper in a small texture behind all windows, mapped to the monitor so it stays still.
 
 namespace
 {
@@ -2336,8 +2316,7 @@ void ImFluent::LoadFluentSystemFonts()
     SetFluentTextStyleFont( ImFluentTextStyle_Caption, regularFont, 12.f * em );
     SetFluentTextStyleFont( ImFluentTextStyle_Body, regularFont, 14.f * em );
 
-    // The Fluent type ramp sets BodyStrong, Subtitle, Title, TitleLarge and Display in Semibold (Bold before
-    // Windows 10 shipped Segoe UI Semibold).
+    // BodyStrong, Subtitle, Title, TitleLarge and Display are Semibold (Bold where Segoe UI Semibold is missing).
     char semiboldPath[ MAX_PATH ];
     ImFormatString( semiboldPath, MAX_PATH, "%s/seguisb.ttf", fontsDirectory );
     const bool hasSemibold = ::GetFileAttributesA( semiboldPath ) != INVALID_FILE_ATTRIBUTES;
@@ -2770,9 +2749,7 @@ bool ImFluent::RadioButton( const char * label, bool active )
     return pressed;
 }
 
-// Loose radio buttons that share one int* form a group (WinUI GroupName). Down/Right focus the next one and
-// Up/Left the previous one, in submission order, wrapping at the ends. Focus only: Space checks. The links come
-// from the previous frame and live in the window storage.
+// Loose radio buttons sharing one int* are a group (WinUI GroupName): arrows move focus only, wrapping; links kept from last frame.
 static void LooseRadioGroupNav( const int * group, ImGuiID id )
 {
     static const ImGuiID KEY_FRAME = 0x4AD10001u, KEY_FIRST = 0x4AD10002u, KEY_LAST = 0x4AD10003u, KEY_PREV_LAST = 0x4AD10004u;
@@ -2840,9 +2817,7 @@ bool ImFluent::RadioButtons( const char * label, int * v, const char * const ite
         RenderAndConsumePendingHeader();
         ImGui::TextUnformatted( label );
     }
-    // Keyboard (WinUI RadioButtons): the group is one tab stop on the selected item. Up/Down step by index
-    // (column-major), Left/Right move one column; both stop at the ends. Arrows select the item they focus,
-    // except with Ctrl held (then Space selects).
+    // WinUI RadioButtons: one tab stop; Up/Down by index (column-major), Left/Right by column, stop at the ends; select unless Ctrl.
     ImGuiContext & g = *GImGui;
     const int rows   = ( items_count + max_columns - 1 ) / max_columns;
     int nav_target   = -1;
@@ -3018,8 +2993,7 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
     ImDrawList * dl      = w->DrawList;
     const ImU32 trackCol = ImFluent::GetColorU32( ImFluentCol_TextSecondary );
     const ImU32 fillCol  = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
-    // WinUI RatingControl: the Segoe star glyphs, an outline for unset items and a filled star (cut for half values)
-    // for the value.
+    // WinUI RatingControl: Segoe star glyphs, an outline for unset items, a filled star (cut for half values) for the value.
     ImFont * font        = ImGui::GetFont();
     for ( int i = 0; i < max_stars; ++i )
     {
@@ -3111,10 +3085,8 @@ static void SliderValueFromDouble( ImGuiDataType dtype, void * p, double d )
     }
 }
 
-// Keyboard for a focused slider, as WinUI Slider: arrows take a small step (1 for integers, 1% of the range
-// otherwise), PageUp/PageDown a large step (10%), Home/End jump to the ends. The value stays within
-// [v_min, v_max]; the step sizes come from [step_min, step_max] when given (a range slider thumb is clamped
-// by the other thumb but steps over the full range).
+// WinUI Slider keys: arrows 1 (integers) or 1% of the range, PageUp/PageDown 10%, Home/End the ends. Steps come from
+// [step_min, step_max] when given (a range slider thumb is clamped by the other thumb but steps over the full range).
 static bool SliderKeyboardStep( ImGuiID id, ImGuiDataType dtype, void * v, const void * v_min, const void * v_max, const void * step_min = NULL, const void * step_max = NULL )
 {
     const double lo    = SliderValueToDouble( dtype, v_min );
@@ -3289,7 +3261,6 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
     if ( ImGui::GetCurrentContext()->ActiveIdSource != ImGuiInputSource_Mouse )
         lo_held = hi_held = false;
 
-    // Keyboard: each thumb is a tab stop with its own focus, stepped like a Slider.
     if ( !IsCurrentItemDisabled() )
     {
         const float lo_cur = *v_min, hi_cur = *v_max;
@@ -4339,8 +4310,7 @@ bool ImFluent::BeginCard( const char * id, const ImVec2 & size, ImFluentCardStyl
     ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 0.f );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.CardPadding ), FluentDpx( style.CardPadding ) ) );
     const bool open   = ImGui::BeginChild( id, size, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground );
-    // The fill inside the border and the border on whole pixels (ImGui's child border straddles half pixels and
-    // blurs at 150%): the border then blends with the page, as WinUI's does.
+    // Fill and border on whole pixels (ImGui's child border straddles half pixels and blurs at 150%), as WinUI draws them.
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     const ImRect rect = w->Rect();
     w->DrawList->PushClipRect( rect.Min, rect.Max, false );
@@ -4692,13 +4662,11 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
     if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
         if ( p_open && *p_open && tab_bar->SelectedTabId == ImGui::GetID( label ) && ImGui::GetStateStorage()->GetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, false ) && IsActionPressed( g_Ctx.Actions.CloseTab ) )
             *p_open = false;
-    // WinUI TabView: the tab strip is one tab stop on the selected tab; Left/Right move along the tabs and wrap,
-    // Home/End go to the first/last tab (focus only: Space/Enter select); Up/Down do not leave the strip.
+    // WinUI TabView: one tab stop on the selected tab; Left/Right wrap, Home/End (focus only), Up/Down stay in the strip.
     const ImGuiID tab_id   = ImGui::GetID( label );
     ImGuiTabBar * tab_bar  = g.CurrentTabBar;
     const bool is_selected = tab_bar && tab_bar->SelectedTabId == tab_id;
-    // WinUI TabView look: equal-width tabs (100 to 240), secondary text on the unselected ones, and a divider
-    // between two unselected tabs.
+    // WinUI TabView look: equal-width tabs (100 to 240), secondary text when unselected, dividers between unselected tabs.
     if ( tab_bar && tab_bar->Tabs.Size > 0 )
         ImGui::SetNextItemWidth( ImClamp( tab_bar->BarRect.GetWidth() / ( float )tab_bar->Tabs.Size, FluentDpx( 100.f ), FluentDpx( 240.f ) ) );
     if ( !is_selected )
@@ -4745,9 +4713,8 @@ bool ImFluent::TabAddButton()
 
 void ImFluent::EndTabView()
 {
-    // WinUI TabView accelerators while focus is inside the tab view (strip or content): Ctrl+Tab and
-    // Ctrl+Shift+Tab select the next and previous tab, wrapping. Applications keep Dear ImGui's own Ctrl+Tab
-    // window switcher off (ImGuiContext::ConfigNavWindowingKeyNext/Prev = 0) for these to reach the tab view.
+    // WinUI TabView accelerators while focus is inside the tab view (NextTab, PreviousTab, wrapping).
+    // Applications turn off ImGui's Ctrl+Tab window switcher (ConfigNavWindowingKeyNext/Prev = 0) so the keys reach the tab view.
     ImGuiContext & g = *GImGui;
     if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
     {
@@ -4802,8 +4769,7 @@ bool ImFluent::BeginSelectorBar( const char * id )
     ImGui::PushID( id );
     ImGui::BeginGroup();
     ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingXSmall ), 0.f ) );
-    // WinUI SelectorBar: one tab stop; Left/Right move by index without wrapping, Home/End jump to the ends, and
-    // selection follows keyboard focus (not with Ctrl).
+    // Keys as WinUI SelectorBar.
     BeginTabGroup( ImGui::GetID( "##selector-group" ), ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_HomeEnd | ImFluentTabGroupFlags_SelectionFollowsFocus );
     return true;
 }
@@ -4881,8 +4847,7 @@ bool ImFluent::IsNavPaneClosing()
     return g_Ctx.NavView.PrevMode == ImFluentNavViewMode_LeftOpen && g_Ctx.NavView.Mode != ImFluentNavViewMode_LeftOpen;
 }
 
-// Left modes (WinUI): the menu items scroll in a region of their own; footer items (Settings) stay pinned under it.
-// The footer's height comes from the previous frame, in the pane's storage.
+// Left modes (WinUI): menu items scroll in their own region, footer items stay pinned under it (footer height from last frame).
 static const ImGuiID NAVVIEW_KEY_FOOTER_H = 0xF0073Eu;
 
 static void BeginNavMenuRegion()
@@ -4915,8 +4880,7 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
     const ImFluentNavViewMode prev_mode = ( ImFluentNavViewMode )st->GetInt( mode_key, ( int )ImFluentNavViewMode_LeftCompact );
     st->SetInt( mode_key, ( int )mode );
 
-    // WinUI NavigationView: the menu items are one tab stop (the selected item, else the first); Up/Down move
-    // between items, Home/End to the first/last. Settings (NavSettingsItem) is a stop of its own.
+    // WinUI NavigationView: menu items are one tab stop (selected, else first) with Up/Down and Home/End; Settings is its own stop.
     BeginTabGroup( nav_id ^ 0x7AB1E5u, ImFluentTabGroupFlags_HomeEnd );
     g_Ctx.NavView.InTabGroup = true;
 
@@ -5000,8 +4964,7 @@ static ImRect NavItemPillRect( const ImRect & row )
     return ImRect( row.Min.x + m, row.Min.y, row.Max.x - m, row.Max.y );
 }
 
-// Menu items of a NavigationView form one tab-stop group; footer items (Settings) and items outside a
-// NavigationView are ordinary tab stops.
+// NavigationView menu items form one tab-stop group; footer items and items outside a NavigationView are ordinary stops.
 static ImGuiItemFlags NavMenuItemFlags( ImGuiID id, bool selected )
 {
     return ( g_Ctx.NavView.InTabGroup && !g_Ctx.NavView.FooterItem ) ? ImFluent::TabGroupItemFlags( id, selected ) : ImGuiItemFlags_None;
@@ -5137,7 +5100,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
         expanded = !expanded;
         storage->SetBool( id, expanded );
     }
-    // Keyboard (WinUI NavigationView): Right expands a collapsed parent item, Left collapses an expanded one.
+    // WinUI NavigationView: Right expands, Left collapses.
     if ( ( expanded && ConsumeNavArrow( id, ImGuiDir_Left ) ) || ( !expanded && ConsumeNavArrow( id, ImGuiDir_Right ) ) )
     {
         expanded = !expanded;
@@ -5323,8 +5286,7 @@ void ImFluent::EndNavigationView()
 void ImFluent::NavigationViewBeginContent( const ImVec2 & padding )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
-    // WinUI: the content is a layer over the window's base color, with a 1 px stroke and a rounded top-left
-    // corner (it meets the window edges on the right and at the bottom). Drawn in the parent, under the child.
+    // WinUI: a content layer over the base color, 1 px stroke, rounded top-left corner; drawn in the parent, under the child.
     {
         ImDrawList * dl    = ImGui::GetWindowDrawList();
         const ImVec2 p0    = ImGui::GetCursorScreenPos();
@@ -5513,9 +5475,8 @@ void ImFluent::EndSplitView()
 
 // [SECTION] Lists & Pickers (ComboBox / ListBox / TreeNode / GridView / PipsPager / BreadcrumbBar)
 
-// ComboBox type-ahead (WinUI): typed characters build a search string that resets after one second; the first
-// item that starts with it (case-insensitive, leading spaces ignored) wins. A new string starts searching after
-// the current item, an extended one at the current item. Returns the match, or -1.
+// ComboBox type-ahead (WinUI): the search string resets after one second; the first case-insensitive prefix match wins
+// (leading spaces ignored). A new string searches after the current item, an extended one from it. Returns -1 if none.
 static int ComboTypeAheadSearch( ImGuiID id, int current, const char * const items[], int items_count )
 {
     ImGuiContext & g = *GImGui;
@@ -5624,8 +5585,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         }
     }
 
-    // Closed (WinUI): Up/Down step the selection without opening (clamped, no wrap), Home/End jump to the
-    // ends, typed characters select the first matching item.
+    // Closed (WinUI): Up/Down step without opening (no wrap), Home/End jump to the ends, typing selects the first match.
     bool changed = false;
     if ( !popup_open && !toggle && !disabled && current_item && !gctx.IO.KeyAlt && items_count > 0 )
     {
@@ -5847,9 +5807,7 @@ bool ImFluent::ListBox( const char * label, int * current_item, const char * con
     g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
     bool changed = false;
     const ImVec2 sz( ImGui::CalcItemWidth(), FluentDpx( ( float )height_in_items * style.ControlHeight ) );
-    // WinUI ListBox: one tab stop on the selected item; Up/Down move and select (selection follows focus, not
-    // with Ctrl), stopping at the ends; Home/End jump to the first/last item. The frame is a flattened child, so
-    // Tab reaches the items directly instead of stopping on the frame.
+    // WinUI ListBox: one tab stop, selection follows focus; the frame is a flattened child, so Tab reaches the items directly.
     ImGui::BeginGroup();
     const ImGuiID list_id = ImGui::GetID( label );
     if ( ImGui::BeginChild( list_id, sz, ImGuiChildFlags_FrameStyle | ImGuiChildFlags_NavFlattened ) )
@@ -5885,8 +5843,7 @@ bool ImFluent::ListBox( const char * label, int * current_item, const char * con
 }
 
 // [SECTION] ListView / GridView / TreeView containers
-// The items between Begin and End are one tab stop (WinUI TabNavigation="Once"): Tab enters on the selected item,
-// else the last focused one, else the first. Home/End go to the first/last item.
+// The items between Begin and End are one tab stop (WinUI TabNavigation="Once"); Home/End go to the first/last item.
 
 static void BeginItemsContainer( const char * id, int flags )
 {
@@ -5907,7 +5864,6 @@ static int ItemsViewSelectFlags( ImFluentItemsViewFlags flags )
     return ( flags & ImFluentItemsViewFlags_NoSelectOnFocus ) ? 0 : ImFluentTabGroupFlags_SelectionFollowsFocus;
 }
 
-// Up/Down move by row and stop at the ends; selection follows focus (not with Ctrl).
 void ImFluent::BeginListView( const char * id, ImFluentItemsViewFlags flags )
 {
     BeginItemsContainer( id, ImFluentTabGroupFlags_Vertical | ItemsViewSelectFlags( flags ) );
@@ -5918,7 +5874,6 @@ void ImFluent::EndListView()
     EndItemsContainer();
 }
 
-// Arrows move to the nearest tile in that direction and stop at the edges; selection follows focus (not with Ctrl).
 void ImFluent::BeginGridView( const char * id, ImFluentItemsViewFlags flags )
 {
     BeginItemsContainer( id, ImFluentTabGroupFlags_Grid | ItemsViewSelectFlags( flags ) );
@@ -5929,8 +5884,6 @@ void ImFluent::EndGridView()
     EndItemsContainer();
 }
 
-// Up/Down move over the visible rows and stop at the ends; Left/Right collapse, expand and move to the parent or
-// the first child (TreeNode).
 void ImFluent::BeginTreeView( const char * id )
 {
     BeginItemsContainer( id, ImFluentTabGroupFlags_Vertical );
@@ -6047,8 +6000,7 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     bool hovered = false, held = false;
     const bool row_pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
 
-    // Keyboard (WinUI TreeView): Right expands a collapsed node, then moves to its first child; Left collapses an
-    // expanded node, then moves to its parent. Inside BeginTreeView the rows are one tab stop.
+    // WinUI TreeView: Right expands, then moves to the first child; Left collapses, then moves to the parent.
     TreeRowTakeFirstChildFocus( id );
     if ( p_open && *p_open )
     {
@@ -6064,8 +6016,7 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     if ( in_tree_view )
         TabGroupItemNav( id );
 
-    // The checkbox is not a tab stop: Space on the row toggles it (WinUI TreeView multiple selection). Enter and
-    // clicks on the row expand or collapse the node.
+    // The checkbox is not a tab stop: Space toggles it (WinUI TreeView multiple selection); Enter and clicks expand/collapse.
     const bool space_check = p_checked && row_pressed && GImGui->NavActivatePressedId == id && !IsEnterActivation( id );
     bool check_pressed = false, check_hov = false, check_held = false;
     if ( p_checked )
@@ -6207,8 +6158,7 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
     const ImGuiID gid = w->GetID( id );
     if ( !ImGui::ItemAdd( bb, 0 ) )
         return false;
-    // WinUI PipsPager: the pips are one tab stop on the selected pip; arrows move focus between pips (focus only,
-    // Up/Down like Left/Right), Space/Enter select the focused pip. Past the end pips, arrows move on spatially.
+    // WinUI PipsPager: one tab stop on the selected pip, arrows focus only (Up/Down as Left/Right); past the end pips they move on spatially.
     BeginTabGroup( gid, ImFluentTabGroupFlags_None );
     ImGuiContext & g         = *GImGui;
     int nav_target           = -1;
@@ -6434,8 +6384,7 @@ int ImFluent::BreadcrumbBar( const char * id, const char * const items[], int it
     ImFluentStackGuard g;
     g.PushID( id );
     g.BeginGroup();
-    // WinUI BreadcrumbBar: one tab stop that enters on the first item; Left/Right move by index and stop at the
-    // ends; Space/Enter raise the click, also on the last (current) item.
+    // WinUI BreadcrumbBar: one tab stop entering on the first item; Space/Enter click any item, the current one too.
     BeginTabGroup( ImGui::GetID( "##crumbs" ), ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_FirstIsStop );
     // WinUI look: every item is plain primary text (the current one too), separated by a small chevron.
     ImGuiWindow * w             = ImGui::GetCurrentWindow();
@@ -6549,8 +6498,7 @@ bool ImFluent::BeginMenuFlyout( const char * id )
     return true;
 }
 
-// Invoking a menu item closes the whole menu, submenus included (WinUI MenuFlyout). The chain is the run of
-// open popups where each one was begun inside the previous one.
+// Invoking a menu item closes the whole menu (WinUI MenuFlyout): the open popups each begun inside the previous one.
 static void CloseMenuFlyoutChain()
 {
     ImGuiContext & g = *GImGui;
@@ -6656,10 +6604,8 @@ bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, b
     if ( !added )
         return false;
 
-    // Keyboard: Enter, Space or Right opens the submenu and moves focus into it; Left or Escape inside closes it.
-    // Hover opens it only while the mouse is in use: NoHoveredOnFocus ignores keyboard focus, and
-    // NavHighlightItemUnderNav (set by keyboard use, cleared by mouse motion) ignores a pointer that rests on
-    // the item, so Escape is not undone by a re-open on the next frame. Same rule as ImGui's BeginMenu.
+    // Enter, Space or Right open the submenu with focus inside; Left or Escape close it. Hover opens it only while the mouse
+    // is in use (NoHoveredOnFocus, NavHighlightItemUnderNav), so Escape is not undone next frame. Same rule as ImGui's BeginMenu.
     bool hov = false, held = false;
     const bool pressed     = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held, ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_NoHoveredOnFocus ) : false;
     const bool open        = ImGui::IsPopupOpen( label, ImGuiPopupFlags_None );
@@ -7231,8 +7177,7 @@ bool ImFluent::BeginMenuBar()
     return true;
 }
 
-// WinUI MenuBar inside the page. The menus are one tab stop: Left/Right move between them (wrapping), Enter, Space
-// or Down open one. While a menu is open, Left/Right in it and the pointer over another menu switch menus.
+// WinUI MenuBar in the page: one tab stop, Left/Right wrap, Enter/Space/Down open; while open, Left/Right or hover switch menus.
 static const ImGuiID MENUBAR_KEY_OPEN = 0x4D42u; // Index of the open menu, in the window storage
 
 bool ImFluent::BeginMenuBar( const char * id )
@@ -7292,7 +7237,6 @@ bool ImFluent::BeginMenuBarItem( const char * label )
     const bool was_open = mb.PrevOpenIndex == index;
     // A click on the open menu's own item closes it: ImGui already closed the popup on the click outside it.
     bool want_open      = ( pressed && !open && !was_open ) || ( key_open && !open );
-    // The pointer over another menu while one is open switches to it.
     if ( !open && mb.PrevOpenIndex >= 0 && !was_open && IsMouseOverWindowRect( bb, ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ( g.IO.MouseDelta.x != 0.f || g.IO.MouseDelta.y != 0.f ) )
         want_open = true;
     if ( want_open )
@@ -7392,8 +7336,7 @@ bool ImFluent::BeginCommandBar( const char * id, float height )
     return true;
 }
 
-// Primary commands (WinUI CommandBar): each is a tab stop; Left/Right move between them and stop at the first
-// command and at the last one (More). Commands inside the overflow popup use the menu keys instead.
+// WinUI CommandBar: each primary command is a tab stop; Left/Right stop at the first one and at More. The overflow uses menu keys.
 static void CommandBarItemNav( ImGuiID id )
 {
     if ( g_Ctx.CommandBarStack.empty() )
@@ -7455,10 +7398,8 @@ void ImFluent::EndCommandBar()
 }
 
 // [SECTION] CommandBarFlyout
-// WinUI CommandBarFlyout: a flyout with a row of icon-only primary commands (AppBarButton, AppBarToggleButton) and,
-// after CommandBarFlyoutSecondary(), a list of secondary commands (MenuFlyoutItem). Focus opens on the first
-// primary command; Left/Right stop at the ends of the row; invoking a secondary command closes the flyout; Escape
-// closes the whole flyout.
+// WinUI CommandBarFlyout: focus opens on the first primary command, Left/Right stop at the ends of the row,
+// a secondary command closes the flyout, Escape closes it all.
 
 bool ImFluent::BeginCommandBarFlyout( const char * id )
 {
@@ -7478,7 +7419,6 @@ bool ImFluent::BeginCommandBarFlyout( const char * id )
     return true;
 }
 
-// Ends the primary row of the flyout begun last.
 static void EndCommandBarFlyoutPrimary()
 {
     if ( g_Ctx.CommandBarStack.empty() || g_Ctx.CommandBarStack.back().Window != ImGui::GetCurrentWindow() )
@@ -7746,13 +7686,8 @@ namespace ImFluent
 
     typedef const char * ( *SpinnerLabelFn )( int index, char * buf, size_t buf_size, const void * user_data );
 
-    // One picker flyout column (WinUI LoopingSelector) over items [0, count). The column is one focus stop on
-    // the selection band; its rows answer the mouse only. Keys while the column has focus:
-    //   Up/Down       previous/next item, wrapping when `loop`
-    //   PageUp/Down   SPINNER_CENTER_ROW items at a time
-    //   Home/End      first/last item
-    //   Enter/Space   commit the flyout (*out_commit), as do Alt+Up/Alt+Down
-    // Left/Right move to the neighbour column through ImGui's own navigation. Returns the new index.
+    // One picker flyout column (WinUI LoopingSelector) over [0, count): one focus stop on the selection band, rows answer the mouse only.
+    // Up/Down (wrap when `loop`), PageUp/Down by SPINNER_CENTER_ROW, Home/End; Enter/Space/Alt+Up/Alt+Down commit. Returns the new index.
     static int RenderSpinnerColumnEx( const char * id, const char * name, int index, int count, SpinnerLabelFn label_fn, const void * label_user, float col_w, bool loop, bool default_focus, bool * out_commit )
     {
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -7953,7 +7888,6 @@ namespace ImFluent
         return min_v + step * RenderSpinnerColumnEx( id, name, index, count, SpinnerRangeLabel, &range, col_w, loop, default_focus, out_commit );
     }
 
-    // Text column: labels[0..count).
     static int RenderSpinnerLabelColumn( const char * id, const char * name, int value, const char * const * labels, int count, float col_w, bool loop, bool * out_commit )
     {
         return RenderSpinnerColumnEx( id, name, value, count, SpinnerListLabel, labels, col_w, loop, false, out_commit );
@@ -8039,8 +7973,7 @@ namespace ImFluent
         dl->AddText( ImVec2( x0 + ( ( x1 - x0 ) - ts.x ) * 0.5f, ycenter - ts.y * 0.5f ), col, text );
     }
 
-    // Opens the picker flyout on click, Space/Enter, and (when `alt_arrows_open`) Alt+Up/Alt+Down as WinUI
-    // DatePicker/TimePicker do (ImFluentActions::PickerOpenCommit and PickerOpenCommitAlt).
+    // Opens the picker flyout on click, Space/Enter and, when `alt_arrows_open`, the PickerOpenCommit chords (WinUI).
     static bool PickerTogglePopup( ImGuiID popup_id, const ImRect & bb, ImGuiID trig_id, bool disabled, bool alt_arrows_open )
     {
         ImGuiContext & gctx     = *ImGui::GetCurrentContext();
@@ -8176,8 +8109,7 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
         const float total_w       = c_day_w + c_mon_w + c_yr_w;
         RenderSpinnerSelectionBand( ImGui::GetWindowDrawList(), group_origin, total_w, row_h );
 
-        // Columns are submitted left to right, so Tab and the initial focus (left-most column) follow the visual
-        // order. Day and Month loop, Year does not (WinUI DatePickerFlyout).
+        // Columns left to right so Tab and the initial focus follow the visual order. Day and Month loop, Year does not (WinUI).
         bool commit = false;
         {
             ImFluentStackGuard sp_group;
@@ -8439,7 +8371,6 @@ static ImVec2 CalendarViewCalcSize()
     return ImVec2( grid_w, header_h + dow_h + day_grid_h );
 }
 
-// Date steps for CalendarView keyboard navigation.
 static void CalendarAddDays( int & y, int & m, int & d, int n )
 {
     while ( n > 0 )
@@ -8505,14 +8436,8 @@ static void CalendarClampToRange( int & y, int & m, int & d, const ImFluent::ImF
     }
 }
 
-// Keyboard model (WinUI CalendarView): the header, Previous and Next buttons are tab stops, and the item grid is
-// ONE more stop. The grid stop sits on the "focus date" (the last focused item; the selected date, or today, when
-// the view opens). Keys on the grid, no modifiers:
-//   month view   Left/Right +-1 day, Up/Down +-7 days, Home/End first/last day of the shown month, PageUp/PageDown +-1 month
-//   year view    Left/Right +-1 month, Up/Down +-4 months, Home/End January/December, PageUp/PageDown +-1 year
-//   decade view  Left/Right +-1 year, Up/Down +-4 years, Home/End first/last year of the decade, PageUp/PageDown +-10 years
-//   Enter/Space  select the day, or drill down from year/decade view
-// Ctrl+Up zooms out (month -> year -> decade), Ctrl+Down zooms in. The arrows never leave the grid.
+// WinUI CalendarView keys: header, Previous and Next are tab stops, the grid is ONE more, on the focus date. Arrows, Home/End and
+// PageUp/PageDown move the focus date and never leave the grid; Enter/Space select or drill down; Ctrl+Up/Down zoom.
 bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluentDate * min_date, const ImFluentDate * max_date )
 {
     if ( !date )
@@ -9384,7 +9309,6 @@ bool ImFluent::BeginBorder( const char * id, const ImVec2 & size, ImFluentCol ba
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, corner_radius >= 0.f ? corner_radius : FluentDpx( style.ControlCornerRadius ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, thickness );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, pad );
-    // A zero size fits the content on that axis.
     ImGuiChildFlags flags = ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened;
     if ( thickness > 0.f )
         flags |= ImGuiChildFlags_Borders;
@@ -9425,8 +9349,7 @@ void ImFluent::EndScrollViewer()
 
 // [SECTION] FlipView / Pivot
 
-// WinUI FlipView: one item at a time. The view is one tab stop: Left/Right show the previous/next item (no wrap).
-// Previous/next buttons appear while the pointer is over the view or it has keyboard focus; they are not tab stops.
+// WinUI FlipView: one tab stop, Left/Right without wrap; previous/next buttons show on hover or focus and are not tab stops.
 bool ImFluent::BeginFlipView( const char * id, int * current_item, int items_count, const ImVec2 & size )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
@@ -9485,7 +9408,6 @@ void ImFluent::EndFlipView()
     }
     ImGui::EndChild();
 
-    // The view itself is the tab stop, over the whole area.
     const ImRect view( ImGui::GetItemRectMin(), ImGui::GetItemRectMax() );
     if ( ImGui::ItemAdd( view, st.Id ) )
     {
@@ -9504,8 +9426,7 @@ void ImFluent::EndFlipView()
     ImGui::PopID();
 }
 
-// WinUI Pivot: large text headers with an accent pipe under the selected one. The headers are one tab stop;
-// Left/Right select the previous/next header and wrap around.
+// WinUI Pivot: an accent pipe under the selected header; the headers are one tab stop and Left/Right wrap.
 bool ImFluent::BeginPivot( const char * id )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
