@@ -129,8 +129,14 @@ int main( int argc, char ** argv )
     if ( window == nullptr )
         return 1;
 
+    // --hidden: never show the window; the gallery renders offscreen, which is enough for automation and screenshots.
+    // --no-activate: show the window without taking keyboard focus from the application in front.
+    const bool hidden = HasArg( argc, argv, "--hidden" );
+    if ( HasArg( argc, argv, "--no-activate" ) )
+        SDL_SetHint( SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0" );
     SDL_SetWindowPosition( window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED );
-    SDL_ShowWindow( window );
+    if ( !hidden )
+        SDL_ShowWindow( window );
 
     SDL_GPUDevice * gpu_device = SDL_CreateGPUDevice( SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_METALLIB, true, nullptr );
     if ( gpu_device == nullptr )
@@ -252,9 +258,18 @@ int main( int argc, char ** argv )
 
         SDL_GPUTexture * swapchain_texture = nullptr;
         Uint32 swapchain_w = 0, swapchain_h = 0;
-        SDL_WaitAndAcquireGPUSwapchainTexture( command_buffer, window, &swapchain_texture, &swapchain_w, &swapchain_h );
+        if ( hidden )
+        {
+            // No swapchain: render into the offscreen scene only, at the window's pixel size.
+            int pw = 0, ph = 0;
+            SDL_GetWindowSizeInPixels( window, &pw, &ph );
+            swapchain_w = ( Uint32 )( pw > 0 ? pw : 0 );
+            swapchain_h = ( Uint32 )( ph > 0 ? ph : 0 );
+        }
+        else
+            SDL_WaitAndAcquireGPUSwapchainTexture( command_buffer, window, &swapchain_texture, &swapchain_w, &swapchain_h );
 
-        if ( swapchain_texture != nullptr && !is_minimized )
+        if ( ( swapchain_texture != nullptr || hidden ) && !is_minimized && swapchain_w > 0 && swapchain_h > 0 )
         {
             renderer.EnsureScene( swapchain_w, swapchain_h );
             ImGui_ImplSDLGPU3_PrepareDrawData( draw_data, command_buffer );
@@ -268,19 +283,31 @@ int main( int argc, char ** argv )
             ImGui_ImplSDLGPU3_RenderDrawData( draw_data, command_buffer, render_pass );
             SDL_EndGPURenderPass( render_pass );
 
-            SDL_GPUBlitInfo blit     = {};
-            blit.source.texture      = renderer.Scene;
-            blit.source.w            = swapchain_w;
-            blit.source.h            = swapchain_h;
-            blit.destination.texture = swapchain_texture;
-            blit.destination.w       = swapchain_w;
-            blit.destination.h       = swapchain_h;
-            blit.load_op             = SDL_GPU_LOADOP_DONT_CARE;
-            blit.filter              = SDL_GPU_FILTER_NEAREST;
-            SDL_BlitGPUTexture( command_buffer, &blit );
+            if ( swapchain_texture != nullptr )
+            {
+                SDL_GPUBlitInfo blit     = {};
+                blit.source.texture      = renderer.Scene;
+                blit.source.w            = swapchain_w;
+                blit.source.h            = swapchain_h;
+                blit.destination.texture = swapchain_texture;
+                blit.destination.w       = swapchain_w;
+                blit.destination.h       = swapchain_h;
+                blit.load_op             = SDL_GPU_LOADOP_DONT_CARE;
+                blit.filter              = SDL_GPU_FILTER_NEAREST;
+                SDL_BlitGPUTexture( command_buffer, &blit );
+            }
         }
 
         SDL_SubmitGPUCommandBuffer( command_buffer );
+
+        // Without presenting there is no vsync: cap a hidden gallery near 60 frames per second,
+        // unless the Test Engine asks for maximum speed.
+        bool max_speed = false;
+#if defined( IMFLUENT_GALLERY_AUTOMATION )
+        max_speed = ImFluentAutomation::WantsMaxSpeed();
+#endif
+        if ( hidden && !max_speed )
+            SDL_Delay( 16 );
 
 #if defined( IMFLUENT_GALLERY_AUTOMATION )
         ImFluentAutomation::PostSwap();

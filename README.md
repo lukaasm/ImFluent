@@ -38,7 +38,12 @@ ImFluentGallery                      # MCP server on http://127.0.0.1:7801/mcp
 ImFluentGallery --run-tests [filter] # run the regression tests, exit code = failed tests
 ImFluentGallery --run-tests --junit results.xml
 ImFluentGallery --mcp-port 0 --te-ui # no MCP server, show the Test Engine window
+ImFluentGallery --hidden             # no window at all: renders offscreen, MCP and screenshots still work
+ImFluentGallery --no-activate        # show the window without taking keyboard focus
 ```
+
+The Test Engine injects simulated input into Dear ImGui only: automation never moves the OS mouse or takes
+OS focus, so it can run while you work (use `--hidden` to keep the window off your desktop).
 
 `.mcp.json` registers the gallery server (`imfluent-gallery`, port 7801) and the WinUI 3 Gallery driver
 (`winui-gallery`, port 7802, see `tools/winui_mcp`) for Claude Code. Both expose the same tools

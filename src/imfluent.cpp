@@ -6128,6 +6128,9 @@ namespace ImFluent
     static const ImGuiID CAL_KEY_VIEW_Y              = 0xC1FEu;
     static const ImGuiID CAL_KEY_VIEW_M              = 0xC2FEu;
     static const ImGuiID CAL_KEY_MODE                = 0xC3FEu;
+    static const ImGuiID CAL_KEY_FOCUS_Y             = 0xC4FEu;
+    static const ImGuiID CAL_KEY_FOCUS_M             = 0xC5FEu;
+    static const ImGuiID CAL_KEY_FOCUS_D             = 0xC6FEu;
     static const ImGuiWindowFlags PICKER_POPUP_FLAGS = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
 
     static void SetupPickerPopup( const ImRect & trigger_bb, float popup_w, float popup_pad_y_dpx )
@@ -6157,28 +6160,63 @@ namespace ImFluent
         RenderChevron( dl, c, dir, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), L, th );
     }
 
-    static int RenderSpinnerColumn( const char * id, int value, int min_v, int max_v, bool month_names, const char * format, float col_w, int step = 1 )
+    typedef const char * ( *SpinnerLabelFn )( int index, char * buf, size_t buf_size, const void * user_data );
+
+    // One picker flyout column (WinUI LoopingSelector) over items [0, count). The column is one focus stop on
+    // the selection band; its rows answer the mouse only. Keys while the column has focus:
+    //   Up/Down       previous/next item, wrapping when `loop`
+    //   PageUp/Down   SPINNER_CENTER_ROW items at a time
+    //   Home/End      first/last item
+    //   Enter/Space   commit the flyout (*out_commit), as do Alt+Up/Alt+Down
+    // Left/Right move to the neighbour column through ImGui's own navigation. Returns the new index.
+    static int RenderSpinnerColumnEx( const char * id, const char * name, int index, int count, SpinnerLabelFn label_fn, const void * label_user, float col_w, bool loop, bool default_focus, bool * out_commit )
     {
-        if ( step < 1 )
-            step = 1;
         const ImFluentStyle & style = ImFluent::GetStyle();
         const float row_h           = ImFloor( ImFluent::FluentDpx( style.ControlHeight ) );
         const float win_h           = SPINNER_VISIBLE_ROWS * row_h;
         const float pad_h           = SPINNER_CENTER_ROW * row_h;
+        const float r               = ImFluent::FluentDpx( style.ControlCornerRadius );
 
-        int new_value = ImClamp( value, min_v, max_v );
-        new_value     = min_v + ( ( new_value - min_v ) / step ) * step;
+        int new_index = ImClamp( index, 0, count - 1 );
 
         ImGui::PushID( id );
-        const float target_scroll = ( float )( ( new_value - min_v ) / step ) * row_h;
-        ImGui::SetNextWindowScroll( ImVec2( -1.f, target_scroll ) );
+        ImGuiWindow * host   = ImGui::GetCurrentWindow();
+        const ImVec2 col_pos = ImGui::GetCursorScreenPos();
+        const ImRect band( ImVec2( col_pos.x, col_pos.y + pad_h ), ImVec2( col_pos.x + col_w, col_pos.y + pad_h + row_h ) );
+        const ImGuiID focus_id = host->GetID( "##column" );
+
+        // Keyboard, before the scroll position for this frame is chosen.
+        if ( ImGui::GetIO().KeyAlt )
+        {
+            if ( ConsumeNavArrow( focus_id, ImGuiDir_Up ) || ConsumeNavArrow( focus_id, ImGuiDir_Down ) )
+                *out_commit = true;
+        }
+        else
+        {
+            if ( ConsumeNavArrow( focus_id, ImGuiDir_Up ) )
+                new_index = ( new_index > 0 ) ? new_index - 1 : ( loop ? count - 1 : 0 );
+            if ( ConsumeNavArrow( focus_id, ImGuiDir_Down ) )
+                new_index = ( new_index < count - 1 ) ? new_index + 1 : ( loop ? 0 : count - 1 );
+            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_PageUp ) )
+                new_index = ImMax( 0, new_index - SPINNER_CENTER_ROW );
+            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_PageDown ) )
+                new_index = ImMin( count - 1, new_index + SPINNER_CENTER_ROW );
+            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_Home ) )
+                new_index = 0;
+            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_End ) )
+                new_index = count - 1;
+        }
+        if ( GImGui->NavActivateId == focus_id )
+            *out_commit = true;
+
+        ImGui::SetNextWindowScroll( ImVec2( -1.f, ( float )new_index * row_h ) );
 
         ImFluentStackGuard gw;
         gw.PushStyleColor( ImGuiCol_ChildBg, IM_COL32_BLACK_TRANS );
         gw.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
         gw.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
 
-        ImGui::BeginChild( id, ImVec2( col_w, win_h ), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        ImGui::BeginChild( id, ImVec2( col_w, win_h ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
 
         const bool col_hovered = ImGui::IsWindowHovered();
 
@@ -6187,24 +6225,19 @@ namespace ImFluent
         const ImGuiID wheel_owner = ImGui::GetCurrentWindow()->ID;
         float acc                 = cs->GetFloat( acc_key, 0.f );
         if ( col_hovered )
-        {
             ImGui::SetKeyOwner( ImGuiKey_MouseWheelY, wheel_owner );
-        }
         else
-        {
             acc = 0.f;
-        }
         if ( ImGui::TestKeyOwner( ImGuiKey_MouseWheelY, wheel_owner ) )
         {
             const float wheel = ImGui::GetIO().MouseWheel;
             if ( wheel != 0.f )
             {
                 acc += wheel;
-                int wheel_steps = ( acc >= 0.f ) ? ( int )ImFloor( acc ) : ( int )ImCeil( acc );
+                const int wheel_steps = ( acc >= 0.f ) ? ( int )ImFloor( acc ) : ( int )ImCeil( acc );
                 if ( wheel_steps != 0 )
                 {
-                    new_value = ImClamp( new_value - wheel_steps * step, min_v, max_v );
-                    new_value = min_v + ( ( new_value - min_v ) / step ) * step;
+                    new_index = ImClamp( new_index - wheel_steps, 0, count - 1 );
                     acc -= ( float )wheel_steps;
                 }
             }
@@ -6215,59 +6248,53 @@ namespace ImFluent
 
         ImGuiWindow * cw = ImGui::GetCurrentWindow();
         ImDrawList * dl  = cw->DrawList;
-        const float r    = ImFluent::FluentDpx( style.ControlCornerRadius );
 
-        const int sel_idx          = ( new_value - min_v ) / step;
-        const bool can_up          = ( new_value > min_v );
-        const bool can_down        = ( new_value < max_v );
-        const int top_chev_k       = sel_idx - SPINNER_CENTER_ROW;
-        const int bot_chev_k       = sel_idx + SPINNER_CENTER_ROW;
+        const bool can_up          = ( new_index > 0 );
+        const bool can_down        = ( new_index < count - 1 );
+        const int top_chev_k       = new_index - SPINNER_CENTER_ROW;
+        const int bot_chev_k       = new_index + SPINNER_CENTER_ROW;
         const ImU32 col_subtle_ter = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
         const ImU32 col_subtle_sec = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
         const ImU32 col_on_acc     = ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary );
         const ImU32 col_text_pri   = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
         const ImU32 col_text_sec   = ImFluent::GetColorU32( ImFluentCol_TextSecondary );
 
-        int k_idx = 0;
-        for ( int v = min_v; v <= max_v; v += step, ++k_idx )
+        for ( int k = 0; k < count; ++k )
         {
             char buf[ 32 ];
-            if ( month_names )
-                ImStrncpy( buf, ImFluent::LocalizeGetMsg( ( ImFluentLocKey )( ImFluentLocKey_MonthJanuary + v - 1 ) ), sizeof( buf ) );
-            else
-                ImFormatString( buf, sizeof( buf ), format, v );
+            const char * txt = label_fn( k, buf, sizeof( buf ), label_user );
 
-            ImGui::PushID( v );
+            ImGui::PushID( k );
             const ImGuiID item_id = cw->GetID( "##si" );
             ImGui::PopID();
 
             const ImVec2 pos = cw->DC.CursorPos;
             const ImRect bb( pos, ImVec2( pos.x + col_w, pos.y + row_h ) );
             ImGui::ItemSize( bb );
-            if ( !ImGui::ItemAdd( bb, item_id ) )
+            if ( !ImGui::ItemAdd( bb, item_id, NULL, ImGuiItemFlags_NoNav ) ) // Rows are not focus stops
                 continue;
 
-            const bool chev_covers = col_hovered && ( ( can_up && k_idx == top_chev_k ) || ( can_down && k_idx == bot_chev_k ) );
+            const bool chev_covers = col_hovered && ( ( can_up && k == top_chev_k ) || ( can_down && k == bot_chev_k ) );
             if ( chev_covers )
                 continue;
 
             bool hov = false, held = false;
             const bool pressed = ImGui::ButtonBehavior( bb, item_id, &hov, &held );
             if ( pressed )
-                new_value = v;
+                new_index = k;
 
-            const bool sel = ( v == new_value );
-            ReportItemInfo( item_id, buf, CheckedFlags( sel ) );
+            const bool sel = ( k == new_index );
+            ReportItemInfo( item_id, txt, CheckedFlags( sel ) );
             if ( !sel )
             {
-                ImU32 hover_fill = held ? col_subtle_ter : ( hov ? col_subtle_sec : 0u );
+                const ImU32 hover_fill = held ? col_subtle_ter : ( hov ? col_subtle_sec : 0u );
                 if ( hover_fill )
                     dl->AddRectFilled( bb.Min, bb.Max, hover_fill, r );
             }
 
             const ImU32 text_col = sel ? col_on_acc : ( hov ? col_text_pri : col_text_sec );
-            const ImVec2 ts      = ImGui::CalcTextSize( buf );
-            dl->AddText( ImVec2( bb.Min.x + ( col_w - ts.x ) * 0.5f, bb.Min.y + ( row_h - ts.y ) * 0.5f ), text_col, buf );
+            const ImVec2 ts      = ImGui::CalcTextSize( txt );
+            dl->AddText( ImVec2( bb.Min.x + ( col_w - ts.x ) * 0.5f, bb.Min.y + ( row_h - ts.y ) * 0.5f ), text_col, txt );
         }
 
         ImGui::Dummy( ImVec2( 0.f, pad_h ) );
@@ -6284,7 +6311,7 @@ namespace ImFluent
                 const bool top_clicked = top_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, true );
                 RenderSpinnerChevronButton( dl, top_bb, ImGuiDir_Up, top_hov, top_held );
                 if ( top_clicked )
-                    new_value = ImClamp( new_value - step, min_v, max_v );
+                    new_index = ImMax( 0, new_index - 1 );
             }
             if ( can_down )
             {
@@ -6294,149 +6321,61 @@ namespace ImFluent
                 const bool bot_clicked = bot_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, true );
                 RenderSpinnerChevronButton( dl, bot_bb, ImGuiDir_Down, bot_hov, bot_held );
                 if ( bot_clicked )
-                    new_value = ImClamp( new_value + step, min_v, max_v );
+                    new_index = ImMin( count - 1, new_index + 1 );
             }
         }
 
         ImGui::EndChild();
+        gw.Restore();
+
+        // The focus stop, registered after the child so it does not move the layout.
+        ImGui::ItemAdd( band, focus_id );
+        if ( default_focus )
+            ImGui::SetItemDefaultFocus();
+        ReportItemInfo( focus_id, name );
+        RenderNavFocusRing( focus_id, band, r );
+
         ImGui::PopID();
-        return new_value;
+        return new_index;
     }
 
-    static int RenderSpinnerLabelColumn( const char * id, int value, const char * const * labels, int count, float col_w )
+    struct SpinnerRange
     {
-        const ImFluentStyle & style = ImFluent::GetStyle();
-        const float row_h           = ImFloor( ImFluent::FluentDpx( style.ControlHeight ) );
-        const float win_h           = SPINNER_VISIBLE_ROWS * row_h;
-        const float pad_h           = SPINNER_CENTER_ROW * row_h;
+        int Min, Step;
+        bool MonthNames;
+        const char * Format;
+    };
 
-        int new_value = ImClamp( value, 0, count - 1 );
+    static const char * SpinnerRangeLabel( int index, char * buf, size_t buf_size, const void * user_data )
+    {
+        const SpinnerRange & range = *( const SpinnerRange * )user_data;
+        const int v                = range.Min + index * range.Step;
+        if ( range.MonthNames )
+            return ImFluent::LocalizeGetMsg( ( ImFluentLocKey )( ImFluentLocKey_MonthJanuary + v - 1 ) );
+        ImFormatString( buf, buf_size, range.Format, v );
+        return buf;
+    }
 
-        ImGui::PushID( id );
-        const float target_scroll = ( float )new_value * row_h;
-        ImGui::SetNextWindowScroll( ImVec2( -1.f, target_scroll ) );
+    static const char * SpinnerListLabel( int index, char *, size_t, const void * user_data )
+    {
+        return ( ( const char * const * )user_data )[ index ];
+    }
 
-        ImFluentStackGuard gw;
-        gw.PushStyleColor( ImGuiCol_ChildBg, IM_COL32_BLACK_TRANS );
-        gw.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
-        gw.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
+    // Numeric column: values min_v, min_v + step, ... max_v (month names when `month_names`).
+    static int RenderSpinnerColumn( const char * id, const char * name, int value, int min_v, int max_v, bool month_names, const char * format, float col_w, int step, bool loop, bool default_focus, bool * out_commit )
+    {
+        if ( step < 1 )
+            step = 1;
+        const SpinnerRange range = { min_v, step, month_names, format };
+        const int count          = ( max_v - min_v ) / step + 1;
+        const int index          = ( ImClamp( value, min_v, max_v ) - min_v ) / step;
+        return min_v + step * RenderSpinnerColumnEx( id, name, index, count, SpinnerRangeLabel, &range, col_w, loop, default_focus, out_commit );
+    }
 
-        ImGui::BeginChild( id, ImVec2( col_w, win_h ), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
-
-        const bool col_hovered = ImGui::IsWindowHovered();
-
-        ImGuiStorage * cs         = ImGui::GetStateStorage();
-        const ImGuiID acc_key     = ImGui::GetID( "##sp_acc" );
-        const ImGuiID wheel_owner = ImGui::GetCurrentWindow()->ID;
-        float acc                 = cs->GetFloat( acc_key, 0.f );
-        if ( col_hovered )
-        {
-            ImGui::SetKeyOwner( ImGuiKey_MouseWheelY, wheel_owner );
-        }
-        else
-        {
-            acc = 0.f;
-        }
-        if ( ImGui::TestKeyOwner( ImGuiKey_MouseWheelY, wheel_owner ) )
-        {
-            const float wheel = ImGui::GetIO().MouseWheel;
-            if ( wheel != 0.f )
-            {
-                acc += wheel;
-                int steps = ( acc >= 0.f ) ? ( int )ImFloor( acc ) : ( int )ImCeil( acc );
-                if ( steps != 0 )
-                {
-                    new_value = ImClamp( new_value - steps, 0, count - 1 );
-                    acc -= ( float )steps;
-                }
-            }
-        }
-        cs->SetFloat( acc_key, acc );
-
-        ImGui::Dummy( ImVec2( 0.f, pad_h ) );
-
-        ImGuiWindow * cw = ImGui::GetCurrentWindow();
-        ImDrawList * dl  = cw->DrawList;
-        const float r    = ImFluent::FluentDpx( style.ControlCornerRadius );
-
-        const int sel_idx          = new_value;
-        const bool can_up          = ( new_value > 0 );
-        const bool can_down        = ( new_value < count - 1 );
-        const int top_chev_k       = sel_idx - SPINNER_CENTER_ROW;
-        const int bot_chev_k       = sel_idx + SPINNER_CENTER_ROW;
-        const ImU32 col_subtle_ter = ImFluent::GetColorU32( ImFluentCol_SubtleFillTertiary );
-        const ImU32 col_subtle_sec = ImFluent::GetColorU32( ImFluentCol_SubtleFillSecondary );
-        const ImU32 col_on_acc     = ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary );
-        const ImU32 col_text_pri   = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
-        const ImU32 col_text_sec   = ImFluent::GetColorU32( ImFluentCol_TextSecondary );
-
-        for ( int v = 0; v < count; ++v )
-        {
-            ImGui::PushID( v );
-            const ImGuiID item_id = cw->GetID( "##si" );
-            ImGui::PopID();
-
-            const ImVec2 pos = cw->DC.CursorPos;
-            const ImRect bb( pos, ImVec2( pos.x + col_w, pos.y + row_h ) );
-            ImGui::ItemSize( bb );
-            if ( !ImGui::ItemAdd( bb, item_id ) )
-                continue;
-
-            const bool chev_covers = col_hovered && ( ( can_up && v == top_chev_k ) || ( can_down && v == bot_chev_k ) );
-            if ( chev_covers )
-                continue;
-
-            bool hov = false, held = false;
-            const bool pressed = ImGui::ButtonBehavior( bb, item_id, &hov, &held );
-            if ( pressed )
-                new_value = v;
-
-            const bool sel = ( v == new_value );
-            ReportItemInfo( item_id, labels[ v ], CheckedFlags( sel ) );
-            if ( !sel )
-            {
-                ImU32 hover_fill = held ? col_subtle_ter : ( hov ? col_subtle_sec : 0u );
-                if ( hover_fill )
-                    dl->AddRectFilled( bb.Min, bb.Max, hover_fill, r );
-            }
-
-            const ImU32 text_col = sel ? col_on_acc : ( hov ? col_text_pri : col_text_sec );
-            const char * txt     = labels[ v ];
-            const ImVec2 ts      = ImGui::CalcTextSize( txt );
-            dl->AddText( ImVec2( bb.Min.x + ( col_w - ts.x ) * 0.5f, bb.Min.y + ( row_h - ts.y ) * 0.5f ), text_col, txt );
-        }
-
-        ImGui::Dummy( ImVec2( 0.f, pad_h ) );
-
-        if ( col_hovered )
-        {
-            const ImVec2 wp = ImGui::GetWindowPos();
-            const ImVec2 ws = ImGui::GetWindowSize();
-            if ( can_up )
-            {
-                const ImRect top_bb( wp, ImVec2( wp.x + ws.x, wp.y + row_h ) );
-                const bool tov = ImGui::IsMouseHoveringRect( top_bb.Min, top_bb.Max, false );
-                const bool thd = tov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
-                const bool tcl = tov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
-                RenderSpinnerChevronButton( dl, top_bb, ImGuiDir_Up, tov, thd );
-                if ( tcl )
-                    new_value = ImClamp( new_value - 1, 0, count - 1 );
-            }
-            if ( can_down )
-            {
-                const ImRect bot_bb( ImVec2( wp.x, wp.y + ws.y - row_h ), ImVec2( wp.x + ws.x, wp.y + ws.y ) );
-                const bool bov = ImGui::IsMouseHoveringRect( bot_bb.Min, bot_bb.Max, false );
-                const bool bhd = bov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
-                const bool bcl = bov && ImGui::IsMouseClicked( ImGuiMouseButton_Left );
-                RenderSpinnerChevronButton( dl, bot_bb, ImGuiDir_Down, bov, bhd );
-                if ( bcl )
-                    new_value = ImClamp( new_value + 1, 0, count - 1 );
-            }
-        }
-
-        ImGui::EndChild();
-        ImGui::PopID();
-        return new_value;
+    // Text column: labels[0..count).
+    static int RenderSpinnerLabelColumn( const char * id, const char * name, int value, const char * const * labels, int count, float col_w, bool loop, bool * out_commit )
+    {
+        return RenderSpinnerColumnEx( id, name, value, count, SpinnerListLabel, labels, col_w, loop, false, out_commit );
     }
 
     static bool RenderPickerActionButton( const char * label, const char * name, const ImVec2 & size )
@@ -6518,13 +6457,16 @@ namespace ImFluent
         dl->AddText( ImVec2( x0 + ( ( x1 - x0 ) - ts.x ) * 0.5f, ycenter - ts.y * 0.5f ), col, text );
     }
 
-    static bool PickerTogglePopup( ImGuiID popup_id, const ImRect & bb, ImGuiID trig_id, bool disabled )
+    // Opens the picker flyout on click, Space/Enter, and (when `alt_arrows_open`) Alt+Up/Alt+Down as WinUI
+    // DatePicker/TimePicker do.
+    static bool PickerTogglePopup( ImGuiID popup_id, const ImRect & bb, ImGuiID trig_id, bool disabled, bool alt_arrows_open )
     {
         ImGuiContext & gctx     = *ImGui::GetCurrentContext();
         const bool popup_open   = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
         const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
         const bool nav_activate = ( gctx.NavActivateId == trig_id );
-        const bool toggle       = ( click_in_bb || nav_activate ) && !disabled;
+        const bool key_open     = alt_arrows_open && !popup_open && gctx.IO.KeyAlt && ( ConsumeNavArrow( trig_id, ImGuiDir_Up ) || ConsumeNavArrow( trig_id, ImGuiDir_Down ) );
+        const bool toggle       = ( click_in_bb || nav_activate || key_open ) && !disabled;
         if ( toggle )
         {
             if ( popup_open )
@@ -6535,18 +6477,18 @@ namespace ImFluent
         return popup_open;
     }
 
-    static int RenderPickerActionFooter( ImGuiStorage * st, ImGuiID init_key, float total_w )
+    static int RenderPickerActionFooter( ImGuiStorage * st, ImGuiID init_key, float total_w, bool commit )
     {
         const ImFluentStyle & style = ImFluent::GetStyle();
         const float btn_w           = total_w * 0.5f;
         const float btn_h           = ImFluent::FluentDpx( style.ControlHeight );
 
-        int fired = 0;
+        int fired = commit ? 1 : 0;
         ImGui::Dummy( ImVec2( 0.f, ImFluent::FluentDpx( style.SpacingXSmall ) ) );
-        if ( RenderPickerActionButton( ImFluentIcon_CheckMark "##ok", "Accept", ImVec2( btn_w, btn_h ) ) )
+        if ( RenderPickerActionButton( ImFluentIcon_CheckMark "##ok", "Accept", ImVec2( btn_w, btn_h ) ) && !fired )
             fired = 1;
         ImGui::SameLine( 0.f, 0.f );
-        if ( RenderPickerActionButton( ImFluentIcon_Cancel "##cancel", "Dismiss", ImVec2( btn_w, btn_h ) ) )
+        if ( RenderPickerActionButton( ImFluentIcon_Cancel "##cancel", "Dismiss", ImVec2( btn_w, btn_h ) ) && !fired )
             fired = 2;
         if ( fired )
         {
@@ -6584,7 +6526,7 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
 
     const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_dp_popup" );
 
-    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled, true );
     ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
     ImDrawList * dl = w->DrawList;
@@ -6652,18 +6594,20 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
         const float total_w       = c_day_w + c_mon_w + c_yr_w;
         RenderSpinnerSelectionBand( ImGui::GetWindowDrawList(), group_origin, total_w, row_h );
 
+        // Columns are submitted left to right, so Tab and the initial focus (left-most column) follow the visual
+        // order. Day and Month loop, Year does not (WinUI DatePickerFlyout).
+        bool commit = false;
         {
             ImFluentStackGuard sp_group;
             sp_group.BeginGroup();
-            ImGui::SetCursorScreenPos( ImVec2( group_origin.x + c_day_w, group_origin.y ) );
-            wm = RenderSpinnerColumn( "##sp_mon", wm, 1, 12, true, NULL, c_mon_w );
-            ImGui::SetCursorScreenPos( ImVec2( group_origin.x + c_day_w + c_mon_w, group_origin.y ) );
-            wy = RenderSpinnerColumn( "##sp_yr", wy, 1900, 2100, false, "%d", c_yr_w );
-
-            const int dim_pre = DaysInMonth( wy, wm );
-            wd                = ImClamp( wd, 1, dim_pre );
+            wd = ImClamp( wd, 1, DaysInMonth( wy, wm ) );
             ImGui::SetCursorScreenPos( group_origin );
-            wd = RenderSpinnerColumn( "##sp_day", wd, 1, dim_pre, false, "%d", c_day_w );
+            wd = RenderSpinnerColumn( "##sp_day", "Day", wd, 1, DaysInMonth( wy, wm ), false, "%d", c_day_w, 1, true, true, &commit );
+            ImGui::SetCursorScreenPos( ImVec2( group_origin.x + c_day_w, group_origin.y ) );
+            wm = RenderSpinnerColumn( "##sp_mon", "Month", wm, 1, 12, true, NULL, c_mon_w, 1, true, false, &commit );
+            ImGui::SetCursorScreenPos( ImVec2( group_origin.x + c_day_w + c_mon_w, group_origin.y ) );
+            wy = RenderSpinnerColumn( "##sp_yr", "Year", wy, 1900, 2100, false, "%d", c_yr_w, 1, false, false, &commit );
+            wd = ImClamp( wd, 1, DaysInMonth( wy, wm ) ); // A month or year change can shorten the month
         }
 
         {
@@ -6679,7 +6623,7 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
         st->SetInt( mon_key, wm );
         st->SetInt( yr_key, wy );
 
-        if ( RenderPickerActionFooter( st, init_key, total_w ) == 1 )
+        if ( RenderPickerActionFooter( st, init_key, total_w, commit ) == 1 )
         {
             date->Day   = wd;
             date->Month = wm;
@@ -6740,7 +6684,7 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
 
     const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_tp_popup" );
 
-    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled, true );
     ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
     ImDrawList * dl = w->DrawList;
@@ -6837,22 +6781,23 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
 
         const int m_max = ( 60 / minute_increment - 1 ) * minute_increment;
 
+        bool commit = false;
         {
             ImFluentStackGuard sp_group;
             sp_group.BeginGroup();
             if ( is_12h )
             {
-                w_disp_h = RenderSpinnerColumn( "##sp_h", w_disp_h, 1, 12, false, "%d", col_w_h );
+                w_disp_h = RenderSpinnerColumn( "##sp_h", "Hour", w_disp_h, 1, 12, false, "%d", col_w_h, 1, true, true, &commit );
                 ImGui::SameLine( 0.f, 0.f );
-                wm = RenderSpinnerColumn( "##sp_m", wm, 0, m_max, false, "%02d", col_w_m, minute_increment );
+                wm = RenderSpinnerColumn( "##sp_m", "Minute", wm, 0, m_max, false, "%02d", col_w_m, minute_increment, true, false, &commit );
                 ImGui::SameLine( 0.f, 0.f );
-                w_ap = RenderSpinnerLabelColumn( "##sp_ap", w_ap, kAmPm, 2, col_w_ap );
+                w_ap = RenderSpinnerLabelColumn( "##sp_ap", "Period", w_ap, kAmPm, 2, col_w_ap, false, &commit );
             }
             else
             {
-                wh24 = RenderSpinnerColumn( "##sp_h", wh24, 0, 23, false, "%02d", col_w_h );
+                wh24 = RenderSpinnerColumn( "##sp_h", "Hour", wh24, 0, 23, false, "%02d", col_w_h, 1, true, true, &commit );
                 ImGui::SameLine( 0.f, 0.f );
-                wm = RenderSpinnerColumn( "##sp_m", wm, 0, m_max, false, "%02d", col_w_m, minute_increment );
+                wm = RenderSpinnerColumn( "##sp_m", "Minute", wm, 0, m_max, false, "%02d", col_w_m, minute_increment, true, false, &commit );
             }
         }
 
@@ -6875,7 +6820,7 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
         st->SetInt( hr_key, wh24 );
         st->SetInt( mn_key, wm );
 
-        if ( RenderPickerActionFooter( st, init_key, total_w ) == 1 )
+        if ( RenderPickerActionFooter( st, init_key, total_w, commit ) == 1 )
         {
             time->Hour   = wh24;
             time->Minute = wm;
@@ -6912,6 +6857,80 @@ static ImVec2 CalendarViewCalcSize()
     return ImVec2( grid_w, header_h + dow_h + day_grid_h );
 }
 
+// Date steps for CalendarView keyboard navigation.
+static void CalendarAddDays( int & y, int & m, int & d, int n )
+{
+    while ( n > 0 )
+    {
+        const int dim = DaysInMonth( y, m );
+        if ( d + n <= dim )
+        {
+            d += n;
+            n = 0;
+        }
+        else
+        {
+            n -= dim - d + 1;
+            d = 1;
+            if ( ++m > 12 )
+            {
+                m = 1;
+                ++y;
+            }
+        }
+    }
+    while ( n < 0 )
+    {
+        if ( d + n >= 1 )
+        {
+            d += n;
+            n = 0;
+        }
+        else
+        {
+            n += d;
+            if ( --m < 1 )
+            {
+                m = 12;
+                --y;
+            }
+            d = DaysInMonth( y, m );
+        }
+    }
+}
+
+static void CalendarAddMonths( int & y, int & m, int & d, int n )
+{
+    const int total = y * 12 + ( m - 1 ) + n;
+    y               = total / 12;
+    m               = total % 12 + 1;
+    d               = ImMin( d, DaysInMonth( y, m ) );
+}
+
+static void CalendarClampToRange( int & y, int & m, int & d, const ImFluent::ImFluentDate * min_d, const ImFluent::ImFluentDate * max_d )
+{
+    if ( min_d && CompareDate( y, m, d, min_d->Year, min_d->Month, min_d->Day ) < 0 )
+    {
+        y = min_d->Year;
+        m = min_d->Month;
+        d = min_d->Day;
+    }
+    if ( max_d && CompareDate( y, m, d, max_d->Year, max_d->Month, max_d->Day ) > 0 )
+    {
+        y = max_d->Year;
+        m = max_d->Month;
+        d = max_d->Day;
+    }
+}
+
+// Keyboard model (WinUI CalendarView): the header, Previous and Next buttons are tab stops, and the item grid is
+// ONE more stop. The grid stop sits on the "focus date" (the last focused item; the selected date, or today, when
+// the view opens). Keys on the grid, no modifiers:
+//   month view   Left/Right +-1 day, Up/Down +-7 days, Home/End first/last day of the shown month, PageUp/PageDown +-1 month
+//   year view    Left/Right +-1 month, Up/Down +-4 months, Home/End January/December, PageUp/PageDown +-1 year
+//   decade view  Left/Right +-1 year, Up/Down +-4 years, Home/End first/last year of the decade, PageUp/PageDown +-10 years
+//   Enter/Space  select the day, or drill down from year/decade view
+// Ctrl+Up zooms out (month -> year -> decade), Ctrl+Down zooms in. The arrows never leave the grid.
 bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluentDate * min_date, const ImFluentDate * max_date )
 {
     if ( !date )
@@ -6930,27 +6949,135 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     const float r2              = FluentDpx( style.ControlCornerRadius );
 
     ImGui::PushID( id );
-    const ImGuiID scope_id  = w->GetID( "##cv_scope" );
-    ImGuiStorage * st       = &w->StateStorage;
-    const ImGuiID viewy_key = scope_id ^ CAL_KEY_VIEW_Y;
-    const ImGuiID viewm_key = scope_id ^ CAL_KEY_VIEW_M;
-    const ImGuiID mode_key  = scope_id ^ CAL_KEY_MODE;
-    const ImGuiID frame_key = scope_id ^ CAL_KEY_WAS;
+    const ImGuiID scope_id    = w->GetID( "##cv_scope" );
+    ImGuiStorage * st         = &w->StateStorage;
+    const ImGuiID viewy_key   = scope_id ^ CAL_KEY_VIEW_Y;
+    const ImGuiID viewm_key   = scope_id ^ CAL_KEY_VIEW_M;
+    const ImGuiID mode_key    = scope_id ^ CAL_KEY_MODE;
+    const ImGuiID frame_key   = scope_id ^ CAL_KEY_WAS;
+    const ImGuiID focus_y_key = scope_id ^ CAL_KEY_FOCUS_Y;
+    const ImGuiID focus_m_key = scope_id ^ CAL_KEY_FOCUS_M;
+    const ImGuiID focus_d_key = scope_id ^ CAL_KEY_FOCUS_D;
+    const ImGuiID grid_id     = w->GetID( "##cal_grid" );
 
     int today_y, today_m, today_d;
     GetTodayDate( today_y, today_m, today_d );
 
     const bool reopened = !AnimFrameContiguous( st, frame_key );
+    const bool has_date = date->Year > 0;
+    const int start_y   = has_date ? date->Year : today_y;
+    const int start_m   = has_date ? date->Month : today_m;
+    const int start_d   = has_date ? date->Day : today_d;
 
-    int view_y    = st->GetInt( viewy_key, date->Year > 0 ? date->Year : today_y );
-    int view_m    = st->GetInt( viewm_key, date->Month > 0 ? date->Month : today_m );
+    int view_y    = st->GetInt( viewy_key, start_y );
+    int view_m    = st->GetInt( viewm_key, start_m );
     int view_mode = st->GetInt( mode_key, 0 );
+    int focus_y   = st->GetInt( focus_y_key, start_y );
+    int focus_m   = st->GetInt( focus_m_key, start_m );
+    int focus_d   = st->GetInt( focus_d_key, start_d );
 
     if ( reopened )
     {
-        view_y    = date->Year > 0 ? date->Year : today_y;
-        view_m    = date->Month > 0 ? date->Month : today_m;
+        view_y = focus_y = start_y;
+        view_m = focus_m = start_m;
+        focus_d          = start_d;
         view_mode = 0;
+    }
+
+    // Keyboard on the grid focus stop, before layout so this frame already shows the result.
+    ImGuiContext & g = *GImGui;
+    if ( g.NavId == grid_id )
+    {
+        if ( g.IO.KeyCtrl )
+        {
+            if ( ConsumeNavArrow( grid_id, ImGuiDir_Up ) && view_mode < 2 )
+                view_mode++;
+            if ( ConsumeNavArrow( grid_id, ImGuiDir_Down ) && view_mode > 0 )
+                view_mode--;
+            ConsumeNavArrow( grid_id, ImGuiDir_Left );
+            ConsumeNavArrow( grid_id, ImGuiDir_Right );
+            view_y = focus_y;
+            view_m = focus_m;
+        }
+        else
+        {
+            const int dx      = ConsumeNavArrow( grid_id, ImGuiDir_Left ) ? -1 : ConsumeNavArrow( grid_id, ImGuiDir_Right ) ? 1 : 0;
+            const int dy      = ConsumeNavArrow( grid_id, ImGuiDir_Up ) ? -1 : ConsumeNavArrow( grid_id, ImGuiDir_Down ) ? 1 : 0;
+            const bool k_home = IsFocusedItemKeyPressed( grid_id, ImGuiKey_Home );
+            const bool k_end  = IsFocusedItemKeyPressed( grid_id, ImGuiKey_End );
+            const bool k_pgup = IsFocusedItemKeyPressed( grid_id, ImGuiKey_PageUp );
+            const bool k_pgdn = IsFocusedItemKeyPressed( grid_id, ImGuiKey_PageDown );
+            int ny = focus_y, nm = focus_m, nd = focus_d;
+            if ( view_mode == 0 )
+            {
+                if ( dx )
+                {
+                    CalendarAddDays( ny, nm, nd, dx );
+                    CalendarClampToRange( ny, nm, nd, min_date, max_date );
+                }
+                if ( dy )
+                {
+                    int ty = ny, tm = nm, td = nd;
+                    CalendarAddDays( ty, tm, td, dy * 7 );
+                    if ( DateInRange( ty, tm, td, min_date, max_date ) ) // No move past MinDate/MaxDate
+                    {
+                        ny = ty;
+                        nm = tm;
+                        nd = td;
+                    }
+                }
+                if ( k_home || k_end )
+                {
+                    ny = view_y;
+                    nm = view_m;
+                    nd = k_home ? 1 : DaysInMonth( view_y, view_m );
+                    CalendarClampToRange( ny, nm, nd, min_date, max_date );
+                }
+                if ( k_pgup || k_pgdn )
+                {
+                    CalendarAddMonths( ny, nm, nd, k_pgup ? -1 : 1 );
+                    CalendarClampToRange( ny, nm, nd, min_date, max_date );
+                }
+                if ( ny != focus_y || nm != focus_m )
+                {
+                    view_y = ny;
+                    view_m = nm;
+                }
+            }
+            else if ( view_mode == 1 )
+            {
+                int ty = ny, tm = nm, td = nd;
+                if ( dx || dy )
+                    CalendarAddMonths( ty, tm, td, dx + dy * 4 );
+                if ( k_home || k_end )
+                    tm = k_home ? 1 : 12;
+                if ( k_pgup || k_pgdn )
+                    ty += k_pgup ? -1 : 1;
+                if ( ( ty != ny || tm != nm ) && MonthOverlapsRange( ty, tm, min_date, max_date ) )
+                {
+                    ny = ty;
+                    nm = tm;
+                }
+                nd     = ImMin( nd, DaysInMonth( ny, nm ) );
+                view_y = ny;
+            }
+            else
+            {
+                const int decade_start = ( view_y / 10 ) * 10;
+                int ty                 = ny + dx + dy * 4;
+                if ( k_home || k_end )
+                    ty = k_home ? decade_start : decade_start + 9;
+                if ( k_pgup || k_pgdn )
+                    ty += k_pgup ? -10 : 10;
+                if ( ty != ny && YearOverlapsRange( ty, min_date, max_date ) )
+                    ny = ty;
+                nd     = ImMin( nd, DaysInMonth( ny, nm ) );
+                view_y = ny;
+            }
+            focus_y = ny;
+            focus_m = nm;
+            focus_d = nd;
+        }
     }
 
     ImFluentStackGuard sg;
@@ -7023,7 +7150,13 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     ImGui::SetCursorScreenPos( hdr_origin );
     const ImGuiID title_id = w->GetID( "##cal_title" );
     ImGui::ItemSize( title_bb );
-    if ( ImGui::ItemAdd( title_bb, title_id ) )
+    // The header button has nothing above the decade view: it is disabled there and keyboard focus skips it.
+    if ( view_mode >= 2 )
+        ImGui::PushItemFlag( ImGuiItemFlags_Disabled, true );
+    const bool title_added = ImGui::ItemAdd( title_bb, title_id );
+    if ( view_mode >= 2 )
+        ImGui::PopItemFlag();
+    if ( title_added )
     {
         bool t_hov = false, t_held = false;
         const bool t_pr = view_mode < 2 ? ImGui::ButtonBehavior( title_bb, title_id, &t_hov, &t_held ) : false;
@@ -7041,6 +7174,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
         const ImVec2 t_ts = ImGui::CalcTextSize( title_buf );
         const float t_pad = FluentDpx( style.SpacingMedium );
         pdl->AddText( ImVec2( title_bb.Min.x + t_pad, title_bb.Min.y + ( header_h - t_ts.y ) * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), title_buf );
+        RenderNavFocusRing( title_id, title_bb, r2 );
 
         if ( t_pr )
         {
@@ -7137,6 +7271,20 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
             next_y++;
         }
 
+        // A focus date outside the shown grid (after Previous/Next) moves to the same day of the shown month.
+        {
+            const bool in_view = focus_y == view_y && focus_m == view_m;
+            const bool in_prev = focus_y == prev_y && focus_m == prev_m && focus_d > prev_dim - day1_dow;
+            const bool in_next = focus_y == next_y && focus_m == next_m && focus_d <= 42 - day1_dow - dim;
+            if ( !in_view && !in_prev && !in_next )
+            {
+                focus_y = view_y;
+                focus_m = view_m;
+                focus_d = ImMin( focus_d, dim );
+                CalendarClampToRange( focus_y, focus_m, focus_d, min_date, max_date );
+            }
+        }
+
         const ImU32 col_subtle_trans  = GetColorU32( ImFluentCol_SubtleFillTransparent );
         const ImU32 col_subtle_sec    = GetColorU32( ImFluentCol_SubtleFillSecondary );
         const ImU32 col_subtle_ter    = GetColorU32( ImFluentCol_SubtleFillTertiary );
@@ -7179,18 +7327,20 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 const ImVec2 cp( grid_origin.x + col * cell, grid_origin.y + row * cell );
                 const ImRect cbb( cp, ImVec2( cp.x + cell, cp.y + cell ) );
 
+                // The focus date's cell carries the grid's one focus stop; other cells answer the mouse only.
+                const bool is_focus = ( cell_y == focus_y && cell_m == focus_m && cell_d == focus_d );
                 ImGui::PushID( idx );
-                const ImGuiID cell_id = w->GetID( "##d" );
+                const ImGuiID cell_id = is_focus ? grid_id : w->GetID( "##d" );
                 ImGui::PopID();
 
                 ImGui::ItemSize( cbb );
-                if ( !ImGui::ItemAdd( cbb, cell_id ) )
+                if ( !ImGui::ItemAdd( cbb, cell_id, NULL, is_focus ? ImGuiItemFlags_None : ImGuiItemFlags_NoNav ) )
                     continue;
 
                 const bool out_of_range = !DateInRange( cell_y, cell_m, cell_d, min_date, max_date );
 
                 bool chov = false, chld = false;
-                const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld );
+                const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld, is_focus ? ImGuiButtonFlags_None : ImGuiButtonFlags_NoNavFocus );
 
                 const bool is_sel = ( cell_y == date->Year && cell_m == date->Month && cell_d == date->Day );
                 {
@@ -7236,6 +7386,8 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 ImFormatString( ds, sizeof( ds ), "%d", cell_d );
                 const ImVec2 ts = ImGui::CalcTextSize( ds );
                 pdl->AddText( ImVec2( cx - ts.x * 0.5f, cy - ts.y * 0.5f ), cell_text_col, ds );
+                if ( is_focus )
+                    RenderNavFocusRing( grid_id, ImRect( cx - circ_r, cy - circ_r, cx + circ_r, cy + circ_r ), circ_r );
 
                 if ( cpr )
                 {
@@ -7245,6 +7397,11 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                     changed     = true;
                     view_y      = cell_y;
                     view_m      = cell_m;
+                    focus_y     = cell_y;
+                    focus_m     = cell_m;
+                    focus_d     = cell_d;
+                    if ( !is_focus )
+                        ImGui::SetFocusID( grid_id, w ); // Keyboard continues from the clicked day
                 }
             }
         }
@@ -7265,6 +7422,14 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
         const ImU32 col_text_on_acc2   = GetColorU32( ImFluentCol_TextOnAccentPrimary );
         const ImU32 col_text_tert2     = GetColorU32( ImFluentCol_TextTertiary );
         const ImU32 col_text_primary2  = GetColorU32( ImFluentCol_TextPrimary );
+        const int decade_start         = ( view_y / 10 ) * 10;
+        const int grid_mode            = view_mode; // A drill-down below changes view_mode for the next frame only
+
+        // Same rule as the month view: the focus stop follows the shown year or decade.
+        if ( view_mode == 1 && focus_y != view_y )
+            focus_y = view_y;
+        if ( view_mode == 2 && ( focus_y < decade_start - 1 || focus_y > decade_start + 10 ) )
+            focus_y = ImClamp( focus_y, decade_start, decade_start + 9 );
 
         for ( int row = 0; row < 3; ++row )
         {
@@ -7277,7 +7442,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 bool is_today_cell = false;
                 bool out_of_range  = false;
                 char buf2[ 16 ];
-                if ( view_mode == 1 )
+                if ( grid_mode == 1 )
                 {
                     cell_val        = idx + 1;
                     is_sel          = ( view_y == date->Year && cell_val == date->Month );
@@ -7301,28 +7466,28 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 }
                 else
                 {
-                    const int decade_start = ( view_y / 10 ) * 10;
-                    cell_val               = decade_start - 1 + idx;
-                    other_range            = ( cell_val < decade_start || cell_val > decade_start + 9 );
-                    is_sel                 = ( cell_val == date->Year );
-                    is_today_cell          = ( cell_val == today_y );
-                    out_of_range           = !YearOverlapsRange( cell_val, min_date, max_date );
+                    cell_val      = decade_start - 1 + idx;
+                    other_range   = ( cell_val < decade_start || cell_val > decade_start + 9 );
+                    is_sel        = ( cell_val == date->Year );
+                    is_today_cell = ( cell_val == today_y );
+                    out_of_range  = !YearOverlapsRange( cell_val, min_date, max_date );
                     ImFormatString( buf2, sizeof( buf2 ), "%d", cell_val );
                 }
 
                 const ImVec2 cp( grid_origin.x + col * cell_w, grid_origin.y + row * cell_h );
                 const ImRect cbb( cp, ImVec2( cp.x + cell_w, cp.y + cell_h ) );
 
+                const bool is_focus = ( grid_mode == 1 ) ? ( cell_val == focus_m ) : ( cell_val == focus_y );
                 ImGui::PushID( idx );
-                const ImGuiID cell_id = w->GetID( view_mode == 1 ? "##m" : "##y" );
+                const ImGuiID cell_id = is_focus ? grid_id : w->GetID( grid_mode == 1 ? "##m" : "##y" );
                 ImGui::PopID();
 
                 ImGui::ItemSize( cbb );
-                if ( !ImGui::ItemAdd( cbb, cell_id ) )
+                if ( !ImGui::ItemAdd( cbb, cell_id, NULL, is_focus ? ImGuiItemFlags_None : ImGuiItemFlags_NoNav ) )
                     continue;
 
                 bool chov = false, chld = false;
-                const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld );
+                const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld, is_focus ? ImGuiButtonFlags_None : ImGuiButtonFlags_NoNavFocus );
                 ReportItemInfo( cell_id, buf2, CheckedFlags( is_sel ) );
 
                 ImU32 fill_target;
@@ -7360,19 +7525,28 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 tg2.PushStyleColor( ImGuiCol_Text, cell_text_col );
                 const ImRect text_clip( ImVec2( cbb.Min.x + cell_inset, cbb.Min.y ), ImVec2( cbb.Max.x - cell_inset, cbb.Max.y ) );
                 ImGui::RenderTextClipped( text_clip.Min, text_clip.Max, buf2, NULL, NULL, ImVec2( 0.5f, 0.5f ), &text_clip );
+                if ( is_focus )
+                    RenderNavFocusRing( grid_id, ImRect( cell_min, cell_max ), r2 );
 
+                // Enter/Space or a click drills down; focus goes to the same day in the chosen month or year.
                 if ( cpr )
                 {
-                    if ( view_mode == 1 )
+                    if ( grid_mode == 1 )
                     {
                         view_m    = cell_val;
                         view_mode = 0;
+                        focus_y   = view_y;
+                        focus_m   = cell_val;
                     }
                     else
                     {
                         view_y    = cell_val;
                         view_mode = 1;
+                        focus_y   = cell_val;
                     }
+                    focus_d = ImMin( focus_d, DaysInMonth( focus_y, focus_m ) );
+                    if ( !is_focus )
+                        ImGui::SetFocusID( grid_id, w );
                 }
             }
         }
@@ -7381,6 +7555,9 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     st->SetInt( viewy_key, view_y );
     st->SetInt( viewm_key, view_m );
     st->SetInt( mode_key, view_mode );
+    st->SetInt( focus_y_key, focus_y );
+    st->SetInt( focus_m_key, focus_m );
+    st->SetInt( focus_d_key, focus_d );
 
     sg.Restore();
     ImGui::PopID();
@@ -7414,7 +7591,7 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
 
     const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_cdp_popup" );
 
-    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+    const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled, false );
     ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
     ImDrawList * dl = w->DrawList;

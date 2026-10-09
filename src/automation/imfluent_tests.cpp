@@ -82,7 +82,15 @@ struct KeyboardVars
     double Number    = 5.0;
     bool TreeOpen    = false;
     bool TreeChild   = false;
+
+    ImFluent::ImFluentDate Date = { 2026, 5, 9 };
+    ImFluent::ImFluentTime Time = { 14, 30 };
 };
+
+static bool DateIs( const ImFluent::ImFluentDate & d, int y, int m, int day )
+{
+    return d.Year == y && d.Month == m && d.Day == day;
+}
 
 void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
 {
@@ -434,5 +442,193 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Group" );
         ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK( !ctx->ItemExists( "Child" ) );
+    };
+
+    // [SECTION] Keyboard: date and time
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "date_picker_columns_commit_cancel" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::DatePicker( "date", &v.Date );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "date" );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Day" ); // Focus starts on the left-most column
+        ctx->KeyPress( ImGuiKey_DownArrow );         // Day 10
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Month" );
+        ctx->KeyPress( ImGuiKey_UpArrow ); // April
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // No wrap past the last column
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Year" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Accept" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Dismiss" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Tab cycles inside the flyout
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Day" );
+        IM_CHECK( DateIs( v.Date, 2026, 5, 9 ) ); // Nothing committed yet
+        ctx->KeyPress( ImGuiKey_Enter );          // Enter on a column commits
+        IM_CHECK( DateIs( v.Date, 2026, 4, 10 ) );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "date" );
+
+        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_DownArrow ); // Alt+Down opens
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->KeyPress( ImGuiKey_Home );    // Day 1
+        ctx->KeyPress( ImGuiKey_UpArrow ); // Day loops: 30 (April)
+        ctx->KeyPress( ImGuiKey_Escape );  // Escape cancels
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK( DateIs( v.Date, 2026, 4, 10 ) );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "date" );
+
+        ctx->KeyPress( ImGuiKey_Space );
+        ctx->KeyPress( ImGuiKey_Home );
+        ctx->KeyPress( ImGuiKey_UpArrow );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        ctx->KeyPress( ImGuiKey_End );                    // Year 2100
+        ctx->KeyPress( ImGuiKey_DownArrow );              // Year does not loop
+        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_UpArrow ); // Alt+Up commits
+        IM_CHECK( DateIs( v.Date, 2100, 4, 30 ) );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "time_picker_columns_and_period" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::TimePicker( "time24", &v.Time );
+        ImFluent::TimePicker( "time12", &v.Time, ImFluentTimePickerFlags_Hours12 );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "time24" );
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Hour" );
+        ctx->KeyPress( ImGuiKey_UpArrow ); // 13
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Minute" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // 31
+        ctx->KeyPress( ImGuiKey_Space );     // Space on a column commits
+        IM_CHECK_EQ( v.Time.Hour, 13 );
+        IM_CHECK_EQ( v.Time.Minute, 31 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "time24" );
+
+        ctx->NavMoveTo( "time12" );
+        ctx->KeyPress( ImGuiKey_Space );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Period" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // PM stays PM: Period does not loop
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK_EQ( v.Time.Hour, 13 );
+        ctx->KeyPress( ImGuiKey_Space );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
+        ctx->KeyPress( ImGuiKey_UpArrow ); // AM
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK_EQ( v.Time.Hour, 1 );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "calendar_view_grid_one_stop" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::CalendarView( "cal", &v.Date );
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "cal/##cal_title" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Previous" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Next" );
+        ctx->KeyPress( ImGuiKey_Tab ); // The grid is one stop, on the selected date
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-09" );
+        ctx->KeyPress( ImGuiKey_Tab ); // ... and Tab leaves it at once
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-09" );
+
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-10" );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-17" );
+        ctx->KeyPress( ImGuiKey_Home );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-01" );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // Crosses into April
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-04-30" );
+        ctx->KeyPress( ImGuiKey_PageDown );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-30" );
+        ctx->KeyPress( ImGuiKey_End );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-31" );
+        IM_CHECK( DateIs( v.Date, 2026, 5, 9 ) ); // Arrows move focus only
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK( DateIs( v.Date, 2026, 5, 31 ) );
+
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow ); // Year view
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "May" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Jun" );
+        ctx->KeyPress( ImGuiKey_Enter ); // Drill down: the same day, clamped to June
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-06-30" );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow ); // Decade view
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026" );
+        ctx->KeyPress( ImGuiKey_PageUp );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2016" );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Jun" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "calendar_date_picker_open_commit_reopen" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::CalendarDatePicker( "pick", &v.Date );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "pick" );
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "May 2026" ); // WinUI: focus starts on the header button
+        ctx->KeyPress( ImGuiKey_Tab, 3 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "2026-05-09" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        ctx->KeyPress( ImGuiKey_Space ); // Selecting a day commits and closes
+        IM_CHECK( DateIs( v.Date, 2026, 5, 10 ) );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "pick" );
+        ctx->KeyPress( ImGuiKey_Space ); // Open again
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->KeyPress( ImGuiKey_Escape );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK( DateIs( v.Date, 2026, 5, 10 ) );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "pick" );
     };
 }
