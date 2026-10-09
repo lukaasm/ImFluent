@@ -905,9 +905,11 @@ namespace ImFluentGalleryApp
             if ( TreeNode( "Inbox", &ms_open[ 0 ], &ms_chk[ 0 ] ) )
             {
                 SetNextItemGlyph( ImFluentIcon_Mail );
-                TreeNode( "Welcome — read me", &ms_open[ 1 ], &ms_chk[ 1 ] );
+                if ( TreeNode( "Welcome — read me", &ms_open[ 1 ], &ms_chk[ 1 ] ) )
+                    TreePop();
                 SetNextItemGlyph( ImFluentIcon_Mail );
-                TreeNode( "Project status update", &ms_open[ 2 ], &ms_chk[ 2 ] );
+                if ( TreeNode( "Project status update", &ms_open[ 2 ], &ms_chk[ 2 ] ) )
+                    TreePop();
                 TreePop();
             }
             ControlExampleOutput( "Checked: %s%s%s", ms_chk[ 0 ] ? "Inbox " : "", ms_chk[ 1 ] ? "Welcome " : "", ms_chk[ 2 ] ? "Project " : "" );

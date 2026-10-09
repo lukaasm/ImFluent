@@ -1,6 +1,7 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlgpu3.h"
+#include "imgui_internal.h"
 
 #include "imfluent.h"
 
@@ -157,6 +158,9 @@ int main( int argc, char ** argv )
     ImGuiIO & io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    // A Fluent app has no window switcher: Ctrl+Tab and Ctrl+Shift+Tab belong to TabView.
+    ImGui::GetCurrentContext()->ConfigNavWindowingKeyNext = 0;
+    ImGui::GetCurrentContext()->ConfigNavWindowingKeyPrev = 0;
 
     ImGui::StyleColorsDark();
 

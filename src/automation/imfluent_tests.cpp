@@ -85,6 +85,13 @@ struct KeyboardVars
 
     ImFluent::ImFluentDate Date = { 2026, 5, 9 };
     ImFluent::ImFluentTime Time = { 14, 30 };
+
+    int SplitPrimary   = 0;
+    int SplitFlyouts   = 0;
+    bool TreeOpen2     = true;
+    bool TreeSub       = false;
+    bool TabOpen[ 3 ]  = { true, true, true };
+    int TabSelectedIdx = -1;
 };
 
 static bool DateIs( const ImFluent::ImFluentDate & d, int y, int m, int day )
@@ -630,5 +637,169 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK( DateIs( v.Date, 2026, 5, 10 ) );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "pick" );
+    };
+
+    // [SECTION] Keyboard: closed ComboBox, SplitButton, TreeView parent/child, TabView accelerators
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "combo_box_closed_arrows_and_type_ahead" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "Apple", "Banana", "Blueberry", "Cherry" };
+        BeginTestWindow();
+        ImFluent::ComboBox( "fruit", &v.Combo, items, IM_ARRAYSIZE( items ) );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "fruit" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Closed: Down selects the next item without opening
+        IM_CHECK_EQ( v.Combo, 1 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        ctx->KeyPress( ImGuiKey_End );
+        IM_CHECK_EQ( v.Combo, 3 );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Clamped, no wrap
+        IM_CHECK_EQ( v.Combo, 3 );
+        ctx->KeyPress( ImGuiKey_Home );
+        IM_CHECK_EQ( v.Combo, 0 );
+        ctx->KeyPress( ImGuiKey_UpArrow );
+        IM_CHECK_EQ( v.Combo, 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "fruit" );
+        ctx->KeyChars( "bl" ); // Type-ahead: prefix match
+        IM_CHECK_EQ( v.Combo, 2 );
+        ctx->SleepNoSkip( 1.2f, 0.1f ); // The search string resets after one second
+        ctx->KeyChars( "c" );
+        IM_CHECK_EQ( v.Combo, 3 );
+
+        ctx->KeyPress( ImGuiKey_Space ); // Open: the list does not wrap
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Cherry" );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Cherry" );
+        ctx->KeyPress( ImGuiKey_Home );
+        ctx->KeyPress( ImGuiKey_UpArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Apple" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Tab closes without committing
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_EQ( v.Combo, 3 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "fruit" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "split_button_alt_down_f4" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        bool dropdown = false;
+        if ( ImFluent::SplitButton( "send", &dropdown ) )
+            v.SplitPrimary++;
+        if ( dropdown )
+        {
+            v.SplitFlyouts++;
+            ImFluent::OpenMenuFlyout( "##send-menu" );
+        }
+        if ( ImFluent::BeginMenuFlyout( "##send-menu" ) )
+        {
+            ImFluent::MenuFlyoutItem( "Send later" );
+            ImFluent::EndMenuFlyout();
+        }
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "send" );
+        ctx->KeyPress( ImGuiKey_Space ); // Primary action
+        IM_CHECK_EQ( v.SplitPrimary, 1 );
+        IM_CHECK_EQ( v.SplitFlyouts, 0 );
+        ctx->KeyPress( ImGuiMod_Alt | ImGuiKey_DownArrow ); // Flyout
+        IM_CHECK_EQ( v.SplitFlyouts, 1 );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Send later" );
+        ctx->KeyPress( ImGuiKey_Escape );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "send" );
+        ctx->KeyPress( ImGuiKey_F4 ); // F4 opens it again at once
+        IM_CHECK_EQ( v.SplitFlyouts, 2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->KeyPress( ImGuiKey_Escape );
+        IM_CHECK_EQ( v.SplitPrimary, 1 );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "tree_node_child_and_parent" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        if ( ImFluent::TreeNode( "root", &v.TreeOpen2 ) )
+        {
+            if ( ImFluent::TreeNode( "sub", &v.TreeSub ) )
+                ImFluent::TreePop();
+            ImFluent::TreePop();
+        }
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "root" );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // Expanded: Right moves to the first child
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
+        IM_CHECK( v.TreeOpen2 );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // Collapsed child: Left moves to the parent
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "root" );
+        IM_CHECK( v.TreeOpen2 );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // Expanded parent: Left collapses
+        IM_CHECK( !v.TreeOpen2 );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "tab_view_ctrl_tab_ctrl_f4" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * names[] = { "One", "Two", "Three" };
+        BeginTestWindow();
+        if ( ImFluent::BeginTabView( "tabs" ) )
+        {
+            for ( int i = 0; i < 3; ++i )
+            {
+                if ( !v.TabOpen[ i ] )
+                    continue;
+                if ( ImFluent::BeginTabItem( names[ i ], &v.TabOpen[ i ] ) )
+                {
+                    v.TabSelectedIdx = i;
+                    ImFluent::Button( "content" );
+                    ImFluent::EndTabItem();
+                }
+            }
+            ImFluent::EndTabView();
+        }
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v                          = ctx->GetVars< KeyboardVars >();
+        ImGuiKeyChord backup_next                 = ctx->UiContext->ConfigNavWindowingKeyNext;
+        ImGuiKeyChord backup_prev                 = ctx->UiContext->ConfigNavWindowingKeyPrev;
+        ctx->UiContext->ConfigNavWindowingKeyNext = 0; // Leave Ctrl+Tab to the tab view, as a Fluent app does
+        ctx->UiContext->ConfigNavWindowingKeyPrev = 0;
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "tabs/One/content" );
+        IM_CHECK_EQ( v.TabSelectedIdx, 0 );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_Tab );
+        IM_CHECK_EQ( v.TabSelectedIdx, 1 );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab ); // Wraps to the last tab
+        IM_CHECK_EQ( v.TabSelectedIdx, 2 );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F4 ); // Close the selected tab
+        IM_CHECK( !v.TabOpen[ 2 ] );
+        ctx->UiContext->ConfigNavWindowingKeyNext = backup_next;
+        ctx->UiContext->ConfigNavWindowingKeyPrev = backup_prev;
     };
 }

@@ -149,6 +149,16 @@ struct ImFluentContext
     ImVector< ImFluentExpanderState > ExpanderStack;
     ImVector< ImFluentCommandBarState > CommandBarStack;
     ImVector< float > NavItemIndentStack;
+    ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
+    ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
+
+    struct TypeAhead
+    {
+        ImGuiID Id      = 0;
+        char Buf[ 64 ]  = {};
+        int Len         = 0;
+        double LastTime = -1.0;
+    } ComboTypeAhead;
     ImVector< ImFluentSplitViewState > SplitViewStack;
     ImVector< ImFluentAutoSuggestScoredItem > AutoSuggestVisible;
 
@@ -1802,6 +1812,9 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
 
     RenderNavFocusRing( id_main, bb_total, r );
 
+    // SplitButton keyboard (WinUI): one tab stop; Space/Enter run the primary action, Alt+Down and F4 open the flyout.
+    if ( split && !disabled && ( IsFocusedItemKeyPressed( id_main, ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ConsumeNavArrow( id_main, ImGuiDir_Down ) ) ) )
+        chev_pressed = true;
     if ( dropdown_clicked )
         *dropdown_clicked = split ? chev_pressed : false;
     if ( v_state && main_pressed && !split )
@@ -3763,8 +3776,15 @@ bool ImFluent::BeginTabView( const char * id )
     return false;
 }
 
+static const ImGuiID TABVIEW_FOCUS_KEY_SALT = 0x7AB5F0C5u;
+
 bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlags flags )
 {
+    // Ctrl+F4 asks to close the selected tab while focus is inside the tab view (WinUI TabView accelerator).
+    ImGuiContext & g = *GImGui;
+    if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
+        if ( p_open && *p_open && tab_bar->SelectedTabId == ImGui::GetID( label ) && ImGui::GetStateStorage()->GetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, false ) && ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_F4 ) )
+            *p_open = false;
     const bool open = ImGui::BeginTabItem( label, p_open, flags );
     if ( p_open && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
         *p_open = false;
@@ -3782,6 +3802,45 @@ bool ImFluent::TabAddButton()
 
 void ImFluent::EndTabView()
 {
+    // WinUI TabView accelerators while focus is inside the tab view (strip or content): Ctrl+Tab and
+    // Ctrl+Shift+Tab select the next and previous tab, wrapping. Applications keep Dear ImGui's own Ctrl+Tab
+    // window switcher off (ImGuiContext::ConfigNavWindowingKeyNext/Prev = 0) for these to reach the tab view.
+    ImGuiContext & g = *GImGui;
+    if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
+    {
+        bool focus_inside = false;
+        if ( g.NavId != 0 && g.NavWindow && ( g.NavWindow == g.CurrentWindow || g.NavWindow->RootWindowForNav == g.CurrentWindow->RootWindowForNav ) )
+        {
+            const ImRect view( tab_bar->BarRect.Min, ImVec2( tab_bar->BarRect.Max.x, g.CurrentWindow->DC.CursorPos.y ) );
+            const ImRect nav = ImGui::WindowRectRelToAbs( g.NavWindow, g.NavWindow->NavRectRel[ g.NavLayer ] );
+            focus_inside     = view.Contains( nav.GetCenter() );
+        }
+        ImGui::GetStateStorage()->SetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, focus_inside );
+        const int n = tab_bar->Tabs.Size;
+        if ( focus_inside && n > 1 )
+        {
+            int dir = 0;
+            if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_Tab ) )
+                dir = +1;
+            else if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab ) )
+                dir = -1;
+            if ( dir != 0 )
+            {
+                int cur = 0;
+                for ( int i = 0; i < n; ++i )
+                    if ( tab_bar->Tabs[ i ].ID == tab_bar->SelectedTabId )
+                        cur = i;
+                for ( int step = 1; step < n; ++step )
+                {
+                    const ImGuiTabItem & tab = tab_bar->Tabs[ ( ( cur + dir * step ) % n + n ) % n ];
+                    if ( tab.Flags & ( ImGuiTabItemFlags_Button | ImGuiTabItemFlags_Leading | ImGuiTabItemFlags_Trailing ) )
+                        continue; // The "+" button is not a tab
+                    tab_bar->NextSelectedTabId = tab.ID;
+                    break;
+                }
+            }
+        }
+    }
     ImGui::EndTabBar();
     ImGui::PopStyleVar();
     ImGui::PopStyleColor( 5 );
@@ -4398,6 +4457,53 @@ void ImFluent::EndSplitView()
 
 // [SECTION] Lists & Pickers (ComboBox / ListBox / TreeNode / GridView / PipsPager / BreadcrumbBar)
 
+// ComboBox type-ahead (WinUI): typed characters build a search string that resets after one second; the first
+// item that starts with it (case-insensitive, leading spaces ignored) wins. A new string starts searching after
+// the current item, an extended one at the current item. Returns the match, or -1.
+static int ComboTypeAheadSearch( ImGuiID id, int current, const char * const items[], int items_count )
+{
+    ImGuiContext & g = *GImGui;
+    if ( g.IO.InputQueueCharacters.Size == 0 || items_count <= 0 )
+        return -1;
+    ImFluentContext::TypeAhead & ta = g_Ctx.ComboTypeAhead;
+    const double now                = ImGui::GetTime();
+    const bool fresh                = ( ta.Id != id || now - ta.LastTime > 1.0 );
+    if ( fresh )
+    {
+        ta.Id       = id;
+        ta.Len      = 0;
+        ta.Buf[ 0 ] = 0;
+    }
+    for ( ImWchar c : g.IO.InputQueueCharacters )
+    {
+        if ( c < 32 || ( c == ' ' && ta.Len == 0 ) )
+            continue;
+        char utf8[ 5 ];
+        const int n = ImTextCharToUtf8( utf8, c );
+        if ( ta.Len + n >= ( int )sizeof( ta.Buf ) )
+            break;
+        memcpy( ta.Buf + ta.Len, utf8, ( size_t )n );
+        ta.Len += n;
+        ta.Buf[ ta.Len ] = 0;
+    }
+    ta.LastTime = now;
+    if ( ta.Len == 0 )
+        return -1;
+    const int start = fresh ? current + 1 : ImMax( current, 0 );
+    for ( int k = 0; k < items_count; ++k )
+    {
+        const int i      = ( ( start + k ) % items_count + items_count ) % items_count;
+        const char * itm = items[ i ];
+        if ( !itm )
+            continue;
+        while ( *itm == ' ' )
+            ++itm;
+        if ( ImStrnicmp( itm, ta.Buf, ( size_t )ta.Len ) == 0 )
+            return i;
+    }
+    return -1;
+}
+
 bool ImFluent::ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
@@ -4414,7 +4520,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     const float h               = FluentDpx( style.ControlHeight );
     const float r               = FluentDpx( style.ControlCornerRadius );
     const float chev_w          = ( flags & ImGuiComboFlags_NoArrowButton ) ? 0.f : h;
-    const char * preview        = ( current_item && *current_item >= 0 && *current_item < items_count ) ? items[ *current_item ] : "";
+    const char * preview        = ( current_item && *current_item >= 0 && *current_item < items_count && items[ *current_item ] ) ? items[ *current_item ] : "";
 
     float full_w;
     if ( flags & ImGuiComboFlags_NoPreview )
@@ -4462,6 +4568,34 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         }
     }
 
+    // Closed (WinUI): Up/Down step the selection without opening (clamped, no wrap), Home/End jump to the
+    // ends, typed characters select the first matching item.
+    bool changed = false;
+    if ( !popup_open && !toggle && !disabled && current_item && !gctx.IO.KeyAlt && items_count > 0 )
+    {
+        int sel = *current_item;
+        if ( ConsumeNavArrow( id, ImGuiDir_Down ) )
+            sel = ( sel < 0 ) ? 0 : ImMin( sel + 1, items_count - 1 );
+        if ( ConsumeNavArrow( id, ImGuiDir_Up ) && sel > 0 )
+            sel = sel - 1;
+        if ( IsFocusedItemKeyPressed( id, ImGuiKey_Home ) )
+            sel = 0;
+        if ( IsFocusedItemKeyPressed( id, ImGuiKey_End ) )
+            sel = items_count - 1;
+        if ( gctx.NavId == id && gctx.ActiveId == 0 )
+        {
+            const int match = ComboTypeAheadSearch( id, sel, items, items_count );
+            if ( match >= 0 )
+                sel = match;
+        }
+        if ( sel != *current_item )
+        {
+            *current_item = sel;
+            changed       = true;
+            preview       = items[ sel ] ? items[ sel ] : "";
+        }
+    }
+
     ImDrawList * dl = w->DrawList;
     ImU32 fill_target;
     if ( disabled )
@@ -4503,7 +4637,6 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
 
     RenderNavFocusRing( id, bb, r );
 
-    bool changed              = false;
     const int popup_max_items = ResolveComboPopupMaxItems( flags );
     const float popup_max_h   = CalcComboPopupMaxHeight( popup_max_items, h );
     ImGui::SetNextWindowPos( ImVec2( bb.Min.x, bb.Max.y + FluentDpx( style.SpacingXSmall ) ) );
@@ -4513,11 +4646,37 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     const ImGuiWindowFlags cb_wflags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
     if ( ImGui::BeginPopupEx( popup_id, cb_wflags ) )
     {
+        ImGuiWindow * popup_window = ImGui::GetCurrentWindow();
+
+        // Open: typing selects at once and moves focus to the match; Home/End focus the first/last item (WinUI).
+        int focus_match = -1;
+        if ( current_item && gctx.NavWindow == popup_window )
+        {
+            focus_match = ComboTypeAheadSearch( id, *current_item, items, items_count );
+            if ( focus_match >= 0 && focus_match != *current_item )
+            {
+                *current_item = focus_match;
+                changed       = true;
+            }
+        }
+        int focus_only = -1;
+        if ( gctx.NavWindow == popup_window && gctx.NavId != 0 )
+        {
+            ImGui::SetKeyOwner( ImGuiKey_Home, popup_id );
+            ImGui::SetKeyOwner( ImGuiKey_End, popup_id );
+            if ( ImGui::IsKeyPressed( ImGuiKey_Home, ImGuiInputFlags_None, popup_id ) )
+                focus_only = 0;
+            if ( ImGui::IsKeyPressed( ImGuiKey_End, ImGuiInputFlags_None, popup_id ) )
+                focus_only = items_count - 1;
+        }
+
         const float row_advance = h + ImGui::GetStyle().ItemSpacing.y;
         ImGuiListClipper clipper;
         clipper.Begin( items_count, row_advance );
         if ( current_item && *current_item >= 0 && *current_item < items_count )
             clipper.IncludeItemByIndex( *current_item );
+        if ( focus_only >= 0 )
+            clipper.IncludeItemByIndex( focus_only );
         while ( clipper.Step() )
         {
             for ( int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i )
@@ -4533,13 +4692,25 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
                     changed = true;
                     ImGui::CloseCurrentPopup();
                 }
+                const ImGuiID item_id = gctx.LastItemData.ID;
                 if ( sel )
                     ImGui::SetItemDefaultFocus(); // Keyboard focus starts on the selected item
+                if ( i == 0 )
+                    ConsumeNavArrow( item_id, ImGuiDir_Up ); // The list does not wrap (WinUI ComboBox)
+                if ( i == items_count - 1 )
+                    ConsumeNavArrow( item_id, ImGuiDir_Down );
+                if ( i == focus_match || i == focus_only )
+                {
+                    ImGui::SetFocusID( item_id, popup_window );
+                    ImGui::SetScrollHereY();
+                    gctx.NavCursorVisible = true;
+                }
                 ImGui::PopID();
             }
         }
         // Only a list that was already open closes: the key press that opened it must not close it again.
-        if ( popup_open && ( ImGui::IsKeyPressed( ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ImGui::IsKeyPressed( ImGuiKey_UpArrow, false ) ) ) )
+        // Tab closes without committing, as in WinUI; focus returns to the box.
+        if ( popup_open && ( ImGui::IsKeyPressed( ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ImGui::IsKeyPressed( ImGuiKey_UpArrow, false ) ) || ImGui::IsKeyPressed( ImGuiKey_Tab, false ) ) )
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
@@ -4727,7 +4898,10 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     {
         const bool clipped_open = p_open && *p_open;
         if ( clipped_open )
+        {
             ImGui::Indent( FluentDpx( style.CheckboxSize ) );
+            g_Ctx.TreeParentStack.push_back( id );
+        }
         return clipped_open;
     }
 
@@ -4746,11 +4920,29 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     }
     if ( row_pressed && !check_pressed && p_open )
         *p_open = !*p_open;
-    // Keyboard (WinUI TreeView): Right expands a collapsed node, Left collapses an expanded one.
-    if ( p_open && *p_open && ConsumeNavArrow( id, ImGuiDir_Left ) )
-        *p_open = false;
-    else if ( p_open && !*p_open && ConsumeNavArrow( id, ImGuiDir_Right ) )
+    // Keyboard (WinUI TreeView): Right expands a collapsed node, then moves to its first child; Left collapses an
+    // expanded node, then moves to its parent.
+    const ImGuiID parent_id = g_Ctx.TreeParentStack.empty() ? 0 : g_Ctx.TreeParentStack.back();
+    if ( parent_id != 0 && g_Ctx.TreeFocusFirstChildOf == parent_id )
+    {
+        g_Ctx.TreeFocusFirstChildOf = 0;
+        ImGui::SetFocusID( id, w );
+        ImGui::GetCurrentContext()->NavCursorVisible = true;
+    }
+    if ( p_open && *p_open )
+    {
+        if ( ConsumeNavArrow( id, ImGuiDir_Left ) )
+            *p_open = false;
+        else if ( ConsumeNavArrow( id, ImGuiDir_Right ) )
+            g_Ctx.TreeFocusFirstChildOf = id;
+    }
+    else if ( p_open && ConsumeNavArrow( id, ImGuiDir_Right ) )
         *p_open = true;
+    else if ( parent_id != 0 && ConsumeNavArrow( id, ImGuiDir_Left ) )
+    {
+        ImGui::SetFocusID( parent_id, w );
+        ImGui::GetCurrentContext()->NavCursorVisible = true;
+    }
 
     const bool isOpen   = p_open && *p_open;
     const bool selected = p_checked && *p_checked;
@@ -4807,13 +4999,19 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
 
     RenderNavFocusRing( id, bb, r );
     if ( isOpen )
+    {
         ImGui::Indent( FluentDpx( style.CheckboxSize ) );
+        g_Ctx.TreeParentStack.push_back( id );
+    }
     return isOpen;
 }
 
 void ImFluent::TreePop()
 {
     ImGui::Unindent( FluentDpx( GetStyle().CheckboxSize ) );
+    if ( !g_Ctx.TreeParentStack.empty() )
+        g_Ctx.TreeParentStack.pop_back();
+    g_Ctx.TreeFocusFirstChildOf = 0; // A node with no child row this frame has no first child to focus
 }
 
 bool ImFluent::GridViewItem( const char * label, bool selected, const ImVec2 & size )
