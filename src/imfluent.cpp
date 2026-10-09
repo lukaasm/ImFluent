@@ -26,6 +26,8 @@ struct ImFluentNextItemData
     bool HasDescription;
     bool HasGlyph;
     bool HasError;
+    ImGuiWindow * Window; // Where and when SetNextItem*() ran: a widget that skips itself (clipped) never consumes
+    int Frame;            // the data, and it must not leak to an unrelated widget later
 };
 
 struct ImFluentNextAutoSuggestData
@@ -659,8 +661,27 @@ namespace ImFluent
         return ( ImU32 )( ( ar * it + br * t8 ) >> 8 ) | ( ( ImU32 )( ( ag * it + bg * t8 ) >> 8 ) << 8 ) | ( ( ImU32 )( ( ab * it + bb * t8 ) >> 8 ) << 16 ) | ( ( ImU32 )( ( aa * it + ba * t8 ) >> 8 ) << 24 );
     }
 
+    // Drops next-item data set in another frame, or in a window that is not the current one or one of its parents.
+    static void DropStaleNextItem()
+    {
+        ImFluentNextItemData & d = g_Ctx.NextItem;
+        if ( !( d.HasHeader || d.HasDescription || d.HasGlyph || d.HasError ) )
+            return;
+        ImGuiContext & g = *GImGui;
+        bool same_scope  = d.Frame == g.FrameCount;
+        if ( same_scope && d.Window )
+        {
+            same_scope = false;
+            for ( ImGuiWindow * w = g.CurrentWindow; w && !same_scope; w = w->ParentWindow )
+                same_scope = ( w == d.Window );
+        }
+        if ( !same_scope )
+            d = ImFluentNextItemData();
+    }
+
     static void RenderAndConsumePendingHeader()
     {
+        DropStaleNextItem();
         if ( !g_Ctx.NextItem.HasHeader )
             return;
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -672,6 +693,7 @@ namespace ImFluent
 
     static void RenderAndConsumePendingDescription()
     {
+        DropStaleNextItem();
         if ( !g_Ctx.NextItem.HasDescription )
             return;
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -683,6 +705,7 @@ namespace ImFluent
 
     static const char * ConsumePendingGlyph( const char * fallback )
     {
+        DropStaleNextItem();
         if ( !g_Ctx.NextItem.HasGlyph )
             return fallback;
         const char * g          = g_Ctx.NextItem.Glyph;
@@ -703,11 +726,13 @@ namespace ImFluent
 
     static bool HasPendingError()
     {
+        DropStaleNextItem();
         return g_Ctx.NextItem.HasError;
     }
 
     static void RenderAndConsumePendingError( const ImRect & item_bb )
     {
+        DropStaleNextItem();
         if ( !g_Ctx.NextItem.HasError )
             return;
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -1965,23 +1990,34 @@ void ImFluent::PopFont()
 
 // [SECTION] Next-item attributes
 
+static void MarkNextItemScope()
+{
+    ImFluent::DropStaleNextItem(); // Data left over by a skipped widget does not join the new data
+    g_Ctx.NextItem.Window = GImGui->CurrentWindow;
+    g_Ctx.NextItem.Frame  = GImGui->FrameCount;
+}
+
 void ImFluent::SetNextItemHeader( const char * text )
 {
+    MarkNextItemScope();
     g_Ctx.NextItem.Header    = text;
     g_Ctx.NextItem.HasHeader = ( text != NULL );
 }
 void ImFluent::SetNextItemDescription( const char * text )
 {
+    MarkNextItemScope();
     g_Ctx.NextItem.Description    = text;
     g_Ctx.NextItem.HasDescription = ( text != NULL );
 }
 void ImFluent::SetNextItemGlyph( const char * glyph )
 {
+    MarkNextItemScope();
     g_Ctx.NextItem.Glyph    = glyph;
     g_Ctx.NextItem.HasGlyph = ( glyph != NULL );
 }
 void ImFluent::SetNextItemError( const char * error )
 {
+    MarkNextItemScope();
     g_Ctx.NextItem.Error    = error;
     g_Ctx.NextItem.HasError = ( error != NULL );
 }

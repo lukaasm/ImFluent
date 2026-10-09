@@ -115,6 +115,10 @@ struct KeyboardVars
     int Flip     = 0;
     int PivotSel = 0;
 
+    bool LeakHeader    = false;
+    char LeakBox[ 16 ] = "";
+    float LeakBoxY     = 0.f;
+
     char City[ 64 ]     = "";
     char Text[ 64 ]     = "";
     char Password[ 64 ] = "secret";
@@ -1643,5 +1647,34 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_EQ( v.PivotSel, 1 );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+    };
+
+    // [SECTION] Library behaviour
+
+    // SetNextItemHeader() for a widget that never runs (clipped, skipped) must not reach another widget later: here
+    // a TextBox in another window keeps its position.
+    t = IM_REGISTER_TEST( engine, "library", "next_item_header_does_not_leak" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        if ( v.LeakHeader )
+            ImFluent::SetNextItemHeader( "leaked header" ); // No widget follows
+        EndTestWindow();
+        ImGui::SetNextWindowPos( ImVec2( 400.f, 80.f ), ImGuiCond_Appearing );
+        ImGui::Begin( "Test Window 2", NULL, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize );
+        ImFluent::TextBox( "box", v.LeakBox, sizeof( v.LeakBox ) );
+        v.LeakBoxY = ImGui::GetItemRectMin().y - ImGui::GetWindowPos().y;
+        ImGui::End();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        ctx->Yield( 2 );
+        const float before = v.LeakBoxY;
+        v.LeakHeader       = true;
+        ctx->Yield( 3 );
+        IM_CHECK_EQ( v.LeakBoxY, before );
     };
 }
