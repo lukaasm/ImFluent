@@ -333,6 +333,12 @@ namespace ImFluentGalleryApp
         return FluentDpx( v );
     }
 
+    // A 1 dp stroke in whole pixels (2 at 150%), as WinUI draws borders.
+    static float ExampleStroke()
+    {
+        return ImMax( 1.f, IM_ROUND( FluentDpx( 1.f ) ) );
+    }
+
     static bool BeginControlExample( const char * header )
     {
         const ImFluentStyle & style = ImFluent::GetStyle();
@@ -343,9 +349,18 @@ namespace ImFluentGalleryApp
         ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_CardBgDefault ) );
         ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_CardStrokeDefault ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 1.f );
+        ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 0.f );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
-        ImGui::BeginChild( header, ImVec2( -FLT_MIN, 0.f ), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        ImGui::BeginChild( header, ImVec2( -FLT_MIN, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        {
+            // The card border on whole pixels, inside the card (ImGui's child border straddles half pixels).
+            ImGuiWindow * cw = ImGui::GetCurrentWindow();
+            const float s    = ExampleStroke();
+            cw->DrawList->PushClipRect( cw->Rect().Min, cw->Rect().Max, false );
+            cw->DrawList->PathRect( ImVec2( cw->Pos.x + s * 0.5f, cw->Pos.y + s * 0.5f ), ImVec2( cw->Pos.x + cw->Size.x - s * 0.5f, cw->Pos.y + cw->Size.y - s * 0.5f ), FluentDpx( style.OverlayCornerRadius ) - s * 0.5f );
+            cw->DrawList->PathStroke( GetColorU32( ImFluentCol_CardStrokeDefault ), ImDrawFlags_Closed, s );
+            cw->DrawList->PopClipRect();
+        }
         ImGui::PopStyleVar( 3 );
         ImGui::PopStyleColor( 2 );
 
@@ -360,7 +375,8 @@ namespace ImFluentGalleryApp
         if ( h > 0.f )
         {
             ImGui::PushClipRect( w->Rect().Min, w->Rect().Max, false );
-            w->DrawList->AddRectFilled( ImVec2( w->Pos.x + 1.f, w->Pos.y + 1.f ), ImVec2( w->Pos.x + w->Size.x - 1.f, w->Pos.y + h ), GetColorU32( ImFluentCol_SolidBgBase ), r - 1.f, ImDrawFlags_RoundCornersTop );
+            const float s = ExampleStroke();
+            w->DrawList->AddRectFilled( ImVec2( w->Pos.x + s, w->Pos.y + s ), ImVec2( w->Pos.x + w->Size.x - s, w->Pos.y + h ), GetColorU32( ImFluentCol_SolidBgBase ), r - s, ImDrawFlags_RoundCornersTop );
             ImGui::PopClipRect();
         }
 
@@ -433,8 +449,9 @@ namespace ImFluentGalleryApp
                 st->SetBool( EXAMPLE_KEY_SOURCE, expanded = !expanded );
             ImGui::PushClipRect( w->Rect().Min, w->Rect().Max, false );
             const float r = FluentDpx( style.OverlayCornerRadius );
-            dl->AddRectFilled( ImVec2( row.Min.x + 1.f, row.Min.y ), ImVec2( row.Max.x - 1.f, row.Max.y - 1.f ), GetColorU32( hov ? ImFluentCol_SubtleFillSecondary : ImFluentCol_CardBgSecondary ), expanded ? 0.f : r - 1.f, ImDrawFlags_RoundCornersBottom );
-            dl->AddLine( ImVec2( row.Min.x, row.Min.y ), ImVec2( row.Max.x, row.Min.y ), GetColorU32( ImFluentCol_CardStrokeDefault ) );
+            const float s = ExampleStroke();
+            dl->AddRectFilled( ImVec2( row.Min.x + s, row.Min.y ), ImVec2( row.Max.x - s, row.Max.y - s ), GetColorU32( hov ? ImFluentCol_SubtleFillSecondary : ImFluentCol_CardBgSecondary ), expanded ? 0.f : r - s, ImDrawFlags_RoundCornersBottom );
+            dl->AddRectFilled( ImVec2( row.Min.x, row.Min.y ), ImVec2( row.Max.x, row.Min.y + s ), GetColorU32( ImFluentCol_CardStrokeDefault ) );
             dl->AddText( ImVec2( row.Min.x + ExampleDp( 16.f ), ( row.Min.y + row.Max.y - ImGui::GetFontSize() ) * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), "Source code" );
             dl->AddText( ImVec2( row.Max.x - ExampleDp( 36.f ), ( row.Min.y + row.Max.y - ImGui::GetFontSize() ) * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), expanded ? ImFluentIcon_ChevronUp : ImFluentIcon_ChevronDown );
             ImGui::PopClipRect();

@@ -848,12 +848,43 @@ namespace ImFluent
         dl->AddText( font, fs, pos, col, text );
     }
 
+    // Width of a 1 dp stroke in whole pixels, as WinUI layout rounding draws it: 1 at 100% and 125%, 2 at 150% and
+    // 200%.
+    static float StrokeWidth()
+    {
+        return ImMax( 1.f, IM_ROUND( FluentDpx( 1.f ) ) );
+    }
+
+    // A 1 dp outline inside [a, b], on whole pixels (ImDrawList::AddRect centres any stroke half a pixel in, which
+    // blurs strokes wider than 1 px over three pixels).
+    static void StrokeRect( ImDrawList * dl, const ImVec2 & a, const ImVec2 & b, ImU32 col, float rounding, ImDrawFlags flags = 0 )
+    {
+        const float t = StrokeWidth();
+        const float h = t * 0.5f;
+        dl->PathRect( ImVec2( a.x + h, a.y + h ), ImVec2( b.x - h, b.y - h ), ImMax( 0.f, rounding - h ), flags );
+        dl->PathStroke( col, ImDrawFlags_Closed, t );
+    }
+
+    // A control's fill inside its 1 dp border (WinUI BackgroundSizing="InnerBorderEdge"): the border then blends with
+    // what is behind the control, not with the fill, and reads as strong as WinUI's.
+    static void FillInsideBorder( ImDrawList * dl, const ImVec2 & a, const ImVec2 & b, ImU32 col, float rounding, ImDrawFlags flags = 0 )
+    {
+        const float t = StrokeWidth();
+        dl->AddRectFilled( ImVec2( a.x + t, a.y + t ), ImVec2( b.x - t, b.y - t ), col, ImMax( 0.f, rounding - t ), flags );
+    }
+
     static void RenderElevationBorder( ImDrawList * dl, const ImRect & bb, float rounding, ImU32 sides, ImU32 bottom, float bottom_thickness )
     {
-        dl->AddRect( bb.Min, bb.Max, sides, rounding, 0, 1.f );
+        StrokeRect( dl, bb.Min, bb.Max, sides, rounding );
 
-        const float t = ( bottom_thickness > 0.f ) ? bottom_thickness : 1.f;
-        dl->AddRectFilled( ImVec2( bb.Min.x + rounding, bb.Max.y - t ), ImVec2( bb.Max.x - rounding, bb.Max.y ), bottom );
+        // WinUI draws one gradient border, so the bottom edge shows only the elevation colour. Here the strip goes over
+        // the side stroke: lower its alpha so that the two composite to the elevation colour.
+        const float t       = ImMax( StrokeWidth(), IM_ROUND( FluentDpx( bottom_thickness > 0.f ? bottom_thickness : 1.f ) ) );
+        const float a_sides = ( float )( ( sides >> IM_COL32_A_SHIFT ) & 0xFF ) / 255.f;
+        const float a_want  = ( float )( ( bottom >> IM_COL32_A_SHIFT ) & 0xFF ) / 255.f;
+        const float a_strip = a_sides < 1.f ? ImMax( 0.f, ( a_want - a_sides ) / ( 1.f - a_sides ) ) : 0.f;
+        const ImU32 strip   = ( bottom & ~IM_COL32_A_MASK ) | ( ( ImU32 )( a_strip * 255.f + 0.5f ) << IM_COL32_A_SHIFT );
+        dl->AddRectFilled( ImVec2( bb.Min.x + rounding, bb.Max.y - t ), ImVec2( bb.Max.x - rounding, bb.Max.y ), strip );
     }
 
     static void RenderElevationShadow( ImDrawList * dl, const ImRect & bb, float rounding, int layers )
@@ -1556,11 +1587,11 @@ namespace ImFluent
         const float r        = FluentDpx( style.ControlCornerRadius );
         ImDrawList * dl      = w->DrawList;
 
-        dl->AddRectFilled( bb.Min, bb.Max, fillAnim, r );
+        FillInsideBorder( dl, bb.Min, bb.Max, fillAnim, r );
         if ( !held && !disabled )
             RenderElevationBorder( dl, bb, r, stroke, strokeBottom, 1.f );
         else
-            dl->AddRect( bb.Min, bb.Max, stroke, r, 0, 1.f );
+            ImFluent::StrokeRect( dl, bb.Min, bb.Max, stroke, r );
 
         RenderButtonLabel( dl, bb, label, disabled ? textDisabled : textCol, pad_x, pad_y );
 
@@ -1728,10 +1759,10 @@ void ImFluent::SetThemePreset( ImFluentThemePreset preset )
     s.IndentSpacing     = ImTrunc( 16.f * s.FontScaleDpi );
     s.ScrollbarSize     = ImTrunc( 12.f * s.FontScaleDpi );
     s.GrabMinSize       = ImTrunc( 16.f * s.FontScaleDpi );
-    s.WindowBorderSize  = ImTrunc( 1.f * s.FontScaleDpi );
-    s.ChildBorderSize   = ImTrunc( 1.f * s.FontScaleDpi );
-    s.PopupBorderSize   = ImTrunc( 1.f * s.FontScaleDpi );
-    s.FrameBorderSize   = ImTrunc( 1. * s.FontScaleDpi );
+    s.WindowBorderSize  = ImMax( 1.f, IM_ROUND( 1.f * s.FontScaleDpi ) );
+    s.ChildBorderSize   = ImMax( 1.f, IM_ROUND( 1.f * s.FontScaleDpi ) );
+    s.PopupBorderSize   = ImMax( 1.f, IM_ROUND( 1.f * s.FontScaleDpi ) );
+    s.FrameBorderSize   = ImMax( 1.f, IM_ROUND( 1.f * s.FontScaleDpi ) );
     s.WindowRounding    = ImTrunc( g_Ctx.Style.OverlayCornerRadius * s.FontScaleDpi );
     s.ChildRounding     = ImTrunc( g_Ctx.Style.ControlCornerRadius * s.FontScaleDpi );
     s.PopupRounding     = ImTrunc( g_Ctx.Style.OverlayCornerRadius * s.FontScaleDpi );
@@ -1906,8 +1937,7 @@ static ImFont * LoadFontAndMergeWithIcons( const char * fontsDirectory, const ch
     ImFormatStringToTempBuffer( &fontPath, nullptr, "%s/%s", fontsDirectory, fontName );
 
     ImFontConfig cfg;
-    cfg.SizePixels         = 16.0;
-    cfg.RasterizerMultiply = 1.2f;
+    cfg.SizePixels = 16.0; // Plain coverage (RasterizerMultiply 1): a heavier multiply makes text darker than WinUI's
 
     ImFont * font = ImGui::GetIO().Fonts->AddFontFromFileTTF( fontPath, 0.0f, &cfg );
     IM_ASSERT( font != nullptr );
@@ -1951,8 +1981,11 @@ void ImFluent::LoadFluentSystemFonts()
 
     ImFont * regularFont = LoadFontAndMergeWithIcons( fontsDirectory, "segoeui.ttf" );
 
-    SetFluentTextStyleFont( ImFluentTextStyle_Caption, regularFont, 16.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_Body, regularFont, 20.0f );
+    // The Fluent type ramp in em sizes (Caption 12, Body 14, Subtitle 20, Title 28, TitleLarge 40, Display 68).
+    // Dear ImGui sizes a font by ascent + descent, which is 1.33 em for Segoe UI ((2210 + 514) / 2048).
+    const float em = 2724.f / 2048.f;
+    SetFluentTextStyleFont( ImFluentTextStyle_Caption, regularFont, 12.f * em );
+    SetFluentTextStyleFont( ImFluentTextStyle_Body, regularFont, 14.f * em );
 
     // The Fluent type ramp sets BodyStrong, Subtitle, Title, TitleLarge and Display in Semibold (Bold before
     // Windows 10 shipped Segoe UI Semibold).
@@ -1961,11 +1994,11 @@ void ImFluent::LoadFluentSystemFonts()
     const bool hasSemibold = ::GetFileAttributesA( semiboldPath ) != INVALID_FILE_ATTRIBUTES;
     ImFont * strongFont    = LoadFontAndMergeWithIcons( fontsDirectory, hasSemibold ? "seguisb.ttf" : "segoeuib.ttf" );
 
-    SetFluentTextStyleFont( ImFluentTextStyle_BodyStrong, strongFont, 20.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_Subtitle, strongFont, 28.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_Title, strongFont, 36.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_TitleLarge, strongFont, 52.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_Display, strongFont, 92.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_BodyStrong, strongFont, 14.f * em );
+    SetFluentTextStyleFont( ImFluentTextStyle_Subtitle, strongFont, 20.f * em );
+    SetFluentTextStyleFont( ImFluentTextStyle_Title, strongFont, 28.f * em );
+    SetFluentTextStyleFont( ImFluentTextStyle_TitleLarge, strongFont, 40.f * em );
+    SetFluentTextStyleFont( ImFluentTextStyle_Display, strongFont, 68.f * em );
 
     if ( ImGui::GetIO().FontDefault == NULL )
     {
@@ -2182,23 +2215,24 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
     if ( split )
     {
 
-        dl->AddRectFilled( bb_main.Min, bb_main.Max, mainAnim, r, ImDrawFlags_RoundCornersLeft );
+        const float sw = StrokeWidth();
+        dl->AddRectFilled( ImVec2( bb_main.Min.x + sw, bb_main.Min.y + sw ), ImVec2( bb_main.Max.x, bb_main.Max.y - sw ), mainAnim, r - sw, ImDrawFlags_RoundCornersLeft );
         const ImU32 chevTarget = pickFill( chev_hovered, chev_held );
         const ImU32 chevAnim   = AnimateColorU32( id_chev, chevTarget );
-        dl->AddRectFilled( bb_chev.Min, bb_chev.Max, chevAnim, r, ImDrawFlags_RoundCornersRight );
+        dl->AddRectFilled( ImVec2( bb_chev.Min.x, bb_chev.Min.y + sw ), ImVec2( bb_chev.Max.x - sw, bb_chev.Max.y - sw ), chevAnim, r - sw, ImDrawFlags_RoundCornersRight );
         dl->AddLine( ImVec2( bb_main.Max.x, bb_main.Min.y + FluentDpx( style.SpacingMedium ) ), ImVec2( bb_main.Max.x, bb_main.Max.y - FluentDpx( style.SpacingMedium ) ), ImFluent::GetColorU32( ImFluentCol_DividerStrokeDefault ), 1.f );
         if ( !disabled )
             RenderElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
         else
-            dl->AddRect( bb_total.Min, bb_total.Max, strokeCol, r, 0, 1.f );
+            ImFluent::StrokeRect( dl, bb_total.Min, bb_total.Max, strokeCol, r );
     }
     else
     {
-        dl->AddRectFilled( bb_total.Min, bb_total.Max, mainAnim, r );
+        FillInsideBorder( dl, bb_total.Min, bb_total.Max, mainAnim, r );
         if ( !main_held && !disabled )
             RenderElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
         else
-            dl->AddRect( bb_total.Min, bb_total.Max, strokeCol, r, 0, 1.f );
+            ImFluent::StrokeRect( dl, bb_total.Min, bb_total.Max, strokeCol, r );
     }
 
     RenderButtonLabel( dl, ImRect( bb_main.Min, ImVec2( bb_main.Max.x - ( split ? 0.f : chev_w ), bb_main.Max.y ) ), label, disabled ? textDisabled : textCol, pad_x, pad_y );
@@ -2550,7 +2584,7 @@ bool ImFluent::ToggleSwitch( const char * label, bool * v, const char * on_text,
     ImDrawList * dl = w->DrawList;
     dl->AddRectFilled( track_bb.Min, track_bb.Max, trackAnim, H * 0.5f );
     if ( !on )
-        dl->AddRect( track_bb.Min, track_bb.Max, ImFluent::GetColorU32( ImFluentCol_ControlStrongStrokeDefault ), H * 0.5f, 0, 1.f );
+        ImFluent::StrokeRect( dl, track_bb.Min, track_bb.Max, ImFluent::GetColorU32( ImFluentCol_ControlStrongStrokeDefault ), H * 0.5f );
 
     const float pad            = FluentDpx( style.SpacingSmall );
     const float thumb_r_target = on ? FluentDpx( style.ToggleSwitchThumbRadiusOn ) : FluentDpx( style.ToggleSwitchThumbRadiusOff );
@@ -3951,9 +3985,15 @@ bool ImFluent::BeginCard( const char * id, const ImVec2 & size, ImFluentCardStyl
     ImGui::PushStyleColor( ImGuiCol_ChildBg, bg );
     ImGui::PushStyleColor( ImGuiCol_Border, stroke );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
-    ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 1.f );
+    ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 0.f );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.CardPadding ), FluentDpx( style.CardPadding ) ) );
-    return ImGui::BeginChild( id, size, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened );
+    const bool open = ImGui::BeginChild( id, size, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened );
+    // The border on whole pixels (ImGui's child border straddles half pixels and blurs at 150%).
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    w->DrawList->PushClipRect( w->Rect().Min, w->Rect().Max, false );
+    StrokeRect( w->DrawList, w->Pos, ImVec2( w->Pos.x + w->Size.x, w->Pos.y + w->Size.y ), stroke, FluentDpx( style.OverlayCornerRadius ) );
+    w->DrawList->PopClipRect();
+    return open;
 }
 
 void ImFluent::EndCard()
@@ -4121,7 +4161,7 @@ static bool ExpanderHeader( const char * label, bool * open, ImFluentExpandDirec
     ImU32 fill      = ImFluent::ResolveControlFillState( false, held, hovered );
     fill            = ImFluent::AnimateColorU32( id, fill );
     ImDrawList * dl = w->DrawList;
-    dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+    ImFluent::FillInsideBorder( dl, bb.Min, bb.Max, fill, r );
     ImFluent::RenderElevationBorder( dl, bb, r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
 
     const float closed_phase = ( dir == ImFluentExpandDirection_Up ) ? 1.f : 0.f;
@@ -4929,7 +4969,7 @@ void ImFluent::NavigationViewBeginContent( const ImVec2 & padding )
         const ImVec2 p1( p0.x + avail.x, p0.y + avail.y );
         const float r = FluentDpx( style.OverlayCornerRadius );
         dl->AddRectFilled( p0, p1, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ), r, ImDrawFlags_RoundCornersTopLeft );
-        dl->AddRect( p0, ImVec2( p1.x + r, p1.y + r ), ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ), r, ImDrawFlags_RoundCornersTopLeft );
+        ImFluent::StrokeRect( dl, p0, ImVec2( p1.x + r, p1.y + r ), ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ), r, ImDrawFlags_RoundCornersTopLeft );
     }
     ImGui::PushStyleColor( ImGuiCol_ChildBg, IM_COL32( 0, 0, 0, 0 ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( padding.x >= 0.f ? padding.x : FluentDpx( style.SpacingXXLarge ), padding.y >= 0.f ? padding.y : FluentDpx( style.SpacingXXLarge ) ) );
@@ -5260,14 +5300,14 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     else
         fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDefault );
     const ImU32 fill = AnimateColorU32( id, fill_target );
-    dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+    FillInsideBorder( dl, bb.Min, bb.Max, fill, r );
 
     const ImU32 stroke     = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
     const ImU32 stroke_bot = ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom );
     if ( !held && !popup_open && !disabled )
         RenderElevationBorder( dl, bb, r, stroke, stroke_bot, 1.f );
     else
-        dl->AddRect( bb.Min, bb.Max, stroke, r, 0, 1.f );
+        ImFluent::StrokeRect( dl, bb.Min, bb.Max, stroke, r );
 
     const ImU32 text_col = ImFluent::GetColorU32( disabled ? ImFluentCol_TextDisabled : ImFluentCol_TextPrimary );
     if ( !( flags & ImGuiComboFlags_NoPreview ) && preview && *preview )
@@ -6490,7 +6530,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
     dl->AddRectFilled( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_CardBgDefault ), r );
     if ( bgTint )
         dl->AddRectFilled( bb.Min, bb.Max, bgTint, r );
-    dl->AddRect( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ), r, 0, 1.f );
+    ImFluent::StrokeRect( dl, bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ), r );
 
     dl->AddRectFilled( bb.Min, ImVec2( bb.Min.x + FluentDpx( style.SeverityBarThickness ), bb.Max.y ), sevCol, r );
 
@@ -6526,7 +6566,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         }
         const ImU32 fill_target = ResolveControlFillState( false, aheld, ahov );
         const float r_btn       = FluentDpx( style.ControlCornerRadius );
-        dl->AddRectFilled( btn_bb.Min, btn_bb.Max, ImFluent::AnimateColorU32( aid, fill_target ), r_btn );
+        FillInsideBorder( dl, btn_bb.Min, btn_bb.Max, ImFluent::AnimateColorU32( aid, fill_target ), r_btn );
         RenderElevationBorder( dl, btn_bb, r_btn, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
         const float ax = btn_bb.Min.x + ( btn_bb.GetWidth() - action_text_sz.x ) * 0.5f;
         const float ay = btn_bb.Min.y + ( btn_bb.GetHeight() - action_text_sz.y ) * 0.5f;
@@ -7610,14 +7650,14 @@ namespace ImFluent
         else
             fill_target = ImFluent::GetColorU32( ImFluentCol_ControlFillDefault );
         const ImU32 fill = ImFluent::AnimateColorU32( id, fill_target );
-        dl->AddRectFilled( bb.Min, bb.Max, fill, r );
+        ImFluent::FillInsideBorder( dl, bb.Min, bb.Max, fill, r );
 
         const ImU32 stroke     = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
         const ImU32 stroke_bot = ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom );
         if ( !held && !open && !disabled )
             ImFluent::RenderElevationBorder( dl, bb, r, stroke, stroke_bot, 1.f );
         else
-            dl->AddRect( bb.Min, bb.Max, stroke, r, 0, 1.f );
+            ImFluent::StrokeRect( dl, bb.Min, bb.Max, stroke, r );
     }
 
     static void RenderColumnSeparator( ImDrawList * dl, float x, float ymin, float ymax, ImU32 col )
@@ -8267,6 +8307,15 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
 
     const ImVec2 hdr_origin = ImGui::GetCursorScreenPos();
     ImDrawList * pdl        = w->DrawList;
+    // WinUI CalendarView sits on a bordered panel. Inside a flyout (CalendarDatePicker) the flyout is the frame.
+    if ( !( w->Flags & ImGuiWindowFlags_Popup ) )
+    {
+        const float pr = FluentDpx( style.OverlayCornerRadius );
+        const ImVec2 p0( hdr_origin.x - 1.f, hdr_origin.y - 1.f );
+        const ImVec2 p1( hdr_origin.x + grid_w + 1.f, hdr_origin.y + header_h + dow_h + day_grid_h + 1.f );
+        pdl->AddRectFilled( p0, p1, GetColorU32( ImFluentCol_ControlFillInputActive ), pr );
+        StrokeRect( pdl, p0, p1, GetColorU32( ImFluentCol_CardStrokeDefault ), pr );
+    }
 
     {
         const ImVec2 cv_size = CalendarViewCalcSize();
@@ -9035,7 +9084,7 @@ static bool FlipViewButton( const char * str_id, const char * name, const ImRect
     const float r   = ImFluent::FluentDpx( style.ControlCornerRadius );
     ImDrawList * dl = w->DrawList;
     dl->AddRectFilled( bb.Min, bb.Max, ImFluent::AnimateColorU32( id, ImFluent::ResolveControlFillState( false, held, hov ) ), r );
-    dl->AddRect( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), r );
+    ImFluent::StrokeRect( dl, bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), r );
     ImFluent::RenderCenteredText( dl, bb.GetCenter(), ImGui::GetFontSize() * 0.7f, ImFluent::GetColorU32( ImFluentCol_TextSecondary ), glyph );
     return pressed;
 }
