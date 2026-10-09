@@ -85,6 +85,8 @@ struct ImFluentExpanderState
 
 struct ImFluentNavViewState
 {
+    bool InTabGroup; // Between BeginNavigationView and EndNavigationView: menu items form one tab stop
+    bool FooterItem; // The item being submitted is a footer item (Settings): its own tab stop
     float CurrentWidth;
     bool ContentStarted;
     ImFluentNavViewMode Mode;
@@ -131,6 +133,35 @@ struct ImFluentTextStyleFont
     float FontSize;
 };
 
+// A composite control that is ONE tab stop (WinUI TabFocusNavigation="Once"): Tab lands on its selected item, or
+// the last focused one, or the first; arrows move inside. See BeginTabGroup().
+enum ImFluentTabGroupFlags_
+{
+    ImFluentTabGroupFlags_None                  = 0,
+    ImFluentTabGroupFlags_Vertical              = 1 << 0, // A column: Up/Down stop at the ends, Left/Right do nothing
+    ImFluentTabGroupFlags_Horizontal            = 1 << 1, // A row: Left/Right stop at the ends, Up/Down do nothing
+    ImFluentTabGroupFlags_Wrap                  = 1 << 2, // With Vertical/Horizontal: the ends wrap around instead
+    ImFluentTabGroupFlags_SelectionFollowsFocus = 1 << 3, // Arrow keys select the item they focus (not with Ctrl)
+    ImFluentTabGroupFlags_HomeEnd               = 1 << 4, // Home/End focus the first/last item
+    ImFluentTabGroupFlags_FirstIsStop           = 1 << 5, // The first item is always the tab stop (BreadcrumbBar)
+};
+
+struct ImFluentTabGroup
+{
+    ImGuiID Id;
+    int Flags;
+    ImGuiID Stop;      // Item that is the tab stop this frame, decided from the previous frame
+    ImGuiID PrevFirst; // First and last items of the previous frame
+    ImGuiID PrevLast;
+    ImGuiID Pending;    // Item that Home/End or a wrap moved focus to: scrolled into view when it is submitted
+    bool PendingSelect; // ...and selected (SelectionFollowsFocus without Ctrl)
+    ImGuiID First;      // This frame
+    ImGuiID Last;
+    ImGuiID Selected;
+    ImGuiID Focused;
+    bool StopSeen;
+};
+
 struct ImFluentContext
 {
     static const int MaxPopupAnchors = 16;
@@ -149,6 +180,7 @@ struct ImFluentContext
     ImVector< ImFluentExpanderState > ExpanderStack;
     ImVector< ImFluentCommandBarState > CommandBarStack;
     ImVector< float > NavItemIndentStack;
+    ImVector< ImFluentTabGroup > TabGroupStack;
     ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
     ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
 
@@ -1104,6 +1136,130 @@ namespace ImFluent
         return ImGui::IsKeyPressed( key, repeat ? ImGuiInputFlags_Repeat : ImGuiInputFlags_None, id );
     }
 
+    // WinUI CheckBox, RadioButton and ToggleSwitch ignore Enter: only Space (and the mouse) toggle them.
+    static bool IsEnterActivation( ImGuiID id )
+    {
+        ImGuiContext & g = *GImGui;
+        return g.NavActivatePressedId == id && ( g.NavActivateFlags & ImGuiActivateFlags_PreferInput ) != 0;
+    }
+
+    static const ImGuiID TABGROUP_KEY_SELECTED       = 0x7A6B0001u;
+    static const ImGuiID TABGROUP_KEY_FOCUSED        = 0x7A6B0002u;
+    static const ImGuiID TABGROUP_KEY_FIRST          = 0x7A6B0003u;
+    static const ImGuiID TABGROUP_KEY_LAST           = 0x7A6B0004u;
+    static const ImGuiID TABGROUP_KEY_PENDING        = 0x7A6B0005u;
+    static const ImGuiID TABGROUP_KEY_PENDING_SELECT = 0x7A6B0006u;
+
+    // One-tab-stop group. Call BeginTabGroup()/EndTabGroup() around the members, in one window. For each member:
+    // pass TabGroupItemFlags() to its ItemAdd (or PushItemFlag( ImGuiItemFlags_NoTabStop, ... ) around it), then
+    // call TabGroupItemNav() after its behavior; it returns true when keyboard focus just arrived on the item in a
+    // SelectionFollowsFocus group, so the caller selects it.
+    static void BeginTabGroup( ImGuiID group_id, int flags )
+    {
+        ImGuiStorage * st      = ImGui::GetStateStorage();
+        const ImGuiID selected = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_SELECTED, 0 );
+        const ImGuiID focused  = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_FOCUSED, 0 );
+        ImFluentTabGroup grp;
+        grp.Id            = group_id;
+        grp.Flags         = flags;
+        grp.PrevFirst     = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_FIRST, 0 );
+        grp.PrevLast      = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_LAST, 0 );
+        grp.Pending       = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_PENDING, 0 );
+        grp.PendingSelect = st->GetBool( group_id ^ TABGROUP_KEY_PENDING_SELECT, false );
+        grp.Stop          = ( flags & ImFluentTabGroupFlags_FirstIsStop ) ? grp.PrevFirst : selected ? selected : focused ? focused : grp.PrevFirst;
+        grp.First = grp.Last = grp.Selected = grp.Focused = 0;
+        grp.StopSeen                                      = false;
+        g_Ctx.TabGroupStack.push_back( grp );
+    }
+
+    static ImGuiItemFlags TabGroupItemFlags( ImGuiID item_id, bool selected )
+    {
+        if ( g_Ctx.TabGroupStack.empty() )
+            return ImGuiItemFlags_None;
+        ImFluentTabGroup & grp = g_Ctx.TabGroupStack.back();
+        if ( !grp.First )
+            grp.First = item_id;
+        grp.Last = item_id;
+        if ( selected && !grp.Selected )
+            grp.Selected = item_id;
+        if ( GImGui->NavId == item_id )
+            grp.Focused = item_id;
+        const ImGuiID stop = grp.Stop ? grp.Stop : grp.First;
+        if ( item_id == stop )
+            grp.StopSeen = true;
+        return ( item_id == stop ) ? ImGuiItemFlags_None : ImGuiItemFlags_NoTabStop;
+    }
+
+    static bool TabGroupItemNav( ImGuiID item_id )
+    {
+        if ( g_Ctx.TabGroupStack.empty() )
+            return false;
+        ImGuiContext & g       = *GImGui;
+        ImFluentTabGroup & grp = g_Ctx.TabGroupStack.back();
+        const int flags        = grp.Flags;
+        const bool follows     = ( flags & ImFluentTabGroupFlags_SelectionFollowsFocus ) != 0;
+        bool arrived           = false;
+        if ( grp.Pending == item_id )
+        {
+            arrived           = grp.PendingSelect;
+            grp.Pending       = 0;
+            grp.PendingSelect = false;
+            if ( g.LastItemData.ID == item_id )
+                ImGui::ScrollToItem( ImGuiScrollFlags_KeepVisibleEdgeX | ImGuiScrollFlags_KeepVisibleEdgeY );
+        }
+        if ( g.NavId == item_id )
+        {
+            const bool vertical   = ( flags & ImFluentTabGroupFlags_Vertical ) != 0;
+            const bool horizontal = ( flags & ImFluentTabGroupFlags_Horizontal ) != 0;
+            const bool wrap       = ( flags & ImFluentTabGroupFlags_Wrap ) != 0;
+            ImGuiID jump          = 0;
+            if ( vertical || horizontal )
+            {
+                const ImGuiDir prev_dir = vertical ? ImGuiDir_Up : ImGuiDir_Left;
+                const ImGuiDir next_dir = vertical ? ImGuiDir_Down : ImGuiDir_Right;
+                if ( item_id == grp.PrevFirst && ConsumeNavArrow( item_id, prev_dir ) && wrap )
+                    jump = grp.PrevLast;
+                if ( item_id == grp.PrevLast && ConsumeNavArrow( item_id, next_dir ) && wrap )
+                    jump = grp.PrevFirst;
+                ConsumeNavArrow( item_id, vertical ? ImGuiDir_Left : ImGuiDir_Up );
+                ConsumeNavArrow( item_id, vertical ? ImGuiDir_Right : ImGuiDir_Down );
+            }
+            if ( flags & ImFluentTabGroupFlags_HomeEnd )
+            {
+                if ( IsFocusedItemKeyPressed( item_id, ImGuiKey_Home ) )
+                    jump = grp.PrevFirst;
+                if ( IsFocusedItemKeyPressed( item_id, ImGuiKey_End ) )
+                    jump = grp.PrevLast;
+            }
+            if ( jump && jump != item_id )
+            {
+                ImGui::SetFocusID( jump, g.CurrentWindow );
+                g.NavCursorVisible = true;
+                grp.Pending        = jump; // Scrolled into view (and selected) when it is submitted
+                grp.PendingSelect  = follows && !g.IO.KeyCtrl;
+            }
+        }
+        if ( follows && g.NavJustMovedToId == item_id && !g.NavJustMovedToIsTabbing && !( g.NavJustMovedToKeyMods & ImGuiMod_Ctrl ) )
+            arrived = true;
+        return arrived;
+    }
+
+    static void EndTabGroup()
+    {
+        if ( g_Ctx.TabGroupStack.empty() )
+            return;
+        const ImFluentTabGroup & grp = g_Ctx.TabGroupStack.back();
+        ImGuiStorage * st            = ImGui::GetStateStorage();
+        st->SetInt( grp.Id ^ TABGROUP_KEY_SELECTED, ( int )grp.Selected );
+        if ( grp.Focused || !grp.StopSeen )
+            st->SetInt( grp.Id ^ TABGROUP_KEY_FOCUSED, ( int )grp.Focused ); // Forget a remembered item that went away
+        st->SetInt( grp.Id ^ TABGROUP_KEY_FIRST, ( int )grp.First );
+        st->SetInt( grp.Id ^ TABGROUP_KEY_LAST, ( int )grp.Last );
+        st->SetInt( grp.Id ^ TABGROUP_KEY_PENDING, ( int )grp.Pending );
+        st->SetBool( grp.Id ^ TABGROUP_KEY_PENDING_SELECT, grp.PendingSelect );
+        g_Ctx.TabGroupStack.pop_back();
+    }
+
     // -1 / +1 for a focused item that takes Left/Down as "decrease" and Right/Up as "increase".
     static int ConsumeNavIncrement( ImGuiID id )
     {
@@ -1860,7 +2016,7 @@ bool ImFluent::CheckboxEx( const char * label, int * v_tri, bool * v_bool )
         return false;
 
     bool hovered = false, held = false;
-    const bool pressed = ImGui::ButtonBehavior( total_bb, id, &hovered, &held );
+    const bool pressed = ImGui::ButtonBehavior( total_bb, id, &hovered, &held ) && !IsEnterActivation( id );
     if ( pressed )
     {
         if ( v_tri )
@@ -1960,7 +2116,7 @@ bool ImFluent::RadioButton( const char * label, bool active )
     if ( !ImGui::ItemAdd( total_bb, id ) )
         return false;
     bool hovered = false, held = false;
-    const bool pressed  = ImGui::ButtonBehavior( total_bb, id, &hovered, &held );
+    const bool pressed  = ImGui::ButtonBehavior( total_bb, id, &hovered, &held ) && !IsEnterActivation( id );
     const bool disabled = ImFluent::IsCurrentItemDisabled();
     ReportItemInfo( id, label, CheckedFlags( active ) );
 
@@ -2012,7 +2168,13 @@ bool ImFluent::RadioButtons( const char * label, int * v, const char * const ite
         RenderAndConsumePendingHeader();
         ImGui::TextUnformatted( label );
     }
-    const int rows = ( items_count + max_columns - 1 ) / max_columns;
+    // Keyboard (WinUI RadioButtons): the group is one tab stop on the selected item. Up/Down step by index
+    // (column-major), Left/Right move one column; both stop at the ends. Arrows select the item they focus,
+    // except with Ctrl held (then Space selects).
+    ImGuiContext & g = *GImGui;
+    const int rows   = ( items_count + max_columns - 1 ) / max_columns;
+    int nav_target   = -1;
+    BeginTabGroup( ImGui::GetID( "##radio-group" ), ImFluentTabGroupFlags_None );
     for ( int row = 0; row < rows; ++row )
     {
         for ( int col = 0; col < max_columns; ++col )
@@ -2022,10 +2184,35 @@ bool ImFluent::RadioButtons( const char * label, int * v, const char * const ite
                 continue;
             if ( col > 0 )
                 ImGui::SameLine();
+            const ImGuiID item_id = ImGui::GetID( items[ i ] );
+            ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( item_id, v && *v == i ) != ImGuiItemFlags_None );
             if ( RadioButton( items[ i ], v, i ) )
                 changed = true;
+            ImGui::PopItemFlag();
+            if ( g.NavId == item_id )
+            {
+                if ( ConsumeNavArrow( item_id, ImGuiDir_Down ) && i + 1 < items_count )
+                    nav_target = i + 1;
+                if ( ConsumeNavArrow( item_id, ImGuiDir_Up ) && i > 0 )
+                    nav_target = i - 1;
+                if ( ConsumeNavArrow( item_id, ImGuiDir_Right ) && i + rows < items_count )
+                    nav_target = i + rows;
+                if ( ConsumeNavArrow( item_id, ImGuiDir_Left ) && i - rows >= 0 )
+                    nav_target = i - rows;
+            }
         }
     }
+    if ( nav_target >= 0 )
+    {
+        ImGui::SetFocusID( ImGui::GetID( items[ nav_target ] ), ImGui::GetCurrentWindow() );
+        g.NavCursorVisible = true;
+        if ( v && !g.IO.KeyCtrl && *v != nav_target )
+        {
+            *v      = nav_target;
+            changed = true;
+        }
+    }
+    EndTabGroup();
     RenderAndConsumePendingDescription();
     ImGui::PopID();
     return changed;
@@ -2055,7 +2242,7 @@ bool ImFluent::ToggleSwitch( const char * label, bool * v, const char * on_text,
         return false;
 
     bool hovered = false, held = false;
-    const bool pressed = ImGui::ButtonBehavior( track_bb, id, &hovered, &held );
+    const bool pressed = ImGui::ButtonBehavior( track_bb, id, &hovered, &held ) && !IsEnterActivation( id );
     if ( pressed && v )
         *v = !*v;
     const bool on       = v && *v;
@@ -3770,7 +3957,10 @@ bool ImFluent::BeginTabView( const char * id )
     ImGui::PushStyleColor( ImGuiCol_TabDimmedSelected, ImFluent::GetColorU32( ImFluentCol_LayerFillAlt ) );
     ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, FluentDpx( style.ControlCornerRadius ) );
     if ( ImGui::BeginTabBar( id, ImGuiTabBarFlags_None ) )
+    {
+        BeginTabGroup( ImGui::GetCurrentContext()->CurrentTabBar->ID, ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_Wrap | ImFluentTabGroupFlags_HomeEnd );
         return true;
+    }
     ImGui::PopStyleVar();
     ImGui::PopStyleColor( 5 );
     return false;
@@ -3785,7 +3975,14 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
     if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
         if ( p_open && *p_open && tab_bar->SelectedTabId == ImGui::GetID( label ) && ImGui::GetStateStorage()->GetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, false ) && ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_F4 ) )
             *p_open = false;
+    // WinUI TabView: the tab strip is one tab stop on the selected tab; Left/Right move along the tabs and wrap,
+    // Home/End go to the first/last tab (focus only: Space/Enter select); Up/Down do not leave the strip.
+    const ImGuiID tab_id   = ImGui::GetID( label );
+    const bool is_selected = g.CurrentTabBar && g.CurrentTabBar->SelectedTabId == tab_id;
+    ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( tab_id, is_selected ) != ImGuiItemFlags_None );
     const bool open = ImGui::BeginTabItem( label, p_open, flags );
+    ImGui::PopItemFlag();
+    TabGroupItemNav( tab_id );
     if ( p_open && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
         *p_open = false;
     return open;
@@ -3841,6 +4038,7 @@ void ImFluent::EndTabView()
             }
         }
     }
+    EndTabGroup();
     ImGui::EndTabBar();
     ImGui::PopStyleVar();
     ImGui::PopStyleColor( 5 );
@@ -3857,6 +4055,9 @@ bool ImFluent::BeginSelectorBar( const char * id )
     ImGui::PushID( id );
     ImGui::BeginGroup();
     ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingXSmall ), 0.f ) );
+    // WinUI SelectorBar: one tab stop; Left/Right move by index without wrapping, Home/End jump to the ends, and
+    // selection follows keyboard focus (not with Ctrl).
+    BeginTabGroup( ImGui::GetID( "##selector-group" ), ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_HomeEnd | ImFluentTabGroupFlags_SelectionFollowsFocus );
     return true;
 }
 
@@ -3880,13 +4081,13 @@ bool ImFluent::SelectorBarItem( const char * label, bool selected, const char * 
     const ImVec2 pos  = w->DC.CursorPos;
     const ImRect bb( pos, ImVec2( pos.x + ts.x + pad_x * 2.f, pos.y + ts.y + pad_y * 2.f ) );
     ImGui::ItemSize( bb );
-    if ( !ImGui::ItemAdd( bb, id ) )
+    if ( !ImGui::ItemAdd( bb, id, NULL, TabGroupItemFlags( id, selected ) ) )
     {
         ImGui::SameLine();
         return false;
     }
     bool hovered = false, held = false;
-    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held ) | TabGroupItemNav( id );
     ReportItemInfo( id, label, CheckedFlags( selected ) );
     ImDrawList * dl    = w->DrawList;
     ImU32 fillTarget;
@@ -3907,6 +4108,7 @@ bool ImFluent::SelectorBarItem( const char * label, bool selected, const char * 
 
 void ImFluent::EndSelectorBar()
 {
+    EndTabGroup();
     ImGui::PopStyleVar();
     ImGui::EndGroup();
     ImGui::PopID();
@@ -3942,6 +4144,11 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
     const ImFluentNavViewMode mode = mode_io ? *mode_io : ImFluentNavViewMode_LeftCompact;
     const ImFluentNavViewMode prev_mode = ( ImFluentNavViewMode )st->GetInt( mode_key, ( int )ImFluentNavViewMode_LeftCompact );
     st->SetInt( mode_key, ( int )mode );
+
+    // WinUI NavigationView: the menu items are one tab stop (the selected item, else the first); Up/Down move
+    // between items, Home/End to the first/last. Settings (NavSettingsItem) is a stop of its own.
+    BeginTabGroup( nav_id ^ 0x7AB1E5u, ImFluentTabGroupFlags_HomeEnd );
+    g_Ctx.NavView.InTabGroup = true;
 
     g_Ctx.NavView.PrevMode = prev_mode;
     g_Ctx.NavView.Mode     = mode;
@@ -4004,6 +4211,19 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
     return true;
 }
 
+// Menu items of a NavigationView form one tab-stop group; footer items (Settings) and items outside a
+// NavigationView are ordinary tab stops.
+static ImGuiItemFlags NavMenuItemFlags( ImGuiID id, bool selected )
+{
+    return ( g_Ctx.NavView.InTabGroup && !g_Ctx.NavView.FooterItem ) ? ImFluent::TabGroupItemFlags( id, selected ) : ImGuiItemFlags_None;
+}
+
+static void NavMenuItemNav( ImGuiID id )
+{
+    if ( g_Ctx.NavView.InTabGroup && !g_Ctx.NavView.FooterItem )
+        ImFluent::TabGroupItemNav( id );
+}
+
 bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
 {
     glyph           = ConsumePendingGlyph( glyph );
@@ -4023,13 +4243,14 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
         const ImVec2 pos   = w->DC.CursorPos;
         const ImRect bb( pos, ImVec2( pos.x + w_item, pos.y + h ) );
         ImGui::ItemSize( bb );
-        if ( !ImGui::ItemAdd( bb, id ) )
+        if ( !ImGui::ItemAdd( bb, id, NULL, NavMenuItemFlags( id, selected ) ) )
         {
             ImGui::SameLine();
             return false;
         }
         bool hov = false, held = false;
         const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+        NavMenuItemNav( id );
         ReportItemInfo( id, label, CheckedFlags( selected ) );
         const float r      = FluentDpx( style.ControlCornerRadius );
         const ImU32 fill   = AnimateColorU32( id, ResolveSubtleFillState( selected, held, hov ) );
@@ -4059,10 +4280,11 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
     const float indent_x = w->DC.Indent.x;
     const ImRect bb( ImVec2( w->Pos.x, pos.y ), ImVec2( w->Pos.x + w->Size.x, pos.y + row_h ) );
     ImGui::ItemSize( ImVec2( w->Size.x, row_h ) );
-    if ( !ImGui::ItemAdd( bb, id ) )
+    if ( !ImGui::ItemAdd( bb, id, NULL, NavMenuItemFlags( id, selected ) ) )
         return false;
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    NavMenuItemNav( id );
     ReportItemInfo( id, label, CheckedFlags( selected ) );
     const float r      = FluentDpx( style.ControlCornerRadius );
 
@@ -4102,11 +4324,12 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     const float indent_x = w->DC.Indent.x;
     const ImRect bb( ImVec2( w->Pos.x, pos.y ), ImVec2( w->Pos.x + w->Size.x, pos.y + row_h ) );
     ImGui::ItemSize( ImVec2( w->Size.x, row_h ) );
-    if ( !ImGui::ItemAdd( bb, id ) )
+    if ( !ImGui::ItemAdd( bb, id, NULL, NavMenuItemFlags( id, selected ) ) )
         return false;
 
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    NavMenuItemNav( id );
 
     ImGuiStorage * storage = ImGui::GetStateStorage();
     bool expanded          = storage->GetBool( id, false );
@@ -4269,12 +4492,17 @@ void ImFluent::NavPaneFooterEnd()
 bool ImFluent::NavSettingsItem( bool selected )
 {
     SetNextItemGlyph( ImFluentIcon_Settings );
-    return NavItem( "Settings", selected );
+    g_Ctx.NavView.FooterItem = true;
+    const bool pressed       = NavItem( "Settings", selected );
+    g_Ctx.NavView.FooterItem = false;
+    return pressed;
 }
 
 void ImFluent::EndNavigationView()
 {
     ImGui::EndChild();
+    g_Ctx.NavView.InTabGroup = false;
+    EndTabGroup();
     ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor();
     ImGui::EndGroup();
@@ -4788,23 +5016,41 @@ bool ImFluent::ListBox( const char * label, int * current_item, const char * con
     g.PushStyleColor( ImGuiCol_FrameBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
     g.PushStyleVar( ImGuiStyleVar_FrameRounding, FluentDpx( style.ControlCornerRadius ) );
     bool changed = false;
-    const ImVec2 sz( 0, FluentDpx( ( float )height_in_items * style.ControlHeight ) );
-    if ( ImGui::BeginListBox( label, sz ) )
+    const ImVec2 sz( ImGui::CalcItemWidth(), FluentDpx( ( float )height_in_items * style.ControlHeight ) );
+    // WinUI ListBox: one tab stop on the selected item; Up/Down move and select (selection follows focus, not
+    // with Ctrl), stopping at the ends; Home/End jump to the first/last item. The frame is a flattened child, so
+    // Tab reaches the items directly instead of stopping on the frame.
+    ImGui::BeginGroup();
+    const ImGuiID list_id = ImGui::GetID( label );
+    if ( ImGui::BeginChild( list_id, sz, ImGuiChildFlags_FrameStyle | ImGuiChildFlags_NavFlattened ) )
     {
+        BeginTabGroup( list_id, ImFluentTabGroupFlags_Vertical | ImFluentTabGroupFlags_HomeEnd | ImFluentTabGroupFlags_SelectionFollowsFocus );
         for ( int i = 0; i < items_count; ++i )
         {
             if ( !items[ i ] )
                 continue;
-            const bool sel = ( current_item && *current_item == i );
-            if ( ImFluent::Selectable( items[ i ], sel ) )
+            const bool sel        = ( current_item && *current_item == i );
+            const ImGuiID item_id = ImGui::GetID( items[ i ] );
+            ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( item_id, sel ) != ImGuiItemFlags_None );
+            bool pressed = ImFluent::Selectable( items[ i ], sel );
+            ImGui::PopItemFlag();
+            pressed |= TabGroupItemNav( item_id );
+            if ( pressed && current_item && *current_item != i )
             {
-                if ( current_item )
-                    *current_item = i;
-                changed = true;
+                *current_item = i;
+                changed       = true;
             }
         }
-        ImGui::EndListBox();
+        EndTabGroup();
     }
+    ImGui::EndChild();
+    const char * label_end = ImGui::FindRenderedTextEnd( label );
+    if ( label_end > label )
+    {
+        ImGui::SameLine( 0.f, ImGui::GetStyle().ItemInnerSpacing.x );
+        ImGui::TextUnformatted( label, label_end );
+    }
+    ImGui::EndGroup();
     return changed;
 }
 
@@ -5064,9 +5310,13 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
     const ImRect bb( pos, ImVec2( pos.x + total_w, pos.y + dot ) );
     ImGui::ItemSize( bb );
     const ImGuiID gid = w->GetID( id );
-    if ( !ImGui::ItemAdd( bb, gid ) )
+    if ( !ImGui::ItemAdd( bb, 0 ) )
         return false;
-    ReportItemInfo( gid, id );
+    // WinUI PipsPager: the pips are one tab stop on the selected pip; arrows move focus between pips (focus only,
+    // Up/Down like Left/Right), Space/Enter select the focused pip. Past the end pips, arrows move on spatially.
+    BeginTabGroup( gid, ImFluentTabGroupFlags_None );
+    ImGuiContext & g         = *GImGui;
+    int nav_target           = -1;
     bool changed             = false;
     ImDrawList * dl          = w->DrawList;
     const ImU32 col_pip_sel  = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
@@ -5079,8 +5329,27 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
         ImGui::PushID( i );
         const ImGuiID iid = w->GetID( i );
         const ImRect rect( ImVec2( c.x - dot * 0.5f, c.y - dot * 0.5f ), ImVec2( c.x + dot * 0.5f, c.y + dot * 0.5f ) );
+        if ( !ImGui::ItemAdd( rect, iid, NULL, TabGroupItemFlags( iid, sel ) ) )
+        {
+            ImGui::PopID();
+            continue;
+        }
         bool hov = false, held = false;
         const bool pr = ImGui::ButtonBehavior( rect, iid, &hov, &held );
+        TabGroupItemNav( iid );
+        if ( g.NavId == iid )
+        {
+            if ( i > 0 && ConsumeNavArrow( iid, ImGuiDir_Up ) )
+                nav_target = i - 1;
+            if ( i + 1 < total_pages && ConsumeNavArrow( iid, ImGuiDir_Down ) )
+                nav_target = i + 1;
+        }
+        {
+            char pip_label[ 24 ];
+            ImFormatString( pip_label, sizeof( pip_label ), "Page %d", i + 1 );
+            ReportItemInfo( iid, pip_label, CheckedFlags( sel ) );
+        }
+        RenderNavFocusRing( iid, rect, dot * 0.5f );
         if ( pr && current_item )
         {
             *current_item = i;
@@ -5090,6 +5359,14 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
         dl->AddCircleFilled( c, dot * 0.5f, AnimateColorU32( iid, col_target ), 16 );
         ImGui::PopID();
     }
+    if ( nav_target >= 0 )
+    {
+        ImGui::PushID( nav_target );
+        ImGui::SetFocusID( w->GetID( nav_target ), w );
+        ImGui::PopID();
+        g.NavCursorVisible = true;
+    }
+    EndTabGroup();
     return changed;
 }
 
@@ -5262,6 +5539,9 @@ int ImFluent::BreadcrumbBar( const char * id, const char * const items[], int it
     ImFluentStackGuard g;
     g.PushID( id );
     g.BeginGroup();
+    // WinUI BreadcrumbBar: one tab stop that enters on the first item; Left/Right move by index and stop at the
+    // ends; Space/Enter raise the click, also on the last (current) item.
+    BeginTabGroup( ImGui::GetID( "##crumbs" ), ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_FirstIsStop );
     for ( int i = 0; i < items_count; ++i )
     {
         if ( !items[ i ] )
@@ -5269,15 +5549,36 @@ int ImFluent::BreadcrumbBar( const char * id, const char * const items[], int it
         const bool last = ( i == items_count - 1 );
         ImFluentStackGuard item_g;
         item_g.PushID( i );
+        const ImGuiID item_id = ImGui::GetID( items[ i ] );
         if ( last )
         {
-            item_g.PushStyleColor( ImGuiCol_Text, ImFluent::GetColorU32( ImFluentCol_TextPrimary ) );
-            ImFluent::TextBlock( items[ i ], ImFluentTextStyle_BodyStrong );
+            ImGuiWindow * w             = ImGui::GetCurrentWindow();
+            const ImFluentStyle & style = ImFluent::GetStyle();
+            ImFluent::PushFont( ImFluentTextStyle_BodyStrong );
+            const ImVec2 ts   = ImGui::CalcTextSize( items[ i ], NULL, true );
+            const float pad_y = FluentDpx( style.SpacingXSmall );
+            const ImVec2 pos  = w->DC.CursorPos;
+            const ImRect bb( pos, ImVec2( pos.x + ts.x, pos.y + ts.y + pad_y * 2.f ) );
+            ImGui::ItemSize( bb );
+            if ( ImGui::ItemAdd( bb, item_id, NULL, TabGroupItemFlags( item_id, false ) ) )
+            {
+                bool hov = false, held = false;
+                if ( ImGui::ButtonBehavior( bb, item_id, &hov, &held ) )
+                    clicked = i;
+                TabGroupItemNav( item_id );
+                ReportItemInfo( item_id, items[ i ] );
+                w->DrawList->AddText( ImVec2( bb.Min.x, bb.Min.y + pad_y ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), items[ i ], ImGui::FindRenderedTextEnd( items[ i ] ) );
+                RenderNavFocusRing( item_id, bb, FluentDpx( style.ControlCornerRadius ) );
+            }
+            ImFluent::PopFont();
         }
         else
         {
+            ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( item_id, false ) != ImGuiItemFlags_None );
             if ( ImFluent::HyperlinkButton( items[ i ] ) )
                 clicked = i;
+            ImGui::PopItemFlag();
+            TabGroupItemNav( item_id );
             ImGui::SameLine();
             item_g.PushStyleColor( ImGuiCol_Text, ImFluent::GetColorU32( ImFluentCol_TextSecondary ) );
             ImGui::TextUnformatted( " / " );
@@ -5285,6 +5586,7 @@ int ImFluent::BreadcrumbBar( const char * id, const char * const items[], int it
             ImGui::SameLine();
         }
     }
+    EndTabGroup();
     return clicked;
 }
 

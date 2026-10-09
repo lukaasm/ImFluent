@@ -2203,7 +2203,7 @@ namespace ImFluentGalleryApp
         }
 
         NavSubHeader( "App" );
-        if ( NavItem( "Settings", std::strcmp( CurrentPageId(), "Settings" ) == 0, ImFluentIcon_Settings ) )
+        if ( NavSettingsItem( std::strcmp( CurrentPageId(), "Settings" ) == 0 ) ) // Footer item: its own tab stop
             Navigate( "Settings" );
         EndNavigationView();
     }

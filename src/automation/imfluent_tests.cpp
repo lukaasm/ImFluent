@@ -92,6 +92,15 @@ struct KeyboardVars
     bool TreeSub       = false;
     bool TabOpen[ 3 ]  = { true, true, true };
     int TabSelectedIdx = -1;
+
+    int Radio   = 1;
+    bool Check  = false;
+    bool Switch = false;
+    int List    = 1;
+    int Sel     = 0;
+    int Pip     = 2;
+    int Crumb   = -1;
+    int TabSel  = 0;
 };
 
 static bool DateIs( const ImFluent::ImFluentDate & d, int y, int m, int day )
@@ -801,5 +810,263 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK( !v.TabOpen[ 2 ] );
         ctx->UiContext->ConfigNavWindowingKeyNext = backup_next;
         ctx->UiContext->ConfigNavWindowingKeyPrev = backup_prev;
+    };
+
+    // [SECTION] Keyboard: one-tab-stop groups (WinUI TabFocusNavigation="Once")
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "radio_buttons_one_stop" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "Red", "Green", "Blue" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        ImFluent::RadioButtons( "colors", &v.Radio, items, 3 );
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected item
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Green" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Selection follows focus
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Blue" );
+        IM_CHECK_EQ( v.Radio, 2 );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Stops at the end
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Blue" );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_UpArrow ); // Ctrl: focus only
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Green" );
+        IM_CHECK_EQ( v.Radio, 2 );
+        ctx->KeyPress( ImGuiKey_Enter ); // Enter does not check a radio button
+        IM_CHECK_EQ( v.Radio, 2 );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( v.Radio, 1 );
+        ctx->KeyPress( ImGuiKey_Tab ); // One stop: Tab leaves the group
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Green" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "check_box_toggle_switch_space_not_enter" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::Checkbox( "check", &v.Check );
+        ImFluent::ToggleSwitch( "switch", &v.Switch );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "check" );
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK( !v.Check );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK( v.Check );
+        ctx->NavMoveTo( "switch" );
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK( !v.Switch );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK( v.Switch );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "list_box_one_stop_selection_follows" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        ImFluent::ListBox( "list", &v.List, items, 6, 3 );
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Beta" );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Gamma" );
+        IM_CHECK_EQ( v.List, 2 );
+        ctx->KeyPress( ImGuiKey_End );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zeta" );
+        IM_CHECK_EQ( v.List, 5 );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Stops at the end
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zeta" );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // Left/Right do not move focus out of a vertical list
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Zeta" );
+        ctx->KeyPress( ImGuiKey_Home );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Alpha" );
+        IM_CHECK_EQ( v.List, 0 );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_DownArrow ); // Ctrl: focus only
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Beta" );
+        IM_CHECK_EQ( v.List, 0 );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( v.List, 1 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Beta" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "selector_bar_arrows_home_end" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "Recent", "Shared", "Favorites" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        if ( ImFluent::BeginSelectorBar( "bar" ) )
+        {
+            for ( int i = 0; i < 3; ++i )
+                if ( ImFluent::SelectorBarItem( items[ i ], v.Sel == i ) )
+                    v.Sel = i;
+            ImFluent::EndSelectorBar();
+        }
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Recent" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Shared" );
+        IM_CHECK_EQ( v.Sel, 1 );
+        ctx->KeyPress( ImGuiKey_End );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Favorites" );
+        IM_CHECK_EQ( v.Sel, 2 );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // No wrap
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Favorites" );
+        ctx->KeyPress( ImGuiKey_Home );
+        IM_CHECK_EQ( v.Sel, 0 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "pips_pager_focus_then_select" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        ImFluent::PipsPager( "pips", &v.Pip, 5 );
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected pip
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page 3" );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // Focus only
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page 4" );
+        IM_CHECK_EQ( v.Pip, 2 );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Down works like Right
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page 5" );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( v.Pip, 4 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "breadcrumb_bar_one_stop_no_wrap" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "Home", "Docs", "Page" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        const int clicked = ImFluent::BreadcrumbBar( "crumbs", items, 3 );
+        if ( clicked >= 0 )
+            v.Crumb = clicked;
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the first item
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Home" );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // No wrap
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Home" );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Page" );
+        ctx->KeyPress( ImGuiKey_Enter ); // The current (last) item is clickable too
+        IM_CHECK_EQ( v.Crumb, 2 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Home" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "tab_view_strip_one_stop" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * names[] = { "One", "Two", "Three" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        if ( ImFluent::BeginTabView( "tabs" ) )
+        {
+            for ( int i = 0; i < 3; ++i )
+            {
+                if ( ImFluent::BeginTabItem( names[ i ] ) )
+                {
+                    v.TabSel = i;
+                    ImFluent::Button( "content" );
+                    ImFluent::EndTabItem();
+                }
+            }
+            ImFluent::EndTabView();
+        }
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected tab
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
+        ctx->KeyPress( ImGuiKey_Tab ); // One stop: the next stop is the tab content
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "content" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // Wraps to the last tab, focus only
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Three" );
+        IM_CHECK_EQ( v.TabSel, 0 );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // Wraps back
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Stays in the strip
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
+        ctx->KeyPress( ImGuiKey_End );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Three" );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( v.TabSel, 2 );
     };
 }
