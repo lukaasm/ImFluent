@@ -105,6 +105,9 @@ struct KeyboardVars
     bool TreeSubOpen = false;
     bool TreeSubChk  = false;
 
+    int NavSel                  = 2;
+    ImFluentNavViewMode NavMode = ImFluentNavViewMode_LeftOpen;
+
     int MenuCmd  = 0;
     int CbfCmd   = 0;
     int Flip     = 0;
@@ -597,6 +600,89 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Group" );
         ctx->KeyPress( ImGuiKey_LeftArrow );
         IM_CHECK( !ctx->ItemExists( "Child" ) );
+    };
+
+    // WinUI NavigationView Tab-in: the selected item, or the collapsed item that hides it; without a selection the first item
+    // (Tab) or the last (Shift+Tab), never the last focused one.
+    t = IM_REGISTER_TEST( engine, "keyboard", "nav_view_tab_in_selected_or_ends" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        ImGui::SetNextWindowPos( ImVec2( 80.f, 80.f ), ImGuiCond_Appearing );
+        ImGui::SetNextWindowSize( ImVec2( 480.f, 420.f ), ImGuiCond_Appearing );
+        ImGui::Begin( "Test Window", NULL, ImGuiWindowFlags_NoSavedSettings );
+        ImFluent::Button( "before" );
+        ImFluent::BeginNavigationView( "nav", &v.NavMode );
+        if ( ImFluent::NavItem( "Home", v.NavSel == 0 ) )
+            v.NavSel = 0;
+        ImGui::SetNextItemOpen( true, ImGuiCond_Once );
+        if ( ImFluent::BeginNavItem( "Group", v.NavSel == 1 ) )
+        {
+            if ( ImFluent::NavItem( "Child", v.NavSel == 2 ) )
+                v.NavSel = 2;
+            ImFluent::EndNavItem();
+        }
+        if ( ImFluent::NavItem( "Last", v.NavSel == 3 ) )
+            v.NavSel = 3;
+        ImFluent::EndNavigationView();
+        ImFluent::NavigationViewBeginContent();
+        ImFluent::Button( "content" );
+        ImFluent::NavigationViewEndContent();
+        ImGui::End();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "**/Group" );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK( !ctx->ItemExists( "**/Child" ) );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Last" );
+        ctx->NavMoveTo( "**/content" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Group" );
+        ctx->NavMoveTo( "**/Toggle pane" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Group" );
+
+        v.NavSel = -1;
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK( ctx->ItemExists( "**/Child" ) );
+        ctx->NavMoveTo( "**/content" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Last" );
+        ctx->NavMoveTo( "**/Toggle pane" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Home" );
+    };
+
+    // An expanded group whose header is scrolled out of view still shows its children.
+    t          = IM_REGISTER_TEST( engine, "nav_view", "nav_item_children_under_scrolled_out_parent" );
+    t->GuiFunc = []( ImGuiTestContext * )
+    {
+        BeginTestWindow();
+        ImGui::BeginChild( "pane", ImVec2( 200.f, 150.f ) );
+        ImGui::SetNextItemOpen( true, ImGuiCond_Once );
+        if ( ImFluent::BeginNavItem( "Group" ) )
+        {
+            for ( int i = 0; i < 10; ++i )
+            {
+                char label[ 16 ];
+                ImFormatString( label, sizeof( label ), "Child %d", i );
+                ImFluent::NavItem( label, false );
+            }
+            ImFluent::EndNavItem();
+        }
+        ImGui::EndChild();
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        ctx->SetRef( "Test Window" );
+        ctx->ScrollToBottom( ctx->WindowInfo( "pane" ).ID );
+        IM_CHECK( ctx->ItemExists( "**/Child 9" ) );
     };
 
     // [SECTION] Keyboard: date and time

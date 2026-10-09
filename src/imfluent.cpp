@@ -157,6 +157,7 @@ enum ImFluentTabGroupFlags_
     ImFluentTabGroupFlags_FirstIsStop           = 1 << 5, // The first item is always the tab stop (BreadcrumbBar)
     ImFluentTabGroupFlags_Grid                  = 1 << 6, // Arrows move to the nearest item of the group (GridView)
     ImFluentTabGroupFlags_ItemsContainer        = 1 << 7, // BeginListView/GridView/TreeView: their items join the group
+    ImFluentTabGroupFlags_EnterAtEnds           = 1 << 8, // Without a selection: Tab enters on the first item, Shift+Tab on the last (ItemsRepeater)
 };
 
 // Item rects of a Grid tab group, kept from the previous frame: arrows move between them. A TabView keeps its Left/Right order here.
@@ -176,11 +177,13 @@ struct ImFluentTabGroup
     ImGuiID Stop;      // Item that is the tab stop this frame, decided from the previous frame
     ImGuiID PrevFirst; // First and last items of the previous frame
     ImGuiID PrevLast;
-    ImGuiID Pending;    // Item that Home/End or a wrap moved focus to: scrolled into view when it is submitted
-    bool PendingSelect; // ...and selected (SelectionFollowsFocus without Ctrl)
-    ImGuiID First;      // This frame
+    ImGuiID Pending;      // Item that Home/End or a wrap moved focus to: scrolled into view when it is submitted
+    bool PendingSelect;   // ...and selected (SelectionFollowsFocus without Ctrl)
+    ImGuiID LastSelected; // The selected item last submitted, kept while it is hidden
+    ImGuiID First;        // This frame
     ImGuiID Last;
     ImGuiID Selected;
+    ImGuiID SelectedAncestor; // A collapsed item that hides the selected item (TabGroupHiddenSelection)
     ImGuiID Focused;
     bool StopSeen;
 };
@@ -224,6 +227,7 @@ struct ImFluentContext
     ImVector< ImFluentExpanderState > ExpanderStack;
     ImVector< ImFluentCommandBarState > CommandBarStack;
     ImVector< float > NavItemIndentStack;
+    ImVector< ImGuiID > NavItemParentStack; // Expanded BeginNavItem ids, with NavItemIndentStack
     ImVector< ImFluentTabGroup > TabGroupStack;
     ImPool< ImFluentTabGroupLayout > TabGroupLayouts;
 
@@ -1357,22 +1361,30 @@ namespace ImFluent
     static const ImGuiID TABGROUP_KEY_LAST           = 0x7A6B0004u;
     static const ImGuiID TABGROUP_KEY_PENDING        = 0x7A6B0005u;
     static const ImGuiID TABGROUP_KEY_PENDING_SELECT = 0x7A6B0006u;
+    static const ImGuiID TABGROUP_KEY_ANCESTOR       = 0x7A6B0007u;
+    static const ImGuiID TABGROUP_KEY_LAST_SELECTED  = 0x7A6B0008u;
 
     // One-tab-stop group around members in one window. Each member: TabGroupItemFlags() on its ItemAdd, then TabGroupItemNav() after
     // its behavior, which returns true when focus just arrived in a SelectionFollowsFocus group (the caller selects it).
     static void BeginTabGroup( ImGuiID group_id, int flags )
     {
+        ImGuiContext & g       = *GImGui;
         ImGuiStorage * st      = ImGui::GetStateStorage();
         const ImGuiID selected = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_SELECTED, 0 );
+        const ImGuiID ancestor = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_ANCESTOR, 0 );
         const ImGuiID focused  = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_FOCUSED, 0 );
         ImFluentTabGroup grp;
-        grp.Id            = group_id;
-        grp.Flags         = flags;
-        grp.PrevFirst     = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_FIRST, 0 );
-        grp.PrevLast      = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_LAST, 0 );
-        grp.Pending       = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_PENDING, 0 );
-        grp.PendingSelect = st->GetBool( group_id ^ TABGROUP_KEY_PENDING_SELECT, false );
-        grp.Stop          = ( flags & ImFluentTabGroupFlags_FirstIsStop ) ? grp.PrevFirst : selected ? selected : focused ? focused : grp.PrevFirst;
+        grp.Id               = group_id;
+        grp.Flags            = flags;
+        grp.PrevFirst        = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_FIRST, 0 );
+        grp.PrevLast         = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_LAST, 0 );
+        grp.Pending          = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_PENDING, 0 );
+        grp.PendingSelect    = st->GetBool( group_id ^ TABGROUP_KEY_PENDING_SELECT, false );
+        grp.LastSelected     = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_LAST_SELECTED, 0 );
+        const bool tab_back  = g.NavMoveSubmitted && ( g.NavMoveFlags & ImGuiNavMoveFlags_IsTabbing ) && g.NavTabbingDir < 0;
+        const ImGuiID enter  = ( flags & ImFluentTabGroupFlags_EnterAtEnds ) ? ( tab_back ? grp.PrevLast : grp.PrevFirst ) : focused ? focused : grp.PrevFirst;
+        grp.Stop             = ( flags & ImFluentTabGroupFlags_FirstIsStop ) ? grp.PrevFirst : selected ? selected : ancestor ? ancestor : enter;
+        grp.SelectedAncestor = 0;
         grp.First = grp.Last = grp.Selected = grp.Focused = 0;
         grp.StopSeen                                      = false;
         grp.LayoutIdx                                     = -1;
@@ -1447,6 +1459,16 @@ namespace ImFluent
         return ( item_id == stop ) ? ImGuiItemFlags_None : ImGuiItemFlags_NoTabStop;
     }
 
+    // A collapsed member whose hidden descendant `hidden_selected` is the group's selected item takes the tab stop (WinUI NavigationView).
+    static void TabGroupHiddenSelection( ImGuiID item_id, ImGuiID hidden_selected )
+    {
+        if ( g_Ctx.TabGroupStack.empty() )
+            return;
+        ImFluentTabGroup & grp = g_Ctx.TabGroupStack.back();
+        if ( hidden_selected != 0 && hidden_selected == grp.LastSelected && !grp.SelectedAncestor )
+            grp.SelectedAncestor = item_id;
+    }
+
     static bool TabGroupItemNav( ImGuiID item_id )
     {
         if ( g_Ctx.TabGroupStack.empty() )
@@ -1514,6 +1536,9 @@ namespace ImFluent
         const ImFluentTabGroup & grp = g_Ctx.TabGroupStack.back();
         ImGuiStorage * st            = ImGui::GetStateStorage();
         st->SetInt( grp.Id ^ TABGROUP_KEY_SELECTED, ( int )grp.Selected );
+        st->SetInt( grp.Id ^ TABGROUP_KEY_ANCESTOR, ( int )grp.SelectedAncestor );
+        if ( grp.Selected )
+            st->SetInt( grp.Id ^ TABGROUP_KEY_LAST_SELECTED, ( int )grp.Selected );
         if ( grp.Focused || !grp.StopSeen )
             st->SetInt( grp.Id ^ TABGROUP_KEY_FOCUSED, ( int )grp.Focused ); // Forget a remembered item that went away
         st->SetInt( grp.Id ^ TABGROUP_KEY_FIRST, ( int )grp.First );
@@ -5020,8 +5045,9 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
     const ImFluentNavViewMode prev_mode = ( ImFluentNavViewMode )st->GetInt( mode_key, ( int )ImFluentNavViewMode_LeftCompact );
     st->SetInt( mode_key, ( int )mode );
 
-    // WinUI NavigationView: menu items are one tab stop (selected, else first) with Up/Down and Home/End; Settings is its own stop.
-    BeginTabGroup( nav_id ^ 0x7AB1E5u, ImFluentTabGroupFlags_HomeEnd );
+    // WinUI NavigationView: menu items are one tab stop with Up/Down and Home/End; Settings is its own stop.
+    // Tab enters on the selected item (or the collapsed item that hides it), else on the first item, Shift+Tab on the last.
+    BeginTabGroup( nav_id ^ 0x7AB1E5u, ImFluentTabGroupFlags_HomeEnd | ImFluentTabGroupFlags_EnterAtEnds );
     g_Ctx.NavView.InTabGroup = true;
 
     g_Ctx.NavView.PrevMode = prev_mode;
@@ -5105,15 +5131,46 @@ static ImRect NavItemPillRect( const ImRect & row )
 }
 
 // NavigationView menu items form one tab-stop group; footer items and items outside a NavigationView are ordinary stops.
+static bool InNavMenuGroup()
+{
+    return g_Ctx.NavView.InTabGroup && !g_Ctx.NavView.FooterItem;
+}
+
+static const ImGuiID NAVITEM_SELECTED_CHILD_SALT = 0x5E1C4D17u;
+
 static ImGuiItemFlags NavMenuItemFlags( ImGuiID id, bool selected )
 {
-    return ( g_Ctx.NavView.InTabGroup && !g_Ctx.NavView.FooterItem ) ? ImFluent::TabGroupItemFlags( id, selected ) : ImGuiItemFlags_None;
+    if ( selected )
+        for ( ImGuiID parent : g_Ctx.NavItemParentStack )
+            ImGui::GetStateStorage()->SetInt( parent ^ NAVITEM_SELECTED_CHILD_SALT, ( int )id ); // Found again while collapsed
+    return InNavMenuGroup() ? ImFluent::TabGroupItemFlags( id, selected ) : ImGuiItemFlags_None;
 }
 
 static void NavMenuItemNav( ImGuiID id )
 {
-    if ( g_Ctx.NavView.InTabGroup && !g_Ctx.NavView.FooterItem )
+    if ( InNavMenuGroup() )
         ImFluent::TabGroupItemNav( id );
+}
+
+// After a BeginNavItem row, clipped or not: opens its children when expanded.
+static bool NavItemBeginChildren( ImGuiID id, bool expanded )
+{
+    ImGuiStorage * storage  = ImGui::GetStateStorage();
+    const ImGuiID child_key = id ^ NAVITEM_SELECTED_CHILD_SALT;
+    if ( !expanded )
+    {
+        if ( InNavMenuGroup() )
+            ImFluent::TabGroupHiddenSelection( id, ( ImGuiID )storage->GetInt( child_key, 0 ) );
+        return false;
+    }
+    storage->SetInt( child_key, 0 );
+    // WinUI: child items are indented so that their label (no icon column) lines up with the parent's label.
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const float indent_amt      = ImFluent::FluentDpx( style.NavPaneCompactWidth - style.SpacingXLarge );
+    ImGui::Indent( indent_amt );
+    g_Ctx.NavItemIndentStack.push_back( indent_amt );
+    g_Ctx.NavItemParentStack.push_back( id );
+    return true;
 }
 
 bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
@@ -5228,7 +5285,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     }
     ImGui::ItemSize( ImVec2( w->Size.x, row_h ) );
     if ( !ImGui::ItemAdd( bb, id, NULL, NavMenuItemFlags( id, selected ) ) )
-        return false;
+        return NavItemBeginChildren( id, storage->GetBool( id, false ) ); // Its children can be in view
 
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
@@ -5283,16 +5340,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
 
     if ( ImFluent::IsItemFocused( id ) )
         ImFluent::RenderNavFocusRing( pill, r );
-
-    if ( expanded )
-    {
-        // WinUI: child items are indented so that their label (no icon column) lines up with the parent's label.
-        const float indent_amt = FluentDpx( style.NavPaneCompactWidth - style.SpacingXLarge );
-        ImGui::Indent( indent_amt );
-        g_Ctx.NavItemIndentStack.push_back( indent_amt );
-        return true;
-    }
-    return false;
+    return NavItemBeginChildren( id, expanded );
 }
 
 void ImFluent::EndNavItem()
@@ -5304,6 +5352,7 @@ void ImFluent::EndNavItem()
     }
     const float indent_amt = g_Ctx.NavItemIndentStack.back();
     g_Ctx.NavItemIndentStack.pop_back();
+    g_Ctx.NavItemParentStack.pop_back();
     ImGui::Unindent( indent_amt );
 }
 
