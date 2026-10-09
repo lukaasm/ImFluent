@@ -119,6 +119,7 @@ struct ImFluentCommandBarState
     ImGuiID PrevLast          = 0;
     ImGuiID First             = 0;
     ImGuiID Last              = 0;
+    bool OverflowFocusLast    = false; // Opened with Up: focus the last overflow item (WinUI)
 };
 
 struct ImFluentSplitViewState
@@ -6565,7 +6566,7 @@ bool ImFluent::MenuFlyoutItem( const char * label, const char * shortcut, const 
     // A disabled item carries ImGuiItemFlags_Disabled so keyboard navigation skips it, as in WinUI.
     if ( !enabled )
         ImGui::PushItemFlag( ImGuiItemFlags_Disabled, true );
-    const bool added = ImGui::ItemAdd( bb, id );
+    const bool added = ImGui::ItemAdd( bb, id, NULL, ImGuiItemFlags_NoTabStop ); // WinUI menus ignore Tab
     if ( !enabled )
         ImGui::PopItemFlag();
     if ( !added )
@@ -6628,7 +6629,7 @@ bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, b
     ImGui::ItemSize( bb );
     if ( !enabled )
         ImGui::PushItemFlag( ImGuiItemFlags_Disabled, true );
-    const bool added = ImGui::ItemAdd( bb, id );
+    const bool added = ImGui::ItemAdd( bb, id, NULL, ImGuiItemFlags_NoTabStop ); // WinUI menus ignore Tab
     if ( !enabled )
         ImGui::PopItemFlag();
     if ( !added )
@@ -7322,6 +7323,7 @@ void ImFluent::EndMenuBar()
         ImGui::ClosePopupsOverWindow( ImGui::GetCurrentWindow(), false );
         // Escape in the new menu gives focus back to its own bar item.
         ImGui::SetFocusID( mb.ItemIds[ next ], ImGui::GetCurrentWindow() );
+        ImGui::SetNavCursorVisible( true ); // SetFocusID hides it when the last active input was the mouse
         StorePopupAnchor( mb.PopupIds[ next ], mb.Rects[ next ] );
         ImGui::OpenPopupEx( mb.PopupIds[ next ], ImGuiPopupFlags_None );
         open_index = next;
@@ -7347,7 +7349,11 @@ bool ImFluent::BeginCommandBar( const char * id, float height )
     g.PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingMedium ), 0.f ) );
     g.PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingXSmall ), 0.f ) );
 
-    if ( !ImGui::BeginChild( id, ImVec2( 0, h ), ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
+    // In an auto-sizing window the bar takes its commands' width: filling the available width would collapse it.
+    const ImGuiWindow * parent = ImGui::GetCurrentWindow();
+    const bool auto_width      = ( parent->Flags & ImGuiWindowFlags_AlwaysAutoResize ) || ( parent->ChildFlags & ImGuiChildFlags_AutoResizeX );
+    const ImGuiChildFlags cf   = ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened | ( auto_width ? ImGuiChildFlags_AutoResizeX : 0 );
+    if ( !ImGui::BeginChild( id, ImVec2( 0, h ), cf, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
     {
         ImGui::EndChild();
         return false;
@@ -7402,14 +7408,19 @@ bool ImFluent::BeginCommandBarOverflow()
     SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition_Collapsed );
     const bool pressed    = AppBarButton( "##cb-more", ImFluentIcon_More, ImVec2( chev_w, s.Height ) );
     const ImGuiID more_id = GImGui->LastItemData.ID;
-    // WinUI: Down or Up on More also opens the overflow.
-    if ( pressed || ConsumeNavArrow( more_id, ImGuiDir_Down ) || ConsumeNavArrow( more_id, ImGuiDir_Up ) )
+    // WinUI: Down or Up on More also opens the overflow, Up on its last item.
+    const bool down       = ConsumeNavArrow( more_id, ImGuiDir_Down );
+    const bool up         = ConsumeNavArrow( more_id, ImGuiDir_Up );
+    if ( pressed || down || up )
         OpenMenuFlyout( s.PopupId );
+    s.OverflowFocusLast = up;
     return BeginMenuFlyout( s.PopupId );
 }
 
 void ImFluent::EndCommandBarOverflow()
 {
+    if ( !g_Ctx.CommandBarStack.empty() && g_Ctx.CommandBarStack.back().OverflowFocusLast )
+        ImGui::SetItemDefaultFocus();
     EndMenuFlyout();
 }
 

@@ -1476,6 +1476,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
             if ( ImFluent::BeginCommandBarOverflow() )
             {
                 ImFluent::MenuFlyoutItem( "Settings" );
+                ImFluent::MenuFlyoutItem( "About" );
                 ImFluent::EndCommandBarOverflow();
             }
             ImFluent::EndCommandBar();
@@ -1498,6 +1499,10 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "##cb-more" );
+        ctx->KeyPress( ImGuiKey_UpArrow ); // Up opens on the last item
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "About" );
+        ctx->KeyPress( ImGuiKey_Escape );
     };
 
     // WinUI AutoSuggestBox: Escape closes the suggestion list and keeps the typed text; focus stays in the box.
@@ -1583,11 +1588,9 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
             ctx->KeyPress( ImGuiKey_Space );
             IM_CHECK_EQ( PopupCount( ctx ), 1 );
             IM_CHECK_STR_EQ( FocusLabel( ctx ), "first" );
-            if ( ctx->Test->ArgVariant != 2 ) // MenuFlyout swallows Tab (WinUI)
-            {
-                ctx->KeyPress( ImGuiKey_Tab );
-                IM_CHECK_STR_EQ( FocusLabel( ctx ), "second" );
-            }
+            ctx->KeyPress( ImGuiKey_Tab );
+            IM_CHECK_STR_EQ( FocusLabel( ctx ), ctx->Test->ArgVariant == 2 ? "first" : "second" ); // WinUI menus ignore Tab
+            IM_CHECK_EQ( PopupCount( ctx ), 1 );
             ctx->KeyPress( ImGuiKey_Escape );
             IM_CHECK_EQ( PopupCount( ctx ), 0 );
             IM_CHECK_STR_EQ( FocusLabel( ctx ), "owner" );
