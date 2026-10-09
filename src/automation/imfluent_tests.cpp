@@ -103,6 +103,12 @@ struct KeyboardVars
     int TabSel  = 0;
     int Loose   = 0;
 
+    int ListView     = 1;
+    int Grid         = 0;
+    bool TreeRoot    = true;
+    bool TreeSubOpen = false;
+    bool TreeSubChk  = false;
+
     char Text[ 64 ]     = "";
     char Password[ 64 ] = "secret";
 };
@@ -1192,5 +1198,139 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
         actions.TogglePopup = backup;
+    };
+
+    // [SECTION] Keyboard: ListView / GridView / TreeView containers (one tab stop each)
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "list_view_one_stop_selection_follows" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * names[] = { "Inbox", "Sent", "Drafts", "Junk" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        ImFluent::BeginListView( "mail" );
+        for ( int i = 0; i < 4; ++i )
+            if ( ImFluent::ListViewItem( names[ i ], v.ListView == i ) )
+                v.ListView = i;
+        ImFluent::EndListView();
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Enters on the selected item
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Sent" );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Drafts" );
+        IM_CHECK_EQ( v.ListView, 2 );
+        ctx->KeyPress( ImGuiKey_End );
+        IM_CHECK_EQ( v.ListView, 3 );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Stops at the end
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Junk" );
+        ctx->KeyPress( ImGuiKey_Home );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Inbox" );
+        IM_CHECK_EQ( v.ListView, 0 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Inbox" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "grid_view_arrows_stay_inside" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * tiles[] = { "T1", "T2", "T3", "T4", "T5" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        ImFluent::BeginGridView( "grid" );
+        for ( int i = 0; i < 5; ++i )
+        {
+            if ( ImFluent::GridViewItem( tiles[ i ], v.Grid == i, ImVec2( 60.f, 40.f ) ) )
+                v.Grid = i;
+            if ( i != 2 && i != 4 )
+                ImGui::SameLine();
+        }
+        ImFluent::EndGridView();
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T1" );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T3" );
+        IM_CHECK_EQ( v.Grid, 2 );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // Row end: stays
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T3" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Shorter last row: nearest tile
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T5" );
+        IM_CHECK_EQ( v.Grid, 4 );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Bottom edge: stays, does not leave the grid
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T5" );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T4" );
+        ctx->KeyPress( ImGuiKey_UpArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T1" );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // Left edge: stays
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T1" );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_RightArrow ); // Ctrl: focus only
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "T2" );
+        IM_CHECK_EQ( v.Grid, 0 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "tree_view_one_stop_space_checks" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        ImFluent::BeginTreeView( "tree" );
+        if ( ImFluent::TreeNode( "root", &v.TreeRoot ) )
+        {
+            ImFluent::ListViewItem( "leaf" );
+            if ( ImFluent::TreeNode( "sub", &v.TreeSubOpen, &v.TreeSubChk ) )
+                ImFluent::TreePop();
+            ImFluent::TreePop();
+        }
+        ImFluent::EndTreeView();
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "root" );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // Expanded: first child
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "leaf" );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // Leaf: parent
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "root" );
+        ctx->KeyPress( ImGuiKey_DownArrow, 2 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Last row: stays
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
+        ctx->KeyPress( ImGuiKey_Space ); // Space toggles the checkbox, not the node
+        IM_CHECK( v.TreeSubChk );
+        IM_CHECK( !v.TreeSubOpen );
+        ctx->KeyPress( ImGuiKey_Tab ); // One stop: the checkbox is not a stop either
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab ); // Back to the last focused row
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
     };
 }

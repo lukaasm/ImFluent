@@ -144,12 +144,24 @@ enum ImFluentTabGroupFlags_
     ImFluentTabGroupFlags_SelectionFollowsFocus = 1 << 3, // Arrow keys select the item they focus (not with Ctrl)
     ImFluentTabGroupFlags_HomeEnd               = 1 << 4, // Home/End focus the first/last item
     ImFluentTabGroupFlags_FirstIsStop           = 1 << 5, // The first item is always the tab stop (BreadcrumbBar)
+    ImFluentTabGroupFlags_Grid                  = 1 << 6, // Arrows move to the nearest item of the group (GridView)
+    ImFluentTabGroupFlags_ItemsContainer        = 1 << 7, // BeginListView/GridView/TreeView: their items join the group
+};
+
+// Item rects of a Grid tab group, kept from the previous frame: arrows move between them.
+struct ImFluentTabGroupLayout
+{
+    ImVector< ImGuiID > Items;
+    ImVector< ImRect > Rects;
+    ImVector< ImGuiID > NextItems; // This frame
+    ImVector< ImRect > NextRects;
 };
 
 struct ImFluentTabGroup
 {
     ImGuiID Id;
     int Flags;
+    int LayoutIdx;     // Grid groups: index in ImFluentContext::TabGroupLayouts, else -1
     ImGuiID Stop;      // Item that is the tab stop this frame, decided from the previous frame
     ImGuiID PrevFirst; // First and last items of the previous frame
     ImGuiID PrevLast;
@@ -182,6 +194,7 @@ struct ImFluentContext
     ImVector< ImFluentCommandBarState > CommandBarStack;
     ImVector< float > NavItemIndentStack;
     ImVector< ImFluentTabGroup > TabGroupStack;
+    ImPool< ImFluentTabGroupLayout > TabGroupLayouts;
     bool InRadioButtons;                 // RadioButtons() moves focus itself: its items are not loose radio buttons
     ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
     ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
@@ -1206,7 +1219,59 @@ namespace ImFluent
         grp.Stop          = ( flags & ImFluentTabGroupFlags_FirstIsStop ) ? grp.PrevFirst : selected ? selected : focused ? focused : grp.PrevFirst;
         grp.First = grp.Last = grp.Selected = grp.Focused = 0;
         grp.StopSeen                                      = false;
+        grp.LayoutIdx                                     = -1;
+        if ( flags & ImFluentTabGroupFlags_Grid )
+        {
+            ImFluentTabGroupLayout * lay = g_Ctx.TabGroupLayouts.GetOrAddByKey( group_id );
+            lay->NextItems.resize( 0 );
+            lay->NextRects.resize( 0 );
+            grp.LayoutIdx = g_Ctx.TabGroupLayouts.GetIndex( lay );
+        }
         g_Ctx.TabGroupStack.push_back( grp );
+    }
+
+    // Grid groups: records a member's rect, also for a clipped member (call it before returning on ItemAdd()).
+    static void TabGroupItemRect( ImGuiID item_id, const ImRect & bb )
+    {
+        if ( g_Ctx.TabGroupStack.empty() || g_Ctx.TabGroupStack.back().LayoutIdx < 0 )
+            return;
+        ImFluentTabGroupLayout * lay = g_Ctx.TabGroupLayouts.GetByIndex( g_Ctx.TabGroupStack.back().LayoutIdx );
+        lay->NextItems.push_back( item_id );
+        lay->NextRects.push_back( bb );
+    }
+
+    // Nearest member of the previous frame from `from` in `dir`; 0 at the edge. Left/Right stay in the row;
+    // Up/Down prefer the same column, then the nearest one (a shorter last row).
+    static ImGuiID TabGroupNeighbour( const ImFluentTabGroupLayout & lay, ImGuiID from, ImGuiDir dir )
+    {
+        int fi = -1;
+        for ( int i = 0; i < lay.Items.Size && fi < 0; ++i )
+            if ( lay.Items[ i ] == from )
+                fi = i;
+        if ( fi < 0 )
+            return 0;
+        const ImRect a        = lay.Rects[ fi ];
+        const bool horizontal = ( dir == ImGuiDir_Left || dir == ImGuiDir_Right );
+        const float sign      = ( dir == ImGuiDir_Left || dir == ImGuiDir_Up ) ? -1.f : 1.f;
+        ImGuiID best          = 0;
+        float best_score      = FLT_MAX;
+        for ( int i = 0; i < lay.Items.Size; ++i )
+        {
+            if ( i == fi )
+                continue;
+            const ImRect & b   = lay.Rects[ i ];
+            const float along  = sign * ( horizontal ? b.GetCenter().x - a.GetCenter().x : b.GetCenter().y - a.GetCenter().y );
+            const float across = horizontal ? ImMax( 0.f, ImMax( a.Min.y - b.Max.y, b.Min.y - a.Max.y ) ) : ImMax( 0.f, ImMax( a.Min.x - b.Max.x, b.Min.x - a.Max.x ) );
+            if ( along <= 0.5f || ( horizontal && across > 0.f ) )
+                continue;
+            const float score = along + across * 4.f;
+            if ( score < best_score )
+            {
+                best_score = score;
+                best       = lay.Items[ i ];
+            }
+        }
+        return best;
     }
 
     static ImGuiItemFlags TabGroupItemFlags( ImGuiID item_id, bool selected )
@@ -1261,6 +1326,12 @@ namespace ImFluent
                 ConsumeNavArrow( item_id, vertical ? ImGuiDir_Left : ImGuiDir_Up );
                 ConsumeNavArrow( item_id, vertical ? ImGuiDir_Right : ImGuiDir_Down );
             }
+            if ( grp.LayoutIdx >= 0 )
+            {
+                for ( int dir = ImGuiDir_Left; dir <= ImGuiDir_Down; ++dir )
+                    if ( ConsumeNavArrow( item_id, ( ImGuiDir )dir ) )
+                        jump = TabGroupNeighbour( *g_Ctx.TabGroupLayouts.GetByIndex( grp.LayoutIdx ), item_id, ( ImGuiDir )dir );
+            }
             if ( flags & ImFluentTabGroupFlags_HomeEnd )
             {
                 if ( IsFocusedItemChordPressed( item_id, g_Ctx.Actions.FirstItem ) )
@@ -1294,7 +1365,38 @@ namespace ImFluent
         st->SetInt( grp.Id ^ TABGROUP_KEY_LAST, ( int )grp.Last );
         st->SetInt( grp.Id ^ TABGROUP_KEY_PENDING, ( int )grp.Pending );
         st->SetBool( grp.Id ^ TABGROUP_KEY_PENDING_SELECT, grp.PendingSelect );
+        if ( grp.LayoutIdx >= 0 )
+        {
+            ImFluentTabGroupLayout * lay = g_Ctx.TabGroupLayouts.GetByIndex( grp.LayoutIdx );
+            lay->Items.swap( lay->NextItems );
+            lay->Rects.swap( lay->NextRects );
+        }
         g_Ctx.TabGroupStack.pop_back();
+    }
+
+    // Inside BeginListView/BeginGridView/BeginTreeView: ListViewItem, GridViewItem and TreeNode join its tab group.
+    static bool InItemsContainer()
+    {
+        return !g_Ctx.TabGroupStack.empty() && ( g_Ctx.TabGroupStack.back().Flags & ImFluentTabGroupFlags_ItemsContainer ) != 0;
+    }
+
+    // Tree rows (TreeNode, and ListViewItem leaves inside a TreeNode): Right on an expanded node gives focus to
+    // its first child row; Left on a row whose own Left did nothing focuses the parent node (WinUI TreeView).
+    static void TreeRowTakeFirstChildFocus( ImGuiID id )
+    {
+        if ( g_Ctx.TreeParentStack.empty() || g_Ctx.TreeFocusFirstChildOf != g_Ctx.TreeParentStack.back() )
+            return;
+        g_Ctx.TreeFocusFirstChildOf = 0;
+        ImGui::SetFocusID( id, GImGui->CurrentWindow );
+        GImGui->NavCursorVisible = true;
+    }
+
+    static void TreeRowLeftToParent( ImGuiID id )
+    {
+        if ( g_Ctx.TreeParentStack.empty() || !ConsumeNavArrow( id, ImGuiDir_Left ) )
+            return;
+        ImGui::SetFocusID( g_Ctx.TreeParentStack.back(), GImGui->CurrentWindow );
+        GImGui->NavCursorVisible = true;
     }
 
     // -1 / +1 for a focused item that takes Left/Down as "decrease" and Right/Up as "increase".
@@ -4108,6 +4210,8 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
     const bool open = ImGui::BeginTabItem( label, p_open, flags );
     ImGui::PopItemFlag();
     TabGroupItemNav( tab_id );
+    if ( p_open )
+        ReportItemInfo( ImHashStr( "#CLOSE", 0, tab_id ), "Close tab" ); // ImGui's tab close button (TabItemEx)
     if ( p_open && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
         *p_open = false;
     return open;
@@ -4119,7 +4223,9 @@ void ImFluent::EndTabItem()
 
 bool ImFluent::TabAddButton()
 {
-    return ImGui::TabItemButton( ImFluentIcon_Add, ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip );
+    const bool pressed = ImGui::TabItemButton( ImFluentIcon_Add, ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip );
+    ReportItemInfo( ImGui::GetItemID(), "Add tab" );
+    return pressed;
 }
 
 void ImFluent::EndTabView()
@@ -5177,6 +5283,63 @@ bool ImFluent::ListBox( const char * label, int * current_item, const char * con
     return changed;
 }
 
+// [SECTION] ListView / GridView / TreeView containers
+// The items between Begin and End are one tab stop (WinUI TabNavigation="Once"): Tab enters on the selected item,
+// else the last focused one, else the first. Home/End go to the first/last item.
+
+static void BeginItemsContainer( const char * id, int flags )
+{
+    ImGui::PushID( id );
+    ImGui::BeginGroup();
+    ImFluent::BeginTabGroup( ImGui::GetID( "##items" ), flags | ImFluentTabGroupFlags_ItemsContainer | ImFluentTabGroupFlags_HomeEnd );
+}
+
+static void EndItemsContainer()
+{
+    ImFluent::EndTabGroup();
+    ImGui::EndGroup();
+    ImGui::PopID();
+}
+
+static int ItemsViewSelectFlags( ImFluentItemsViewFlags flags )
+{
+    return ( flags & ImFluentItemsViewFlags_NoSelectOnFocus ) ? 0 : ImFluentTabGroupFlags_SelectionFollowsFocus;
+}
+
+// Up/Down move by row and stop at the ends; selection follows focus (not with Ctrl).
+void ImFluent::BeginListView( const char * id, ImFluentItemsViewFlags flags )
+{
+    BeginItemsContainer( id, ImFluentTabGroupFlags_Vertical | ItemsViewSelectFlags( flags ) );
+}
+
+void ImFluent::EndListView()
+{
+    EndItemsContainer();
+}
+
+// Arrows move to the nearest tile in that direction and stop at the edges; selection follows focus (not with Ctrl).
+void ImFluent::BeginGridView( const char * id, ImFluentItemsViewFlags flags )
+{
+    BeginItemsContainer( id, ImFluentTabGroupFlags_Grid | ItemsViewSelectFlags( flags ) );
+}
+
+void ImFluent::EndGridView()
+{
+    EndItemsContainer();
+}
+
+// Up/Down move over the visible rows and stop at the ends; Left/Right collapse, expand and move to the parent or
+// the first child (TreeNode).
+void ImFluent::BeginTreeView( const char * id )
+{
+    BeginItemsContainer( id, ImFluentTabGroupFlags_Vertical );
+}
+
+void ImFluent::EndTreeView()
+{
+    EndItemsContainer();
+}
+
 bool ImFluent::ListViewItem( const char * label, bool selected, const char * glyph )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
@@ -5190,10 +5353,15 @@ bool ImFluent::ListViewItem( const char * label, bool selected, const char * gly
     const ImVec2 pos            = w->DC.CursorPos;
     const ImRect bb( pos, ImVec2( pos.x + W, pos.y + h ) );
     ImGui::ItemSize( bb );
-    if ( !ImGui::ItemAdd( bb, id ) )
+    const bool in_list_view = InItemsContainer();
+    if ( !ImGui::ItemAdd( bb, id, NULL, in_list_view ? TabGroupItemFlags( id, selected ) : ImGuiItemFlags_None ) )
         return false;
     bool hovered = false, held = false;
-    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    TreeRowTakeFirstChildFocus( id ); // A leaf row inside a TreeNode
+    TreeRowLeftToParent( id );
+    if ( in_list_view )
+        pressed |= TabGroupItemNav( id );
     ReportItemInfo( id, label, CheckedFlags( selected ) );
     ImDrawList * dl    = w->DrawList;
     const float r      = FluentDpx( style.ControlCornerRadius );
@@ -5263,7 +5431,8 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
 
     if ( p_checked )
         ImGui::SetNextItemAllowOverlap();
-    if ( !ImGui::ItemAdd( bb, id ) )
+    const bool in_tree_view = InItemsContainer();
+    if ( !ImGui::ItemAdd( bb, id, NULL, in_tree_view ? TabGroupItemFlags( id, false ) : ImGuiItemFlags_None ) )
     {
         const bool clipped_open = p_open && *p_open;
         if ( clipped_open )
@@ -5277,27 +5446,9 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     bool hovered = false, held = false;
     const bool row_pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
 
-    bool check_pressed = false, check_hov = false, check_held = false;
-    if ( p_checked )
-    {
-        const ImGuiID cid = w->GetID( ( const void * )( ( intptr_t )id ^ 0xC4ECu ) );
-        ImGui::ItemAdd( check_bb, cid );
-        check_pressed = ImGui::ButtonBehavior( check_bb, cid, &check_hov, &check_held );
-        if ( check_pressed )
-            *p_checked = !*p_checked;
-        ReportItemInfo( cid, "Check", CheckedFlags( *p_checked ) );
-    }
-    if ( row_pressed && !check_pressed && p_open )
-        *p_open = !*p_open;
     // Keyboard (WinUI TreeView): Right expands a collapsed node, then moves to its first child; Left collapses an
-    // expanded node, then moves to its parent.
-    const ImGuiID parent_id = g_Ctx.TreeParentStack.empty() ? 0 : g_Ctx.TreeParentStack.back();
-    if ( parent_id != 0 && g_Ctx.TreeFocusFirstChildOf == parent_id )
-    {
-        g_Ctx.TreeFocusFirstChildOf = 0;
-        ImGui::SetFocusID( id, w );
-        ImGui::GetCurrentContext()->NavCursorVisible = true;
-    }
+    // expanded node, then moves to its parent. Inside BeginTreeView the rows are one tab stop.
+    TreeRowTakeFirstChildFocus( id );
     if ( p_open && *p_open )
     {
         if ( ConsumeNavArrow( id, ImGuiDir_Left ) )
@@ -5307,11 +5458,26 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
     }
     else if ( p_open && ConsumeNavArrow( id, ImGuiDir_Right ) )
         *p_open = true;
-    else if ( parent_id != 0 && ConsumeNavArrow( id, ImGuiDir_Left ) )
+    else
+        TreeRowLeftToParent( id );
+    if ( in_tree_view )
+        TabGroupItemNav( id );
+
+    // The checkbox is not a tab stop: Space on the row toggles it (WinUI TreeView multiple selection). Enter and
+    // clicks on the row expand or collapse the node.
+    const bool space_check = p_checked && row_pressed && GImGui->NavActivatePressedId == id && !IsEnterActivation( id );
+    bool check_pressed = false, check_hov = false, check_held = false;
+    if ( p_checked )
     {
-        ImGui::SetFocusID( parent_id, w );
-        ImGui::GetCurrentContext()->NavCursorVisible = true;
+        const ImGuiID cid = w->GetID( ( const void * )( ( intptr_t )id ^ 0xC4ECu ) );
+        ImGui::ItemAdd( check_bb, cid, NULL, ImGuiItemFlags_NoTabStop | ImGuiItemFlags_NoNav );
+        check_pressed = ImGui::ButtonBehavior( check_bb, cid, &check_hov, &check_held );
+        if ( check_pressed || space_check )
+            *p_checked = !*p_checked;
+        ReportItemInfo( cid, "Check", CheckedFlags( *p_checked ) );
     }
+    if ( row_pressed && !check_pressed && !space_check && p_open )
+        *p_open = !*p_open;
 
     const bool isOpen   = p_open && *p_open;
     const bool selected = p_checked && *p_checked;
@@ -5395,10 +5561,15 @@ bool ImFluent::GridViewItem( const char * label, bool selected, const ImVec2 & s
     const ImVec2 pos            = w->DC.CursorPos;
     const ImRect bb( pos, ImVec2( pos.x + sz.x, pos.y + sz.y ) );
     ImGui::ItemSize( bb );
-    if ( !ImGui::ItemAdd( bb, id ) )
+    const bool in_grid_view = InItemsContainer();
+    if ( in_grid_view )
+        TabGroupItemRect( id, bb );
+    if ( !ImGui::ItemAdd( bb, id, NULL, in_grid_view ? TabGroupItemFlags( id, selected ) : ImGuiItemFlags_None ) )
         return false;
     bool hovered = false, held = false;
-    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    if ( in_grid_view )
+        pressed |= TabGroupItemNav( id );
     ReportItemInfo( id, label, CheckedFlags( selected ) );
     ImDrawList * dl    = w->DrawList;
     const float r      = FluentDpx( style.OverlayCornerRadius );

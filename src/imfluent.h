@@ -217,6 +217,13 @@ enum ImFluentTextBoxFlags_
 };
 typedef int ImFluentTextBoxFlags;
 
+enum ImFluentItemsViewFlags_
+{
+    ImFluentItemsViewFlags_None            = 0,
+    ImFluentItemsViewFlags_NoSelectOnFocus = 1 << 0, // Arrows move focus only: items act as buttons (WinUI SelectionMode="None")
+};
+typedef int ImFluentItemsViewFlags;
+
 enum ImFluentTimePickerFlags_
 {
     ImFluentTimePickerFlags_None    = 0,
@@ -520,6 +527,13 @@ namespace ImFluent
     IMGUI_API bool ComboBox( const char * label, int * current_item, const char * const items[], int items_count, ImGuiComboFlags flags = 0 );
     IMGUI_API bool ListBox( const char * label, int * current_item, const char * const items[], int items_count, int height_in_items = 7 );
     IMGUI_API bool Selectable( const char * label, bool selected = false, const char * glyph = NULL, float height = 0.f );
+    // ListViewItem/GridViewItem/TreeNode between these are one Tab stop with WinUI arrow keys (optional).
+    IMGUI_API void BeginListView( const char * id, ImFluentItemsViewFlags flags = 0 );
+    IMGUI_API void EndListView();
+    IMGUI_API void BeginGridView( const char * id, ImFluentItemsViewFlags flags = 0 );
+    IMGUI_API void EndGridView();
+    IMGUI_API void BeginTreeView( const char * id );
+    IMGUI_API void EndTreeView();
     IMGUI_API bool ListViewItem( const char * label, bool selected = false, const char * glyph = NULL );
     IMGUI_API bool TreeNode( const char * label, bool * p_open );
 

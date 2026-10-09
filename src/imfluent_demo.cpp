@@ -864,11 +864,13 @@ namespace ImFluentGalleryApp
             static int s                 = 1;
             static const char * names[]  = { "Inbox", "Sent items", "Drafts", "Junk" };
             static const char * glyphs[] = { ImFluentIcon_Mail, ImFluentIcon_Share, ImFluentIcon_Edit, ImFluentIcon_Delete };
+            BeginListView( "##mail" );
             for ( int i = 0; i < 4; ++i )
             {
                 if ( ListViewItem( names[ i ], s == i, glyphs[ i ] ) )
                     s = i;
             }
+            EndListView();
         }
         EndControlExample();
     }
@@ -880,6 +882,7 @@ namespace ImFluentGalleryApp
         if ( BeginControlExample( "Files" ) )
         {
             static bool a = true, b = false;
+            BeginTreeView( "##files" );
             SetNextItemGlyph( ImFluentIcon_Folder );
             if ( TreeNode( "Documents", &a ) )
             {
@@ -894,6 +897,7 @@ namespace ImFluentGalleryApp
                 ListViewItem( "notes.txt", false );
                 TreePop();
             }
+            EndTreeView();
         }
         EndControlExample();
 
@@ -901,6 +905,7 @@ namespace ImFluentGalleryApp
         {
             static bool ms_open[ 3 ] = { true, false, false };
             static bool ms_chk[ 3 ]  = { false, false, false };
+            BeginTreeView( "##inbox" );
             SetNextItemGlyph( ImFluentIcon_Folder );
             if ( TreeNode( "Inbox", &ms_open[ 0 ], &ms_chk[ 0 ] ) )
             {
@@ -912,6 +917,7 @@ namespace ImFluentGalleryApp
                     TreePop();
                 TreePop();
             }
+            EndTreeView();
             ControlExampleOutput( "Checked: %s%s%s", ms_chk[ 0 ] ? "Inbox " : "", ms_chk[ 1 ] ? "Welcome " : "", ms_chk[ 2 ] ? "Project " : "" );
         }
         EndControlExample();
@@ -923,6 +929,7 @@ namespace ImFluentGalleryApp
         if ( BeginControlExample( "Tiles" ) )
         {
             static int s = 0;
+            BeginGridView( "##tiles" );
             for ( int i = 0; i < 8; ++i )
             {
                 const char * buf;
@@ -934,6 +941,7 @@ namespace ImFluentGalleryApp
                 if ( ( i % 4 ) != 3 )
                     ImGui::SameLine();
             }
+            EndGridView();
         }
         EndControlExample();
     }
@@ -1940,6 +1948,7 @@ namespace ImFluentGalleryApp
             { "Section_StatusAndInfo", "Status & info", "Progress, badges, info bars", ImFluentIcon_Info },
             { "Section_Design", "Design", "Style stack, theming", ImFluentIcon_Color },
         };
+        BeginGridView( "##sections", ImFluentItemsViewFlags_NoSelectOnFocus ); // Tiles are links: arrows only move focus
         for ( size_t i = 0; i < sizeof( tiles ) / sizeof( tiles[ 0 ] ); ++i )
         {
             const Tile & t = tiles[ i ];
@@ -1950,6 +1959,7 @@ namespace ImFluentGalleryApp
             if ( ( i % 3 ) != 2 )
                 ImGui::SameLine();
         }
+        EndGridView();
     }
 
     static void Page_AllControls()
@@ -1997,6 +2007,7 @@ namespace ImFluentGalleryApp
             }
         PageHeader( gi ? gi->Title : groupId, "Click a tile to open the demo page." );
         int idx = 0;
+        BeginGridView( "##controls", ImFluentItemsViewFlags_NoSelectOnFocus );
         for ( int i = 0; i < g_ControlsCount; ++i )
         {
             const ControlInfo & c = g_Controls[ i ];
@@ -2016,6 +2027,7 @@ namespace ImFluentGalleryApp
                 ImGui::SameLine();
             ++idx;
         }
+        EndGridView();
     }
 
     static void Page_Settings()

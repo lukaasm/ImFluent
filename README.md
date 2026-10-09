@@ -31,7 +31,9 @@ Define `IMFLUENT_DISABLE_DEMO_WINDOWS` to compile out the demo.
 
 Every widget works with the keyboard alone, following WinUI: composite controls (RadioButtons, ListBox,
 SelectorBar, NavigationView, TabView, ...) are one Tab stop, arrows move inside them, and popups open, close
-with Escape and give focus back to their owner. The command shortcuts are key chords in `ImFluentActions`,
+with Escape and give focus back to their owner. Put `ListViewItem`, `GridViewItem` and `TreeNode` rows between
+`BeginListView`/`BeginGridView`/`BeginTreeView` and the matching `End` call to make the list one Tab stop too.
+The command shortcuts are key chords in `ImFluentActions`,
 with WinUI defaults. Change them, or set one to 0 to turn it off:
 
 ```cpp
