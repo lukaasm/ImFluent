@@ -158,6 +158,7 @@ enum ImFluentTabGroupFlags_
     ImFluentTabGroupFlags_Grid                  = 1 << 6, // Arrows move to the nearest item of the group (GridView)
     ImFluentTabGroupFlags_ItemsContainer        = 1 << 7, // BeginListView/GridView/TreeView: their items join the group
     ImFluentTabGroupFlags_EnterAtEnds           = 1 << 8, // Without a selection: Tab enters on the first item, Shift+Tab on the last (ItemsRepeater)
+    ImFluentTabGroupFlags_EnterOnLastFocused    = 1 << 9, // Tab enters on the last focused item, before the selected one (Selector: ListBox, TabView)
 };
 
 // Item rects of a Grid tab group, kept from the previous frame: arrows move between them. A TabView keeps its Left/Right order here.
@@ -1383,7 +1384,9 @@ namespace ImFluent
         grp.LastSelected     = ( ImGuiID )st->GetInt( group_id ^ TABGROUP_KEY_LAST_SELECTED, 0 );
         const bool tab_back  = g.NavMoveSubmitted && ( g.NavMoveFlags & ImGuiNavMoveFlags_IsTabbing ) && g.NavTabbingDir < 0;
         const ImGuiID enter  = ( flags & ImFluentTabGroupFlags_EnterAtEnds ) ? ( tab_back ? grp.PrevLast : grp.PrevFirst ) : focused ? focused : grp.PrevFirst;
-        grp.Stop             = ( flags & ImFluentTabGroupFlags_FirstIsStop ) ? grp.PrevFirst : selected ? selected : ancestor ? ancestor : enter;
+        const ImGuiID chosen = ( ( flags & ImFluentTabGroupFlags_EnterOnLastFocused ) && focused ) ? focused : selected ? selected : ancestor ? ancestor : enter;
+        // Focus inside the group stays the stop, so Tab and Shift+Tab leave the group from it
+        grp.Stop             = ( focused && focused == g.NavId ) ? focused : ( flags & ImFluentTabGroupFlags_FirstIsStop ) ? grp.PrevFirst : chosen;
         grp.SelectedAncestor = 0;
         grp.First = grp.Last = grp.Selected = grp.Focused = 0;
         grp.StopSeen                                      = false;
@@ -1535,12 +1538,15 @@ namespace ImFluent
             return;
         const ImFluentTabGroup & grp = g_Ctx.TabGroupStack.back();
         ImGuiStorage * st            = ImGui::GetStateStorage();
+        // WinUI Selector::SetFocusedItem: a selection change also moves the remembered focus
+        const bool selection_changed = grp.Selected && grp.Selected != ( ImGuiID )st->GetInt( grp.Id ^ TABGROUP_KEY_SELECTED, 0 );
+        const ImGuiID focused        = grp.Focused ? grp.Focused : selection_changed ? grp.Selected : 0;
         st->SetInt( grp.Id ^ TABGROUP_KEY_SELECTED, ( int )grp.Selected );
         st->SetInt( grp.Id ^ TABGROUP_KEY_ANCESTOR, ( int )grp.SelectedAncestor );
         if ( grp.Selected )
             st->SetInt( grp.Id ^ TABGROUP_KEY_LAST_SELECTED, ( int )grp.Selected );
-        if ( grp.Focused || !grp.StopSeen )
-            st->SetInt( grp.Id ^ TABGROUP_KEY_FOCUSED, ( int )grp.Focused ); // Forget a remembered item that went away
+        if ( focused || !grp.StopSeen )
+            st->SetInt( grp.Id ^ TABGROUP_KEY_FOCUSED, ( int )focused ); // Forget a remembered item that went away
         st->SetInt( grp.Id ^ TABGROUP_KEY_FIRST, ( int )grp.First );
         st->SetInt( grp.Id ^ TABGROUP_KEY_LAST, ( int )grp.Last );
         st->SetInt( grp.Id ^ TABGROUP_KEY_PENDING, ( int )grp.Pending );
@@ -4697,7 +4703,7 @@ bool ImFluent::BeginTabView( const char * id )
     ImGui::PopStyleVar();
     if ( open )
     {
-        BeginTabGroup( ImGui::GetCurrentContext()->CurrentTabBar->ID, ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_Wrap | ImFluentTabGroupFlags_HomeEnd );
+        BeginTabGroup( ImGui::GetCurrentContext()->CurrentTabBar->ID, ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_Wrap | ImFluentTabGroupFlags_HomeEnd | ImFluentTabGroupFlags_EnterOnLastFocused );
         return true;
     }
     ImGui::PopStyleVar( 2 );
@@ -4779,7 +4785,7 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
             TabViewCloseTab( p_open, ImGui::GetID( label ) );
     if ( p_open && !*p_open )
         return ImGui::BeginTabItem( label, p_open, flags );
-    // WinUI TabView: one tab stop on the selected tab; Left/Right wrap, Home/End (focus only), Up/Down stay in the strip.
+    // WinUI TabView: one tab stop on the last focused (or selected) tab; Left/Right wrap, Home/End (focus only), Up/Down stay in the strip.
     const ImGuiID tab_id   = ImGui::GetID( label );
     ImGuiTabBar * tab_bar  = g.CurrentTabBar;
     const bool is_selected = tab_bar && tab_bar->SelectedTabId == tab_id;
@@ -6001,7 +6007,7 @@ bool ImFluent::ListBox( const char * label, int * current_item, const char * con
     const ImGuiID list_id = ImGui::GetID( label );
     if ( ImGui::BeginChild( list_id, sz, ImGuiChildFlags_FrameStyle | ImGuiChildFlags_NavFlattened ) )
     {
-        BeginTabGroup( list_id, ImFluentTabGroupFlags_Vertical | ImFluentTabGroupFlags_HomeEnd | ImFluentTabGroupFlags_SelectionFollowsFocus );
+        BeginTabGroup( list_id, ImFluentTabGroupFlags_Vertical | ImFluentTabGroupFlags_HomeEnd | ImFluentTabGroupFlags_SelectionFollowsFocus | ImFluentTabGroupFlags_EnterOnLastFocused );
         for ( int i = 0; i < items_count; ++i )
         {
             if ( !items[ i ] )

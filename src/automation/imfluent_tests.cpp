@@ -656,6 +656,14 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->NavMoveTo( "**/Toggle pane" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Home" );
+
+        // Tab from any item leaves the menu, also when the selected item comes later
+        v.NavSel = 3;
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "content" );
+        ctx->NavMoveTo( "**/Home" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "content" );
     };
 
     // An expanded group whose header is scrolled out of view still shows its children.
@@ -1143,6 +1151,12 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Beta" );
+        // WinUI Selector: Tab enters on the last focused item, not the selected one
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_DownArrow );
+        ctx->KeyPress( ImGuiKey_Tab );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Gamma" );
+        IM_CHECK_EQ( v.List, 1 );
     };
 
     t = IM_REGISTER_TEST( engine, "keyboard", "selector_bar_arrows_home_end" );
@@ -1292,6 +1306,12 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ctx->KeyPress( ImGuiKey_End );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Three" );
         ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( v.TabSel, 2 );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "content" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Two" ); // The last focused tab, not the selected one
         IM_CHECK_EQ( v.TabSel, 2 );
     };
 
