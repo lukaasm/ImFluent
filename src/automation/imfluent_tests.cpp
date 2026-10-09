@@ -1209,6 +1209,43 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_EQ( v.TabSel, 2 );
     };
 
+    // The close buttons of closable tabs are not Tab stops (WinUI); a click or a middle-click still closes the tab.
+    t = IM_REGISTER_TEST( engine, "keyboard", "tab_view_close_button_not_a_tab_stop" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * names[] = { "One", "Two", "Three" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        if ( ImFluent::BeginTabView( "closable" ) )
+        {
+            for ( int i = 0; i < 3; ++i )
+                if ( ImFluent::BeginTabItem( names[ i ], &v.TabOpen[ i ] ) )
+                {
+                    ImFluent::Button( "content" );
+                    ImFluent::EndTabItem();
+                }
+            ImFluent::EndTabView();
+        }
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "content" );
+        ctx->SetInputMode( ImGuiInputSource_Mouse );
+        ctx->ItemClick( ImHashStr( "#CLOSE", 0, ctx->ItemInfo( "**/Two" ).ID ) );
+        IM_CHECK( v.TabOpen[ 0 ] && !v.TabOpen[ 1 ] && v.TabOpen[ 2 ] );
+        ctx->ItemClick( "**/Three", ImGuiMouseButton_Middle );
+        IM_CHECK( v.TabOpen[ 0 ] && !v.TabOpen[ 2 ] );
+    };
+
     // Loose radio buttons (one int* = one group): each is a tab stop; arrows move focus inside the group and wrap.
     t = IM_REGISTER_TEST( engine, "keyboard", "loose_radio_buttons_wrap_focus_only" );
     t->SetVarsDataType< KeyboardVars >();

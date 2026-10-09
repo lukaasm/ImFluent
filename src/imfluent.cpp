@@ -4693,25 +4693,61 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
     if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
         if ( p_open && *p_open && tab_bar->SelectedTabId == ImGui::GetID( label ) && ImGui::GetStateStorage()->GetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, false ) && IsActionPressed( g_Ctx.Actions.CloseTab ) )
             *p_open = false;
+    if ( p_open && !*p_open )
+        return ImGui::BeginTabItem( label, p_open, flags );
     // WinUI TabView: one tab stop on the selected tab; Left/Right wrap, Home/End (focus only), Up/Down stay in the strip.
     const ImGuiID tab_id   = ImGui::GetID( label );
     ImGuiTabBar * tab_bar  = g.CurrentTabBar;
     const bool is_selected = tab_bar && tab_bar->SelectedTabId == tab_id;
     // WinUI TabView look: equal-width tabs (100 to 240), secondary text when unselected, dividers between unselected tabs.
+    // In an auto-sizing window each tab fits its label: equal widths would grow the window every frame.
     if ( tab_bar && tab_bar->Tabs.Size > 0 )
-        ImGui::SetNextItemWidth( ImClamp( tab_bar->BarRect.GetWidth() / ( float )tab_bar->Tabs.Size, FluentDpx( 100.f ), FluentDpx( 240.f ) ) );
+    {
+        const ImGuiWindow * win = g.CurrentWindow;
+        const bool auto_width   = ( win->Flags & ImGuiWindowFlags_AlwaysAutoResize ) || ( win->ChildFlags & ImGuiChildFlags_AutoResizeX );
+        const float pad_x       = FluentDpx( ImFluent::GetStyle().SpacingLarge );
+        const float fit_w       = ImGui::CalcTextSize( label, NULL, true ).x + pad_x * 2.f + ( p_open ? ImGui::GetFontSize() + pad_x * 0.5f : 0.f );
+        const float w           = auto_width ? fit_w : tab_bar->BarRect.GetWidth() / ( float )tab_bar->Tabs.Size;
+        ImGui::SetNextItemWidth( ImClamp( w, FluentDpx( 100.f ), FluentDpx( 240.f ) ) );
+    }
     if ( !is_selected )
         ImGui::PushStyleColor( ImGuiCol_Text, ImFluent::GetColorU32( ImFluentCol_TextSecondary ) );
     ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( tab_id, is_selected ) != ImGuiItemFlags_None );
     PushTabFramePadding();
-    const bool open = ImGui::BeginTabItem( label, p_open, flags );
+    // ImGui's close button takes the tab's item flags, so on the selected tab it would be a Tab stop (WinUI: never).
+    // ImFluent draws it instead; ImGui's hidden unsaved marker keeps the label clear of it.
+    ImGuiTabItemFlags tab_flags = flags;
+    const bool hide_marker      = p_open && !( flags & ImGuiTabItemFlags_UnsavedDocument );
+    if ( p_open )
+        tab_flags |= ImGuiTabItemFlags_NoCloseButton | ImGuiTabItemFlags_UnsavedDocument;
+    if ( hide_marker )
+        ImGui::PushStyleColor( ImGuiCol_UnsavedMarker, IM_COL32( 0, 0, 0, 0 ) );
+    if ( p_open )
+        ImGui::SetNextItemAllowOverlap(); // The close button over the tab takes the hover
+    const bool open = ImGui::BeginTabItem( label, p_open, tab_flags );
+    if ( hide_marker )
+        ImGui::PopStyleColor();
+    if ( p_open && *p_open && g.LastItemData.ID == tab_id )
+    {
+        const ImRect tab_bb            = g.LastItemData.Rect;
+        const ImVec2 pad               = ImGui::GetStyle().FramePadding;
+        const ImGuiLastItemData backup = g.LastItemData;
+        const ImGuiID close_id         = ImHashStr( "#CLOSE", 0, tab_id );
+        ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop | ImGuiItemFlags_NoNav, true );
+        if ( ImGui::CloseButton( close_id, ImVec2( tab_bb.Max.x - pad.x - ImGui::GetFontSize(), tab_bb.Min.y + pad.y ) ) )
+            *p_open = false;
+        ImGui::PopItemFlag();
+        ReportItemInfo( close_id, "Close tab" );
+        g.LastItemData = backup;
+    }
     ImGui::PopStyleVar();
     ImGui::PopItemFlag();
     if ( !is_selected )
         ImGui::PopStyleColor();
     if ( tab_bar && !is_selected )
     {
-        const int index = tab_bar->Tabs.index_from_ptr( ImGui::TabBarFindTabByID( tab_bar, tab_id ) );
+        const ImGuiTabItem * tab = ImGui::TabBarFindTabByID( tab_bar, tab_id );
+        const int index          = tab ? tab_bar->Tabs.index_from_ptr( tab ) : -1;
         if ( index >= 0 && index + 1 < tab_bar->Tabs.Size && tab_bar->Tabs[ index + 1 ].ID != tab_bar->SelectedTabId )
         {
             const ImRect r = g.LastItemData.Rect;
@@ -4722,9 +4758,7 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
         }
     }
     TabGroupItemNav( tab_id );
-    if ( p_open )
-        ReportItemInfo( ImHashStr( "#CLOSE", 0, tab_id ), "Close tab" ); // ImGui's tab close button (TabItemEx)
-    if ( p_open && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
+    if ( p_open && !( flags & ImGuiTabItemFlags_NoCloseWithMiddleMouseButton ) && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
         *p_open = false;
     return open;
 }
