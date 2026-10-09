@@ -346,23 +346,22 @@ namespace ImFluentGalleryApp
         TextBlock( header, ImFluentTextStyle_BodyStrong );
         ImGui::Dummy( ImVec2( 0.f, ExampleDp( 4.f ) ) );
 
-        ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_CardBgDefault ) );
-        ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_CardStrokeDefault ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 0.f );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
-        ImGui::BeginChild( header, ImVec2( -FLT_MIN, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        ImGui::BeginChild( header, ImVec2( -FLT_MIN, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground );
         {
-            // The card border on whole pixels, inside the card (ImGui's child border straddles half pixels).
+            // The card fill inside its border, and the border on whole pixels (ImGui's child border straddles half
+            // pixels): the border then blends with the page, as WinUI's does.
             ImGuiWindow * cw = ImGui::GetCurrentWindow();
             const float s    = ExampleStroke();
+            const float r    = FluentDpx( style.OverlayCornerRadius );
             cw->DrawList->PushClipRect( cw->Rect().Min, cw->Rect().Max, false );
-            cw->DrawList->PathRect( ImVec2( cw->Pos.x + s * 0.5f, cw->Pos.y + s * 0.5f ), ImVec2( cw->Pos.x + cw->Size.x - s * 0.5f, cw->Pos.y + cw->Size.y - s * 0.5f ), FluentDpx( style.OverlayCornerRadius ) - s * 0.5f );
+            cw->DrawList->AddRectFilled( ImVec2( cw->Pos.x + s, cw->Pos.y + s ), ImVec2( cw->Pos.x + cw->Size.x - s, cw->Pos.y + cw->Size.y - s ), GetColorU32( ImFluentCol_CardBgDefault ), r - s );
+            cw->DrawList->PathRect( ImVec2( cw->Pos.x + s * 0.5f, cw->Pos.y + s * 0.5f ), ImVec2( cw->Pos.x + cw->Size.x - s * 0.5f, cw->Pos.y + cw->Size.y - s * 0.5f ), r - s * 0.5f );
             cw->DrawList->PathStroke( GetColorU32( ImFluentCol_CardStrokeDefault ), ImDrawFlags_Closed, s );
             cw->DrawList->PopClipRect();
         }
-        ImGui::PopStyleVar( 3 );
-        ImGui::PopStyleColor( 2 );
+        ImGui::PopStyleVar( 2 );
 
         g_Example    = ControlExampleState();
         g_Example.Id = ImGui::GetCurrentWindow()->ID;
@@ -450,7 +449,7 @@ namespace ImFluentGalleryApp
             ImGui::PushClipRect( w->Rect().Min, w->Rect().Max, false );
             const float r = FluentDpx( style.OverlayCornerRadius );
             const float s = ExampleStroke();
-            dl->AddRectFilled( ImVec2( row.Min.x + s, row.Min.y ), ImVec2( row.Max.x - s, row.Max.y - s ), GetColorU32( hov ? ImFluentCol_SubtleFillSecondary : ImFluentCol_CardBgSecondary ), expanded ? 0.f : r - s, ImDrawFlags_RoundCornersBottom );
+            dl->AddRectFilled( ImVec2( row.Min.x + s, row.Min.y ), ImVec2( row.Max.x - s, row.Max.y - s ), GetColorU32( hov ? ImFluentCol_SubtleFillSecondary : ImFluentCol_SubtleFillTransparent ), expanded ? 0.f : r - s, ImDrawFlags_RoundCornersBottom );
             dl->AddRectFilled( ImVec2( row.Min.x, row.Min.y ), ImVec2( row.Max.x, row.Min.y + s ), GetColorU32( ImFluentCol_CardStrokeDefault ) );
             dl->AddText( ImVec2( row.Min.x + ExampleDp( 16.f ), ( row.Min.y + row.Max.y - ImGui::GetFontSize() ) * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), "Source code" );
             dl->AddText( ImVec2( row.Max.x - ExampleDp( 36.f ), ( row.Min.y + row.Max.y - ImGui::GetFontSize() ) * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), expanded ? ImFluentIcon_ChevronUp : ImFluentIcon_ChevronDown );

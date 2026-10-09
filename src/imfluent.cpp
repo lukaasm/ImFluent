@@ -231,6 +231,7 @@ struct ImFluentContext
     ImVector< MenuBarState > MenuBarStack;
     bool InRadioButtons;                 // RadioButtons() moves focus itself: its items are not loose radio buttons
     float TabCloseButtonMinWidthBackup = 0.f; // ImGuiStyle value BeginTabView() replaces until EndTabView()
+    ImDrawListSplitter TextFrameSplitter;     // A text control's fill goes under the text ImGui draws (see BeginTextControlFrame)
     ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
     ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
 
@@ -367,39 +368,39 @@ namespace ImFluent
         FillCommon( s );
         ImVec4 * c = s.Colors;
 
-        c[ ImFluentCol_TextPrimary ]   = ImColor( 255, 255, 255, 228 );
-        c[ ImFluentCol_TextSecondary ] = ImColor( 255, 255, 255, 200 );
-        c[ ImFluentCol_TextTertiary ]  = ImColor( 255, 255, 255, 144 );
+        c[ ImFluentCol_TextPrimary ]   = ImColor( 255, 255, 255 );
+        c[ ImFluentCol_TextSecondary ] = ImColor( 255, 255, 255, 197 );
+        c[ ImFluentCol_TextTertiary ]  = ImColor( 255, 255, 255, 135 );
         c[ ImFluentCol_TextDisabled ]  = ImColor( 255, 255, 255, 93 );
 
         c[ ImFluentCol_TextOnAccentPrimary ]   = ImColor( 0, 0, 0 );
-        c[ ImFluentCol_TextOnAccentSecondary ] = ImColor( 0, 0, 0, 178 );
-        c[ ImFluentCol_TextOnAccentDisabled ]  = ImColor( 0, 0, 0, 87 );
-        c[ ImFluentCol_TextOnAccentSelected ]  = ImColor( 0, 0, 0 );
+        c[ ImFluentCol_TextOnAccentSecondary ] = ImColor( 0, 0, 0, 128 );
+        c[ ImFluentCol_TextOnAccentDisabled ]  = ImColor( 255, 255, 255, 135 );
+        c[ ImFluentCol_TextOnAccentSelected ]  = ImColor( 255, 255, 255 );
         c[ ImFluentCol_AccentTextPrimary ]     = ImColor( 153, 235, 255 );
         c[ ImFluentCol_AccentTextSecondary ]   = ImColor( 118, 215, 255 );
         c[ ImFluentCol_AccentTextTertiary ]    = ImColor( 96, 205, 255 );
         c[ ImFluentCol_AccentTextDisabled ]    = ImColor( 255, 255, 255, 93 );
 
-        c[ ImFluentCol_ControlFillDefault ]        = ImColor( 255, 255, 255, 18 );
-        c[ ImFluentCol_ControlFillSecondary ]      = ImColor( 255, 255, 255, 40 );
+        c[ ImFluentCol_ControlFillDefault ]        = ImColor( 255, 255, 255, 15 );
+        c[ ImFluentCol_ControlFillSecondary ]      = ImColor( 255, 255, 255, 21 );
         c[ ImFluentCol_ControlFillTertiary ]       = ImColor( 255, 255, 255, 8 );
-        c[ ImFluentCol_ControlFillQuarternary ]    = ImColor( 255, 255, 255, 76 );
-        c[ ImFluentCol_ControlFillDisabled ]       = ImColor( 255, 255, 255, 10 );
+        c[ ImFluentCol_ControlFillQuarternary ]    = ImColor( 255, 255, 255, 15 );
+        c[ ImFluentCol_ControlFillDisabled ]       = ImColor( 255, 255, 255, 11 );
         c[ ImFluentCol_ControlFillTransparent ]    = ImColor( 0, 0, 0, 0 );
-        c[ ImFluentCol_ControlFillInputActive ]    = ImColor( 30, 30, 30, 178 );
+        c[ ImFluentCol_ControlFillInputActive ]    = ImColor( 30, 30, 30, 179 );
         c[ ImFluentCol_ControlAltFillTransparent ] = ImColor( 0, 0, 0, 0 );
-        c[ ImFluentCol_ControlAltFillSecondary ]   = ImColor( 0, 0, 0, 26 );
-        c[ ImFluentCol_ControlAltFillTertiary ]    = ImColor( 255, 255, 255, 10 );
+        c[ ImFluentCol_ControlAltFillSecondary ]   = ImColor( 0, 0, 0, 25 );
+        c[ ImFluentCol_ControlAltFillTertiary ]    = ImColor( 255, 255, 255, 11 );
         c[ ImFluentCol_ControlAltFillQuarternary ] = ImColor( 255, 255, 255, 18 );
         c[ ImFluentCol_ControlAltFillDisabled ]    = ImColor( 0, 0, 0, 0 );
-        c[ ImFluentCol_ControlSolidFillDefault ]   = ImColor( 105, 105, 105 );
-        c[ ImFluentCol_ControlStrongFillDefault ]  = ImColor( 255, 255, 255, 138 );
-        c[ ImFluentCol_ControlStrongFillDisabled ] = ImColor( 255, 255, 255, 93 );
+        c[ ImFluentCol_ControlSolidFillDefault ]   = ImColor( 69, 69, 69 );
+        c[ ImFluentCol_ControlStrongFillDefault ]  = ImColor( 255, 255, 255, 139 );
+        c[ ImFluentCol_ControlStrongFillDisabled ] = ImColor( 255, 255, 255, 63 );
 
         c[ ImFluentCol_SubtleFillTransparent ] = ImColor( 255, 255, 255, 0 );
-        c[ ImFluentCol_SubtleFillSecondary ]   = ImColor( 255, 255, 255, 30 );
-        c[ ImFluentCol_SubtleFillTertiary ]    = ImColor( 255, 255, 255, 18 );
+        c[ ImFluentCol_SubtleFillSecondary ]   = ImColor( 255, 255, 255, 15 );
+        c[ ImFluentCol_SubtleFillTertiary ]    = ImColor( 255, 255, 255, 10 );
         c[ ImFluentCol_SubtleFillDisabled ]    = ImColor( 255, 255, 255, 0 );
 
         c[ ImFluentCol_AccentFillDefault ]        = ImColor( 76, 194, 255 );
@@ -409,41 +410,41 @@ namespace ImFluent
         c[ ImFluentCol_AccentFillSelectedTextBg ] = ImColor( 0, 103, 192 );
 
         c[ ImFluentCol_CardBgDefault ]      = ImColor( 255, 255, 255, 13 );
-        c[ ImFluentCol_CardBgSecondary ]    = ImColor( 255, 255, 255, 18 );
-        c[ ImFluentCol_LayerFillDefault ]   = ImColor( 58, 58, 58, 128 );
+        c[ ImFluentCol_CardBgSecondary ]    = ImColor( 255, 255, 255, 8 );
+        c[ ImFluentCol_LayerFillDefault ]   = ImColor( 58, 58, 58, 76 );
         c[ ImFluentCol_LayerFillAlt ]       = ImColor( 44, 44, 44 );
-        c[ ImFluentCol_SmokeFill ]          = ImColor( 0, 0, 0, 76 );
+        c[ ImFluentCol_SmokeFill ]          = ImColor( 0, 0, 0, 77 );
         c[ ImFluentCol_AcrylicFill ]        = ImColor( 44, 44, 44, 220 );
         c[ ImFluentCol_SolidBgBase ]        = ImColor( 32, 32, 32 );
         c[ ImFluentCol_SolidBgQuarternary ] = ImColor( 44, 44, 44 );
 
-        c[ ImFluentCol_CardStrokeDefault ]              = ImColor( 255, 255, 255, 20 );
-        c[ ImFluentCol_CardStrokeSolid ]                = ImColor( 56, 56, 56 );
+        c[ ImFluentCol_CardStrokeDefault ]              = ImColor( 0, 0, 0, 25 );
+        c[ ImFluentCol_CardStrokeSolid ]                = ImColor( 28, 28, 28 );
         c[ ImFluentCol_ControlStrokeDefault ]           = ImColor( 255, 255, 255, 18 );
-        c[ ImFluentCol_ControlStrokeSecondary ]         = ImColor( 255, 255, 255, 41 );
+        c[ ImFluentCol_ControlStrokeSecondary ]         = ImColor( 255, 255, 255, 24 );
         c[ ImFluentCol_ControlStrokeOnAccentDefault ]   = ImColor( 255, 255, 255, 20 );
-        c[ ImFluentCol_ControlStrokeOnAccentSecondary ] = ImColor( 0, 0, 0, 102 );
-        c[ ImFluentCol_ControlStrongStrokeDefault ]     = ImColor( 255, 255, 255, 138 );
-        c[ ImFluentCol_ControlStrongStrokeDisabled ]    = ImColor( 255, 255, 255, 56 );
-        c[ ImFluentCol_SurfaceStrokeDefault ]           = ImColor( 0, 0, 0, 102 );
-        c[ ImFluentCol_SurfaceStrokeFlyout ]            = ImColor( 0, 0, 0, 102 );
+        c[ ImFluentCol_ControlStrokeOnAccentSecondary ] = ImColor( 0, 0, 0, 35 );
+        c[ ImFluentCol_ControlStrongStrokeDefault ]     = ImColor( 255, 255, 255, 139 );
+        c[ ImFluentCol_ControlStrongStrokeDisabled ]    = ImColor( 255, 255, 255, 40 );
+        c[ ImFluentCol_SurfaceStrokeDefault ]           = ImColor( 117, 117, 117, 102 );
+        c[ ImFluentCol_SurfaceStrokeFlyout ]            = ImColor( 0, 0, 0, 51 );
         c[ ImFluentCol_DividerStrokeDefault ]           = ImColor( 255, 255, 255, 21 );
 
         c[ ImFluentCol_FocusStrokeOuter ] = ImColor( 255, 255, 255 );
-        c[ ImFluentCol_FocusStrokeInner ] = ImColor( 28, 28, 28 );
+        c[ ImFluentCol_FocusStrokeInner ] = ImColor( 0, 0, 0, 179 );
 
-        c[ ImFluentCol_ElevationControlTop ]               = ImColor( 255, 255, 255, 20 );
-        c[ ImFluentCol_ElevationControlBottom ]            = ImColor( 0, 0, 0, 90 );
-        c[ ImFluentCol_ElevationTextControlTop ]           = ImColor( 255, 255, 255, 20 );
-        c[ ImFluentCol_ElevationTextControlBottom ]        = ImColor( 255, 255, 255, 138 );
+        c[ ImFluentCol_ElevationControlTop ]               = ImColor( 255, 255, 255, 24 );
+        c[ ImFluentCol_ElevationControlBottom ]            = ImColor( 255, 255, 255, 18 );
+        c[ ImFluentCol_ElevationTextControlTop ]           = ImColor( 255, 255, 255, 18 );
+        c[ ImFluentCol_ElevationTextControlBottom ]        = ImColor( 255, 255, 255, 139 );
         c[ ImFluentCol_ElevationTextControlFocusedBottom ] = ImColor( 76, 194, 255 );
         c[ ImFluentCol_ElevationAccentTop ]                = ImColor( 255, 255, 255, 20 );
-        c[ ImFluentCol_ElevationAccentBottom ]             = ImColor( 0, 0, 0, 64 );
+        c[ ImFluentCol_ElevationAccentBottom ]             = ImColor( 0, 0, 0, 35 );
 
         c[ ImFluentCol_SystemFillSuccess ]   = ImColor( 108, 203, 95 );
         c[ ImFluentCol_SystemFillCaution ]   = ImColor( 252, 225, 0 );
         c[ ImFluentCol_SystemFillCritical ]  = ImColor( 255, 153, 164 );
-        c[ ImFluentCol_SystemFillNeutral ]   = ImColor( 255, 255, 255, 138 );
+        c[ ImFluentCol_SystemFillNeutral ]   = ImColor( 255, 255, 255, 139 );
         c[ ImFluentCol_SystemFillAttention ] = ImColor( 96, 205, 255 );
     }
 
@@ -456,63 +457,63 @@ namespace ImFluent
         c[ ImFluentCol_TextTertiary ]          = ImColor( 0, 0, 0, 114 );
         c[ ImFluentCol_TextDisabled ]          = ImColor( 0, 0, 0, 92 );
         c[ ImFluentCol_TextOnAccentPrimary ]   = ImColor( 255, 255, 255 );
-        c[ ImFluentCol_TextOnAccentSecondary ] = ImColor( 255, 255, 255, 178 );
-        c[ ImFluentCol_TextOnAccentDisabled ]  = ImColor( 255, 255, 255, 87 );
+        c[ ImFluentCol_TextOnAccentSecondary ] = ImColor( 255, 255, 255, 179 );
+        c[ ImFluentCol_TextOnAccentDisabled ]  = ImColor( 255, 255, 255 );
         c[ ImFluentCol_TextOnAccentSelected ]  = ImColor( 255, 255, 255 );
         c[ ImFluentCol_AccentTextPrimary ]     = ImColor( 0, 90, 158 );
         c[ ImFluentCol_AccentTextSecondary ]   = ImColor( 0, 78, 140 );
         c[ ImFluentCol_AccentTextTertiary ]    = ImColor( 0, 103, 192 );
         c[ ImFluentCol_AccentTextDisabled ]    = ImColor( 0, 0, 0, 92 );
 
-        c[ ImFluentCol_ControlFillDefault ]        = ImColor( 255, 255, 255, 178 );
+        c[ ImFluentCol_ControlFillDefault ]        = ImColor( 255, 255, 255, 179 );
         c[ ImFluentCol_ControlFillSecondary ]      = ImColor( 249, 249, 249, 128 );
         c[ ImFluentCol_ControlFillTertiary ]       = ImColor( 249, 249, 249, 77 );
-        c[ ImFluentCol_ControlFillQuarternary ]    = ImColor( 249, 249, 249, 194 );
-        c[ ImFluentCol_ControlFillDisabled ]       = ImColor( 243, 243, 243, 178 );
+        c[ ImFluentCol_ControlFillQuarternary ]    = ImColor( 243, 243, 243, 194 );
+        c[ ImFluentCol_ControlFillDisabled ]       = ImColor( 249, 249, 249, 77 );
         c[ ImFluentCol_ControlFillInputActive ]    = ImColor( 255, 255, 255 );
         c[ ImFluentCol_ControlAltFillTransparent ] = ImColor( 0, 0, 0, 0 );
         c[ ImFluentCol_ControlAltFillSecondary ]   = ImColor( 0, 0, 0, 6 );
         c[ ImFluentCol_ControlAltFillTertiary ]    = ImColor( 0, 0, 0, 15 );
-        c[ ImFluentCol_ControlAltFillQuarternary ] = ImColor( 0, 0, 0, 18 );
+        c[ ImFluentCol_ControlAltFillQuarternary ] = ImColor( 0, 0, 0, 24 );
         c[ ImFluentCol_ControlAltFillDisabled ]    = ImColor( 0, 0, 0, 0 );
         c[ ImFluentCol_ControlSolidFillDefault ]   = ImColor( 255, 255, 255 );
         c[ ImFluentCol_ControlStrongFillDefault ]  = ImColor( 0, 0, 0, 114 );
-        c[ ImFluentCol_ControlStrongFillDisabled ] = ImColor( 0, 0, 0, 82 );
+        c[ ImFluentCol_ControlStrongFillDisabled ] = ImColor( 0, 0, 0, 81 );
 
         c[ ImFluentCol_SubtleFillTransparent ] = ImColor( 0, 0, 0, 0 );
-        c[ ImFluentCol_SubtleFillSecondary ]   = ImColor( 0, 0, 0, 10 );
+        c[ ImFluentCol_SubtleFillSecondary ]   = ImColor( 0, 0, 0, 9 );
         c[ ImFluentCol_SubtleFillTertiary ]    = ImColor( 0, 0, 0, 6 );
         c[ ImFluentCol_SubtleFillDisabled ]    = ImColor( 0, 0, 0, 0 );
 
         c[ ImFluentCol_AccentFillDefault ]        = ImColor( 0, 103, 192 );
         c[ ImFluentCol_AccentFillSecondary ]      = ImColor( 0, 103, 192, 230 );
         c[ ImFluentCol_AccentFillTertiary ]       = ImColor( 0, 103, 192, 204 );
-        c[ ImFluentCol_AccentFillDisabled ]       = ImColor( 0, 0, 0, 56 );
+        c[ ImFluentCol_AccentFillDisabled ]       = ImColor( 0, 0, 0, 55 );
         c[ ImFluentCol_AccentFillSelectedTextBg ] = ImColor( 0, 103, 192 );
 
-        c[ ImFluentCol_CardBgDefault ]      = ImColor( 255, 255, 255, 178 );
+        c[ ImFluentCol_CardBgDefault ]      = ImColor( 255, 255, 255, 179 );
         c[ ImFluentCol_CardBgSecondary ]    = ImColor( 246, 246, 246, 128 );
         c[ ImFluentCol_LayerFillDefault ]   = ImColor( 255, 255, 255, 128 );
         c[ ImFluentCol_LayerFillAlt ]       = ImColor( 255, 255, 255 );
-        c[ ImFluentCol_SmokeFill ]          = ImColor( 0, 0, 0, 76 );
+        c[ ImFluentCol_SmokeFill ]          = ImColor( 0, 0, 0, 77 );
         c[ ImFluentCol_AcrylicFill ]        = ImColor( 252, 252, 252, 220 );
         c[ ImFluentCol_SolidBgBase ]        = ImColor( 243, 243, 243 );
         c[ ImFluentCol_SolidBgQuarternary ] = ImColor( 238, 238, 238 );
 
-        c[ ImFluentCol_CardStrokeDefault ]              = ImColor( 0, 0, 0, 18 );
+        c[ ImFluentCol_CardStrokeDefault ]              = ImColor( 0, 0, 0, 15 );
         c[ ImFluentCol_CardStrokeSolid ]                = ImColor( 235, 235, 235 );
         c[ ImFluentCol_ControlStrokeDefault ]           = ImColor( 0, 0, 0, 15 );
         c[ ImFluentCol_ControlStrokeSecondary ]         = ImColor( 0, 0, 0, 41 );
         c[ ImFluentCol_ControlStrokeOnAccentDefault ]   = ImColor( 255, 255, 255, 20 );
         c[ ImFluentCol_ControlStrokeOnAccentSecondary ] = ImColor( 0, 0, 0, 102 );
         c[ ImFluentCol_ControlStrongStrokeDefault ]     = ImColor( 0, 0, 0, 114 );
-        c[ ImFluentCol_ControlStrongStrokeDisabled ]    = ImColor( 0, 0, 0, 56 );
+        c[ ImFluentCol_ControlStrongStrokeDisabled ]    = ImColor( 0, 0, 0, 55 );
         c[ ImFluentCol_SurfaceStrokeDefault ]           = ImColor( 117, 117, 117, 102 );
-        c[ ImFluentCol_SurfaceStrokeFlyout ]            = ImColor( 0, 0, 0, 18 );
+        c[ ImFluentCol_SurfaceStrokeFlyout ]            = ImColor( 0, 0, 0, 15 );
         c[ ImFluentCol_DividerStrokeDefault ]           = ImColor( 0, 0, 0, 15 );
 
-        c[ ImFluentCol_FocusStrokeOuter ] = ImColor( 0, 0, 0 );
-        c[ ImFluentCol_FocusStrokeInner ] = ImColor( 255, 255, 255 );
+        c[ ImFluentCol_FocusStrokeOuter ] = ImColor( 0, 0, 0, 228 );
+        c[ ImFluentCol_FocusStrokeInner ] = ImColor( 255, 255, 255, 179 );
 
         c[ ImFluentCol_ElevationControlTop ]               = ImColor( 0, 0, 0, 15 );
         c[ ImFluentCol_ElevationControlBottom ]            = ImColor( 0, 0, 0, 41 );
@@ -520,7 +521,11 @@ namespace ImFluent
         c[ ImFluentCol_ElevationTextControlBottom ]        = ImColor( 0, 0, 0, 114 );
         c[ ImFluentCol_ElevationTextControlFocusedBottom ] = ImColor( 0, 103, 192 );
         c[ ImFluentCol_ElevationAccentTop ]                = ImColor( 255, 255, 255, 20 );
-        c[ ImFluentCol_ElevationAccentBottom ]             = ImColor( 0, 0, 0, 64 );
+        c[ ImFluentCol_ElevationAccentBottom ]             = ImColor( 0, 0, 0, 102 );
+        c[ ImFluentCol_SystemFillSuccess ]                 = ImColor( 15, 123, 15 );
+        c[ ImFluentCol_SystemFillCaution ]                 = ImColor( 157, 93, 0 );
+        c[ ImFluentCol_SystemFillCritical ]                = ImColor( 196, 43, 28 );
+        c[ ImFluentCol_SystemFillNeutral ]                 = ImColor( 0, 0, 0, 114 );
     }
 
     static void BuildHighContrastPalette( ImFluentStyle & s )
@@ -873,18 +878,38 @@ namespace ImFluent
         dl->AddRectFilled( ImVec2( a.x + t, a.y + t ), ImVec2( b.x - t, b.y - t ), col, ImMax( 0.f, rounding - t ), flags );
     }
 
-    static void RenderElevationBorder( ImDrawList * dl, const ImRect & bb, float rounding, ImU32 sides, ImU32 bottom, float bottom_thickness )
+    // The colour that, drawn over `under`, composites to `want` on any background (clamped where no colour can).
+    static ImU32 OverlayToComposite( ImU32 under, ImU32 want )
+    {
+        const float a_under = ( float )( ( under >> IM_COL32_A_SHIFT ) & 0xFF ) / 255.f;
+        const float a_want  = ( float )( ( want >> IM_COL32_A_SHIFT ) & 0xFF ) / 255.f;
+        const float a       = a_under < 1.f ? ImMax( 0.f, ( a_want - a_under ) / ( 1.f - a_under ) ) : 0.f;
+        if ( a <= 0.f )
+            return 0;
+        ImU32 out = ( ImU32 )( a * 255.f + 0.5f ) << IM_COL32_A_SHIFT;
+        for ( int shift : { IM_COL32_R_SHIFT, IM_COL32_G_SHIFT, IM_COL32_B_SHIFT } )
+        {
+            const float u = ( float )( ( under >> shift ) & 0xFF );
+            const float w = ( float )( ( want >> shift ) & 0xFF );
+            out |= ( ImU32 )ImClamp( ( w * a_want - u * a_under * ( 1.f - a ) ) / a + 0.5f, 0.f, 255.f ) << shift;
+        }
+        return out;
+    }
+
+    // WinUI's elevation border is one gradient brush: the side colour, with a 1 dp edge of another colour at the
+    // bottom (light theme, accent controls) or at the top (dark theme controls). Here the edge strip goes over the
+    // side stroke, in the colour that composites to the edge colour.
+    static void RenderElevationBorder( ImDrawList * dl, const ImRect & bb, float rounding, ImU32 sides, ImU32 top, ImU32 bottom, float edge_thickness )
     {
         StrokeRect( dl, bb.Min, bb.Max, sides, rounding );
 
-        // WinUI draws one gradient border, so the bottom edge shows only the elevation colour. Here the strip goes over
-        // the side stroke: lower its alpha so that the two composite to the elevation colour.
-        const float t       = ImMax( StrokeWidth(), IM_ROUND( FluentDpx( bottom_thickness > 0.f ? bottom_thickness : 1.f ) ) );
-        const float a_sides = ( float )( ( sides >> IM_COL32_A_SHIFT ) & 0xFF ) / 255.f;
-        const float a_want  = ( float )( ( bottom >> IM_COL32_A_SHIFT ) & 0xFF ) / 255.f;
-        const float a_strip = a_sides < 1.f ? ImMax( 0.f, ( a_want - a_sides ) / ( 1.f - a_sides ) ) : 0.f;
-        const ImU32 strip   = ( bottom & ~IM_COL32_A_MASK ) | ( ( ImU32 )( a_strip * 255.f + 0.5f ) << IM_COL32_A_SHIFT );
-        dl->AddRectFilled( ImVec2( bb.Min.x + rounding, bb.Max.y - t ), ImVec2( bb.Max.x - rounding, bb.Max.y ), strip );
+        const float t = ImMax( StrokeWidth(), IM_ROUND( FluentDpx( edge_thickness > 0.f ? edge_thickness : 1.f ) ) );
+        if ( top != sides )
+            if ( const ImU32 strip = OverlayToComposite( sides, top ) )
+                dl->AddRectFilled( ImVec2( bb.Min.x + rounding, bb.Min.y ), ImVec2( bb.Max.x - rounding, bb.Min.y + t ), strip );
+        if ( bottom != sides )
+            if ( const ImU32 strip = OverlayToComposite( sides, bottom ) )
+                dl->AddRectFilled( ImVec2( bb.Min.x + rounding, bb.Max.y - t ), ImVec2( bb.Max.x - rounding, bb.Max.y ), strip );
     }
 
     static void RenderElevationShadow( ImDrawList * dl, const ImRect & bb, float rounding, int layers )
@@ -1016,6 +1041,52 @@ namespace ImFluent
     {
         ImGui::PopStyleColor( 4 );
         ImGui::PopStyleVar( 2 );
+    }
+
+    // A text control's frame as WinUI draws it, around the ImGui text input submitted between Begin and End: the fill
+    // inside the border (by state), the 1 dp border and the 1 dp strong bottom edge (TextControlElevationBorderBrush).
+    // ImGui draws only the text: its frame fill is transparent and its border off, and the fill goes on a draw
+    // channel under the text.
+    static void BeginTextControlFrame( float h )
+    {
+        PushControlFrameStyle( h );
+        ImGui::PushStyleColor( ImGuiCol_FrameBg, IM_COL32( 0, 0, 0, 0 ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_FrameBorderSize, 0.f );
+        ImDrawList * dl = ImGui::GetWindowDrawList();
+        g_Ctx.TextFrameSplitter.Split( dl, 2 );
+        g_Ctx.TextFrameSplitter.SetCurrentChannel( dl, 1 );
+    }
+
+    static void EndTextControlFrame()
+    {
+        using namespace ImFluent;
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        ImDrawList * dl             = ImGui::GetWindowDrawList();
+        const ImRect bb             = ImGui::GetCurrentContext()->LastItemData.Rect;
+        const bool disabled         = IsCurrentItemDisabled();
+        const bool active           = ImGui::IsItemActive();
+        const float r               = FluentDpx( style.ControlCornerRadius );
+
+        ImFluentCol fill = ImFluentCol_ControlFillDefault;
+        if ( disabled )
+            fill = ImFluentCol_ControlFillDisabled;
+        else if ( active )
+            fill = ImFluentCol_ControlFillInputActive;
+        else if ( ImGui::IsItemHovered() )
+            fill = ImFluentCol_ControlFillSecondary;
+        g_Ctx.TextFrameSplitter.SetCurrentChannel( dl, 0 );
+        FillInsideBorder( dl, bb.Min, bb.Max, GetColorU32( fill ), r );
+        g_Ctx.TextFrameSplitter.Merge( dl );
+
+        const ImU32 stroke = GetColorU32( ImFluentCol_ControlStrokeDefault );
+        if ( disabled )
+            StrokeRect( dl, bb.Min, bb.Max, stroke, r );
+        else
+            RenderElevationBorder( dl, bb, r, stroke, GetColorU32( ImFluentCol_ElevationTextControlTop ), GetColorU32( ImFluentCol_ElevationTextControlBottom ), 1.f );
+
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
+        PopControlFrameStyle();
     }
 
     static void PushOverlayWindowStyle( float padding_x, float padding_y )
@@ -1550,7 +1621,7 @@ namespace ImFluent
         RenderChevronLerp( dl, cx, cy, L, t, col, th );
     }
 
-    static bool ButtonExStyled( const char * label, const ImVec2 & size_arg, ImU32 fillRest, ImU32 fillHover, ImU32 fillPress, ImU32 fillDisabled, ImU32 textCol, ImU32 textDisabled, ImU32 stroke, ImU32 strokeBottom, ImGuiButtonFlags flags )
+    static bool ButtonExStyled( const char * label, const ImVec2 & size_arg, ImU32 fillRest, ImU32 fillHover, ImU32 fillPress, ImU32 fillDisabled, ImU32 textCol, ImU32 textDisabled, ImU32 stroke, ImU32 strokeTop, ImU32 strokeBottom, ImGuiButtonFlags flags )
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems )
@@ -1589,7 +1660,7 @@ namespace ImFluent
 
         FillInsideBorder( dl, bb.Min, bb.Max, fillAnim, r );
         if ( !held && !disabled )
-            RenderElevationBorder( dl, bb, r, stroke, strokeBottom, 1.f );
+            RenderElevationBorder( dl, bb, r, stroke, strokeTop, strokeBottom, 1.f );
         else
             ImFluent::StrokeRect( dl, bb.Min, bb.Max, stroke, r );
 
@@ -2069,14 +2140,14 @@ bool ImFluent::Button( const char * label, const ImVec2 & size )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
     return ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ), ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ), ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ), ImFluent::GetColorU32( ImFluentCol_ControlFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::GetColorU32( ImFluentCol_TextDisabled ),
-        ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
+        ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlTop ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
 }
 
 bool ImFluent::AccentButton( const char * label, const ImVec2 & size )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
     return ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), ImFluent::GetColorU32( ImFluentCol_AccentFillSecondary ), ImFluent::GetColorU32( ImFluentCol_AccentFillTertiary ), ImFluent::GetColorU32( ImFluentCol_AccentFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), ImFluent::GetColorU32( ImFluentCol_TextOnAccentDisabled ),
-        ImFluent::GetColorU32( ImFluentCol_ControlStrokeOnAccentDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentBottom ), ImGuiButtonFlags_None );
+        ImFluent::GetColorU32( ImFluentCol_ControlStrokeOnAccentDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentTop ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentBottom ), ImGuiButtonFlags_None );
 }
 
 bool ImFluent::RepeatButton( const char * label, const ImVec2 & size )
@@ -2084,7 +2155,7 @@ bool ImFluent::RepeatButton( const char * label, const ImVec2 & size )
     const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushItemFlag( ImGuiItemFlags_ButtonRepeat, true );
     const bool pressed = ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ), ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ), ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ), ImFluent::GetColorU32( ImFluentCol_ControlFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::GetColorU32( ImFluentCol_TextDisabled ),
-        ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
+        ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlTop ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
     ImGui::PopItemFlag();
     return pressed;
 }
@@ -2124,12 +2195,12 @@ bool ImFluent::ToggleButton( const char * label, bool * v, const ImVec2 & size )
     if ( v && *v )
     {
         pressed = ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), ImFluent::GetColorU32( ImFluentCol_AccentFillSecondary ), ImFluent::GetColorU32( ImFluentCol_AccentFillTertiary ), ImFluent::GetColorU32( ImFluentCol_AccentFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), ImFluent::GetColorU32( ImFluentCol_TextOnAccentDisabled ),
-            ImFluent::GetColorU32( ImFluentCol_ControlStrokeOnAccentDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentBottom ), ImGuiButtonFlags_None );
+            ImFluent::GetColorU32( ImFluentCol_ControlStrokeOnAccentDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentTop ), ImFluent::GetColorU32( ImFluentCol_ElevationAccentBottom ), ImGuiButtonFlags_None );
     }
     else
     {
         pressed = ButtonExStyled( label, size, ImFluent::GetColorU32( ImFluentCol_ControlFillDefault ), ImFluent::GetColorU32( ImFluentCol_ControlFillSecondary ), ImFluent::GetColorU32( ImFluentCol_ControlFillTertiary ), ImFluent::GetColorU32( ImFluentCol_ControlFillDisabled ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluent::GetColorU32( ImFluentCol_TextDisabled ),
-            ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
+            ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlTop ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), ImGuiButtonFlags_None );
     }
     if ( pressed && v )
         *v = !*v;
@@ -2173,7 +2244,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
     const bool disabled = ImFluent::IsCurrentItemDisabled();
     ReportItemInfo( id_main, label, ( split && v_state ) ? CheckedFlags( toggled ) : 0 );
 
-    ImU32 fillRest, fillHover, fillPress, fillDisabled, textCol, textDisabled, strokeCol, strokeBottom;
+    ImU32 fillRest, fillHover, fillPress, fillDisabled, textCol, textDisabled, strokeCol, strokeTop, strokeBottom;
     if ( toggled )
     {
         fillRest     = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
@@ -2183,6 +2254,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
         textCol      = ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary );
         textDisabled = ImFluent::GetColorU32( ImFluentCol_TextOnAccentDisabled );
         strokeCol    = ImFluent::GetColorU32( ImFluentCol_ControlStrokeOnAccentDefault );
+        strokeTop    = ImFluent::GetColorU32( ImFluentCol_ElevationAccentTop );
         strokeBottom = ImFluent::GetColorU32( ImFluentCol_ElevationAccentBottom );
     }
     else
@@ -2194,6 +2266,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
         textCol      = ImFluent::GetColorU32( ImFluentCol_TextPrimary );
         textDisabled = ImFluent::GetColorU32( ImFluentCol_TextDisabled );
         strokeCol    = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
+        strokeTop    = ImFluent::GetColorU32( ImFluentCol_ElevationControlTop );
         strokeBottom = ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom );
     }
 
@@ -2222,7 +2295,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
         dl->AddRectFilled( ImVec2( bb_chev.Min.x, bb_chev.Min.y + sw ), ImVec2( bb_chev.Max.x - sw, bb_chev.Max.y - sw ), chevAnim, r - sw, ImDrawFlags_RoundCornersRight );
         dl->AddLine( ImVec2( bb_main.Max.x, bb_main.Min.y + FluentDpx( style.SpacingMedium ) ), ImVec2( bb_main.Max.x, bb_main.Max.y - FluentDpx( style.SpacingMedium ) ), ImFluent::GetColorU32( ImFluentCol_DividerStrokeDefault ), 1.f );
         if ( !disabled )
-            RenderElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
+            RenderElevationBorder( dl, bb_total, r, strokeCol, strokeTop, strokeBottom, 1.f );
         else
             ImFluent::StrokeRect( dl, bb_total.Min, bb_total.Max, strokeCol, r );
     }
@@ -2230,7 +2303,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
     {
         FillInsideBorder( dl, bb_total.Min, bb_total.Max, mainAnim, r );
         if ( !main_held && !disabled )
-            RenderElevationBorder( dl, bb_total, r, strokeCol, strokeBottom, 1.f );
+            RenderElevationBorder( dl, bb_total, r, strokeCol, strokeTop, strokeBottom, 1.f );
         else
             ImFluent::StrokeRect( dl, bb_total.Min, bb_total.Max, strokeCol, r );
     }
@@ -3296,7 +3369,7 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
     RenderAndConsumePendingHeader();
 
     const ImFluentStyle & style = ImFluent::GetStyle();
-    PushControlFrameStyle( FluentDpx( style.ControlHeight ) );
+    BeginTextControlFrame( FluentDpx( style.ControlHeight ) );
 
     const ImGuiID input_id_predicted = ImGui::GetID( label );
     ImGuiStorage * storage           = ImGui::GetStateStorage();
@@ -3331,7 +3404,7 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
     if ( chain.ClearPending )
         storage->SetBool( clear_pending_key, true );
 
-    PopControlFrameStyle();
+    EndTextControlFrame();
 
     // Snapshot the InputText's LastItemData so caller-side IsItem*() queries keep
     // working — the clear button's ItemAdd, the counter's TextUnformatted, and the
@@ -3474,10 +3547,10 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     void * cb_user;
     PrepareTextInputCallback( buf, /*max_length*/ 0, /*clear_pending*/ false, fl, chain, cb, cb_user );
 
-    PushControlFrameStyle( h );
+    BeginTextControlFrame( h );
     TextInputEscapeKeepsText( pw_id );
     const bool changed = hint ? ImGui::InputTextWithHint( label, hint, buf, buf_size, fl, cb, cb_user ) : ImGui::InputText( label, buf, buf_size, fl, cb, cb_user );
-    PopControlFrameStyle();
+    EndTextControlFrame();
 
     const bool input_active = ImGui::IsItemActive();
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
@@ -3535,12 +3608,12 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
     const ImFluentStyle & style = ImFluent::GetStyle();
     const float h               = FluentDpx( style.ControlHeight );
 
-    PushControlFrameStyle( h );
+    BeginTextControlFrame( h );
 
     ImGui::SetNextItemAllowOverlap();
 
     bool changed = ImGui::InputDouble( label, v, 0.0, 0.0, format, flags );
-    PopControlFrameStyle();
+    EndTextControlFrame();
 
     const bool input_active = ImGui::IsItemActive();
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
@@ -3648,10 +3721,10 @@ bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, con
     void * cb_user;
     PrepareTextInputCallback( buf, max_length, /*clear_pending*/ false, flags, chain, cb, cb_user );
 
-    PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
+    BeginTextControlFrame( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
     TextInputEscapeKeepsText( ImGui::GetID( label ) );
     const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags, cb, cb_user );
-    PopControlFrameStyle();
+    EndTextControlFrame();
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     RenderAndConsumePendingDescription();
     RenderAndConsumePendingError( input_rect );
@@ -3987,11 +4060,14 @@ bool ImFluent::BeginCard( const char * id, const ImVec2 & size, ImFluentCardStyl
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
     ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 0.f );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.CardPadding ), FluentDpx( style.CardPadding ) ) );
-    const bool open = ImGui::BeginChild( id, size, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened );
-    // The border on whole pixels (ImGui's child border straddles half pixels and blurs at 150%).
+    const bool open   = ImGui::BeginChild( id, size, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground );
+    // The fill inside the border and the border on whole pixels (ImGui's child border straddles half pixels and
+    // blurs at 150%): the border then blends with the page, as WinUI's does.
     ImGuiWindow * w = ImGui::GetCurrentWindow();
-    w->DrawList->PushClipRect( w->Rect().Min, w->Rect().Max, false );
-    StrokeRect( w->DrawList, w->Pos, ImVec2( w->Pos.x + w->Size.x, w->Pos.y + w->Size.y ), stroke, FluentDpx( style.OverlayCornerRadius ) );
+    const ImRect rect = w->Rect();
+    w->DrawList->PushClipRect( rect.Min, rect.Max, false );
+    FillInsideBorder( w->DrawList, rect.Min, rect.Max, bg, FluentDpx( style.OverlayCornerRadius ) );
+    StrokeRect( w->DrawList, rect.Min, rect.Max, stroke, FluentDpx( style.OverlayCornerRadius ) );
     w->DrawList->PopClipRect();
     return open;
 }
@@ -4162,7 +4238,7 @@ static bool ExpanderHeader( const char * label, bool * open, ImFluentExpandDirec
     fill            = ImFluent::AnimateColorU32( id, fill );
     ImDrawList * dl = w->DrawList;
     ImFluent::FillInsideBorder( dl, bb.Min, bb.Max, fill, r );
-    ImFluent::RenderElevationBorder( dl, bb, r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
+    ImFluent::RenderElevationBorder( dl, bb, r, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlTop ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
 
     const float closed_phase = ( dir == ImFluentExpandDirection_Up ) ? 1.f : 0.f;
     const float open_phase   = ( dir == ImFluentExpandDirection_Up ) ? 0.f : 1.f;
@@ -4639,6 +4715,13 @@ static void RenderNavGlyph( ImDrawList * dl, float x, const ImRect & row, const 
     dl->AddText( ImGui::GetFont(), size, ImVec2( x, ( row.Min.y + row.Max.y - size ) * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
 }
 
+// The hover/selection fill of a pane item row: 4 dp in from each side of the pane, as WinUI's item presenter.
+static ImRect NavItemPillRect( const ImRect & row )
+{
+    const float m = ImFluent::FluentDpx( ImFluent::GetStyle().SpacingSmall );
+    return ImRect( row.Min.x + m, row.Min.y, row.Max.x - m, row.Max.y );
+}
+
 // Menu items of a NavigationView form one tab-stop group; footer items (Settings) and items outside a
 // NavigationView are ordinary tab stops.
 static ImGuiItemFlags NavMenuItemFlags( ImGuiID id, bool selected )
@@ -4720,7 +4803,8 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
     fillTarget           = ResolveSubtleFillState( selected, held, hovered );
     const ImU32 fillAnim = AnimateColorU32( id, fillTarget );
     ImDrawList * dl      = w->DrawList;
-    dl->AddRectFilled( bb.Min, bb.Max, fillAnim, r );
+    const ImRect pill    = NavItemPillRect( bb );
+    dl->AddRectFilled( pill.Min, pill.Max, fillAnim, r );
     if ( selected )
     {
         const float bx = bb.Min.x + indent_x + FluentDpx( style.SpacingSmall );
@@ -4735,7 +4819,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
         RenderNavGlyph( dl, icon_x, bb, glyph );
     if ( g_Ctx.NavView.CurrentWidth > FluentDpx( style.AppBarButtonWidth ) )
         dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
-    RenderNavFocusRing( id, bb, r );
+    RenderNavFocusRing( id, pill, r );
     return pressed;
 }
 
@@ -4787,7 +4871,8 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     ImU32 fillTarget     = ImFluent::ResolveSubtleFillState( selected, held, hovered );
     const ImU32 fillAnim = ImFluent::AnimateColorU32( id, fillTarget );
     ImDrawList * dl      = w->DrawList;
-    dl->AddRectFilled( bb.Min, bb.Max, fillAnim, r );
+    const ImRect pill    = NavItemPillRect( bb );
+    dl->AddRectFilled( pill.Min, pill.Max, fillAnim, r );
 
     if ( selected )
     {
@@ -4816,7 +4901,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     }
 
     if ( ImFluent::IsItemFocused( id ) )
-        ImFluent::RenderNavFocusRing( bb, r );
+        ImFluent::RenderNavFocusRing( pill, r );
 
     if ( expanded )
     {
@@ -5303,9 +5388,10 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     FillInsideBorder( dl, bb.Min, bb.Max, fill, r );
 
     const ImU32 stroke     = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
+    const ImU32 stroke_top = ImFluent::GetColorU32( ImFluentCol_ElevationControlTop );
     const ImU32 stroke_bot = ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom );
     if ( !held && !popup_open && !disabled )
-        RenderElevationBorder( dl, bb, r, stroke, stroke_bot, 1.f );
+        RenderElevationBorder( dl, bb, r, stroke, stroke_top, stroke_bot, 1.f );
     else
         ImFluent::StrokeRect( dl, bb.Min, bb.Max, stroke, r );
 
@@ -6567,7 +6653,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         const ImU32 fill_target = ResolveControlFillState( false, aheld, ahov );
         const float r_btn       = FluentDpx( style.ControlCornerRadius );
         FillInsideBorder( dl, btn_bb.Min, btn_bb.Max, ImFluent::AnimateColorU32( aid, fill_target ), r_btn );
-        RenderElevationBorder( dl, btn_bb, r_btn, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
+        RenderElevationBorder( dl, btn_bb, r_btn, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), ImFluent::GetColorU32( ImFluentCol_ElevationControlTop ), ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom ), 1.f );
         const float ax = btn_bb.Min.x + ( btn_bb.GetWidth() - action_text_sz.x ) * 0.5f;
         const float ay = btn_bb.Min.y + ( btn_bb.GetHeight() - action_text_sz.y ) * 0.5f;
         dl->AddText( ImVec2( ax, ay ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), action_label );
@@ -7653,9 +7739,10 @@ namespace ImFluent
         ImFluent::FillInsideBorder( dl, bb.Min, bb.Max, fill, r );
 
         const ImU32 stroke     = ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault );
+        const ImU32 stroke_top = ImFluent::GetColorU32( ImFluentCol_ElevationControlTop );
         const ImU32 stroke_bot = ImFluent::GetColorU32( ImFluentCol_ElevationControlBottom );
         if ( !held && !open && !disabled )
-            ImFluent::RenderElevationBorder( dl, bb, r, stroke, stroke_bot, 1.f );
+            ImFluent::RenderElevationBorder( dl, bb, r, stroke, stroke_top, stroke_bot, 1.f );
         else
             ImFluent::StrokeRect( dl, bb.Min, bb.Max, stroke, r );
     }
