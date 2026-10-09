@@ -230,6 +230,7 @@ struct ImFluentContext
     };
     ImVector< MenuBarState > MenuBarStack;
     bool InRadioButtons;                 // RadioButtons() moves focus itself: its items are not loose radio buttons
+    float TabCloseButtonMinWidthBackup = 0.f; // ImGuiStyle value BeginTabView() replaces until EndTabView()
     ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
     ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
 
@@ -2630,18 +2631,21 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
     }
     const float v        = value ? *value : 0.f;
     ImDrawList * dl      = w->DrawList;
-    const ImU32 trackCol = ImFluent::GetColorU32( ImFluentCol_ControlStrongStrokeDefault );
+    const ImU32 trackCol = ImFluent::GetColorU32( ImFluentCol_TextSecondary );
     const ImU32 fillCol  = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
+    // WinUI RatingControl: the Segoe star glyphs, an outline for unset items and a filled star (cut for half values)
+    // for the value.
+    ImFont * font        = ImGui::GetFont();
     for ( int i = 0; i < max_stars; ++i )
     {
-        const ImVec2 c( pos.x + i * ( star + gap ) + star * 0.5f, pos.y + star * 0.5f );
+        const ImVec2 p( pos.x + i * ( star + gap ), pos.y );
         const float fill = ImClamp( v - ( float )i, 0.f, 1.f );
-
-        dl->AddNgon( c, star * 0.45f, trackCol, 5, 1.5f );
+        if ( fill < 1.f )
+            dl->AddText( font, star, p, trackCol, ImFluentIcon_FavoriteStar );
         if ( fill > 0.f )
         {
-            dl->PushClipRect( ImVec2( c.x - star * 0.5f, c.y - star * 0.5f ), ImVec2( c.x - star * 0.5f + star * fill, c.y + star * 0.5f ), true );
-            dl->AddNgonFilled( c, star * 0.45f, fillCol, 5 );
+            dl->PushClipRect( p, ImVec2( p.x + star * fill, p.y + star ), true );
+            dl->AddText( font, star, p, fillCol, ImFluentIcon_FavoriteStarFill );
             dl->PopClipRect();
         }
     }
@@ -4251,6 +4255,13 @@ void ImFluent::EndScrollView()
 
 // [SECTION] TabView
 
+// Tab and tab bar height (32) for the calls that lay out tabs; the tab content keeps the regular frame padding.
+static void PushTabFramePadding()
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2( ImFluent::FluentDpx( style.SpacingLarge ), ImMax( 0.f, ( ImFluent::FluentDpx( style.ControlHeight ) - ImGui::GetFontSize() ) * 0.5f ) ) );
+}
+
 bool ImFluent::BeginTabView( const char * id )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
@@ -4259,13 +4270,21 @@ bool ImFluent::BeginTabView( const char * id )
     ImGui::PushStyleColor( ImGuiCol_TabSelected, ImFluent::GetColorU32( ImFluentCol_LayerFillAlt ) );
     ImGui::PushStyleColor( ImGuiCol_TabDimmed, ImFluent::GetColorU32( ImFluentCol_SubtleFillTransparent ) );
     ImGui::PushStyleColor( ImGuiCol_TabDimmedSelected, ImFluent::GetColorU32( ImFluentCol_LayerFillAlt ) );
-    ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, FluentDpx( style.ControlCornerRadius ) );
-    if ( ImGui::BeginTabBar( id, ImGuiTabBarFlags_None ) )
+    // WinUI TabView: 32 high tabs with 8 rounded top corners, no overline, close buttons on every tab.
+    ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, FluentDpx( style.OverlayCornerRadius ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_TabBarOverlineSize, 0.f );
+    g_Ctx.TabCloseButtonMinWidthBackup                 = ImGui::GetStyle().TabCloseButtonMinWidthUnselected;
+    ImGui::GetStyle().TabCloseButtonMinWidthUnselected = -1.f;
+    PushTabFramePadding();
+    const bool open = ImGui::BeginTabBar( id, ImGuiTabBarFlags_None );
+    ImGui::PopStyleVar();
+    if ( open )
     {
         BeginTabGroup( ImGui::GetCurrentContext()->CurrentTabBar->ID, ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_Wrap | ImFluentTabGroupFlags_HomeEnd );
         return true;
     }
-    ImGui::PopStyleVar();
+    ImGui::GetStyle().TabCloseButtonMinWidthUnselected = g_Ctx.TabCloseButtonMinWidthBackup;
+    ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor( 5 );
     return false;
 }
@@ -4282,10 +4301,33 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
     // WinUI TabView: the tab strip is one tab stop on the selected tab; Left/Right move along the tabs and wrap,
     // Home/End go to the first/last tab (focus only: Space/Enter select); Up/Down do not leave the strip.
     const ImGuiID tab_id   = ImGui::GetID( label );
-    const bool is_selected = g.CurrentTabBar && g.CurrentTabBar->SelectedTabId == tab_id;
+    ImGuiTabBar * tab_bar  = g.CurrentTabBar;
+    const bool is_selected = tab_bar && tab_bar->SelectedTabId == tab_id;
+    // WinUI TabView look: equal-width tabs (100 to 240), secondary text on the unselected ones, and a divider
+    // between two unselected tabs.
+    if ( tab_bar && tab_bar->Tabs.Size > 0 )
+        ImGui::SetNextItemWidth( ImClamp( tab_bar->BarRect.GetWidth() / ( float )tab_bar->Tabs.Size, FluentDpx( 100.f ), FluentDpx( 240.f ) ) );
+    if ( !is_selected )
+        ImGui::PushStyleColor( ImGuiCol_Text, ImFluent::GetColorU32( ImFluentCol_TextSecondary ) );
     ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( tab_id, is_selected ) != ImGuiItemFlags_None );
+    PushTabFramePadding();
     const bool open = ImGui::BeginTabItem( label, p_open, flags );
+    ImGui::PopStyleVar();
     ImGui::PopItemFlag();
+    if ( !is_selected )
+        ImGui::PopStyleColor();
+    if ( tab_bar && !is_selected )
+    {
+        const int index = tab_bar->Tabs.index_from_ptr( ImGui::TabBarFindTabByID( tab_bar, tab_id ) );
+        if ( index >= 0 && index + 1 < tab_bar->Tabs.Size && tab_bar->Tabs[ index + 1 ].ID != tab_bar->SelectedTabId )
+        {
+            const ImRect r = g.LastItemData.Rect;
+            const float x  = r.Max.x + ImGui::GetStyle().ItemInnerSpacing.x * 0.5f;
+            const float h  = FluentDpx( 16.f );
+            const float cy = ( r.Min.y + r.Max.y ) * 0.5f;
+            ImGui::GetWindowDrawList()->AddLine( ImVec2( x, cy - h * 0.5f ), ImVec2( x, cy + h * 0.5f ), ImFluent::GetColorU32( ImFluentCol_DividerStrokeDefault ) );
+        }
+    }
     TabGroupItemNav( tab_id );
     if ( p_open )
         ReportItemInfo( ImHashStr( "#CLOSE", 0, tab_id ), "Close tab" ); // ImGui's tab close button (TabItemEx)
@@ -4300,7 +4342,9 @@ void ImFluent::EndTabItem()
 
 bool ImFluent::TabAddButton()
 {
+    PushTabFramePadding();
     const bool pressed = ImGui::TabItemButton( ImFluentIcon_Add, ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip );
+    ImGui::PopStyleVar();
     ReportItemInfo( ImGui::GetItemID(), "Add tab" );
     return pressed;
 }
@@ -4348,7 +4392,8 @@ void ImFluent::EndTabView()
     }
     EndTabGroup();
     ImGui::EndTabBar();
-    ImGui::PopStyleVar();
+    ImGui::GetStyle().TabCloseButtonMinWidthUnselected = g_Ctx.TabCloseButtonMinWidthBackup;
+    ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor( 5 );
 }
 
@@ -5985,6 +6030,12 @@ int ImFluent::BreadcrumbBar( const char * id, const char * const items[], int it
     // WinUI BreadcrumbBar: one tab stop that enters on the first item; Left/Right move by index and stop at the
     // ends; Space/Enter raise the click, also on the last (current) item.
     BeginTabGroup( ImGui::GetID( "##crumbs" ), ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_FirstIsStop );
+    // WinUI look: every item is plain primary text (the current one too), separated by a small chevron.
+    ImGuiWindow * w             = ImGui::GetCurrentWindow();
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const float pad_y           = FluentDpx( style.SpacingXSmall );
+    const float gap             = FluentDpx( style.SpacingMedium );
+    const float chevron         = FluentDpx( 12.f );
     for ( int i = 0; i < items_count; ++i )
     {
         if ( !items[ i ] )
@@ -5993,40 +6044,28 @@ int ImFluent::BreadcrumbBar( const char * id, const char * const items[], int it
         ImFluentStackGuard item_g;
         item_g.PushID( i );
         const ImGuiID item_id = ImGui::GetID( items[ i ] );
-        if ( last )
+        const ImVec2 ts       = ImGui::CalcTextSize( items[ i ], NULL, true );
+        const ImVec2 pos      = w->DC.CursorPos;
+        const ImRect bb( pos, ImVec2( pos.x + ts.x, pos.y + ts.y + pad_y * 2.f ) );
+        ImGui::ItemSize( bb );
+        if ( ImGui::ItemAdd( bb, item_id, NULL, TabGroupItemFlags( item_id, false ) ) )
         {
-            ImGuiWindow * w             = ImGui::GetCurrentWindow();
-            const ImFluentStyle & style = ImFluent::GetStyle();
-            ImFluent::PushFont( ImFluentTextStyle_BodyStrong );
-            const ImVec2 ts   = ImGui::CalcTextSize( items[ i ], NULL, true );
-            const float pad_y = FluentDpx( style.SpacingXSmall );
-            const ImVec2 pos  = w->DC.CursorPos;
-            const ImRect bb( pos, ImVec2( pos.x + ts.x, pos.y + ts.y + pad_y * 2.f ) );
-            ImGui::ItemSize( bb );
-            if ( ImGui::ItemAdd( bb, item_id, NULL, TabGroupItemFlags( item_id, false ) ) )
-            {
-                bool hov = false, held = false;
-                if ( ImGui::ButtonBehavior( bb, item_id, &hov, &held ) )
-                    clicked = i;
-                TabGroupItemNav( item_id );
-                ReportItemInfo( item_id, items[ i ] );
-                w->DrawList->AddText( ImVec2( bb.Min.x, bb.Min.y + pad_y ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), items[ i ], ImGui::FindRenderedTextEnd( items[ i ] ) );
-                RenderNavFocusRing( item_id, bb, FluentDpx( style.ControlCornerRadius ) );
-            }
-            ImFluent::PopFont();
-        }
-        else
-        {
-            ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( item_id, false ) != ImGuiItemFlags_None );
-            if ( ImFluent::HyperlinkButton( items[ i ] ) )
+            bool hov = false, held = false;
+            if ( ImGui::ButtonBehavior( bb, item_id, &hov, &held ) )
                 clicked = i;
-            ImGui::PopItemFlag();
             TabGroupItemNav( item_id );
-            ImGui::SameLine();
-            item_g.PushStyleColor( ImGuiCol_Text, ImFluent::GetColorU32( ImFluentCol_TextSecondary ) );
-            ImGui::TextUnformatted( " / " );
-            item_g.Restore();
-            ImGui::SameLine();
+            ReportItemInfo( item_id, items[ i ] );
+            const ImU32 col = ImFluent::GetColorU32( held ? ImFluentCol_TextTertiary : hov ? ImFluentCol_TextSecondary : ImFluentCol_TextPrimary );
+            w->DrawList->AddText( ImVec2( bb.Min.x, bb.Min.y + pad_y ), col, items[ i ], ImGui::FindRenderedTextEnd( items[ i ] ) );
+            RenderNavFocusRing( item_id, bb, FluentDpx( style.ControlCornerRadius ) );
+        }
+        if ( !last )
+        {
+            ImGui::SameLine( 0.f, gap );
+            const ImVec2 cp = w->DC.CursorPos;
+            w->DrawList->AddText( ImGui::GetFont(), chevron, ImVec2( cp.x, cp.y + ( bb.GetHeight() - chevron ) * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), ImFluentIcon_ChevronRight );
+            ImGui::Dummy( ImVec2( chevron, bb.GetHeight() ) );
+            ImGui::SameLine( 0.f, gap );
         }
     }
     EndTabGroup();
