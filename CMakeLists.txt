@@ -45,10 +45,22 @@ set_target_properties(ImFluent PROPERTIES
 if (VCPKG_MANIFEST_FEATURES MATCHES "examples")
     add_executable(ImFluentGallery src/main.cpp)
     target_link_libraries(ImFluentGallery PRIVATE ImFluent)
+    # Mica backdrop hooks per platform (src/backends/imfluent_backdrop_*.cpp).
     if (WIN32)
-        # Mica backdrop hooks: wallpaper (IDesktopWallpaper + WIC), window and monitor rects, DWM system backdrop.
         target_sources(ImFluentGallery PRIVATE src/backends/imfluent_backdrop_win32.cpp src/backends/imfluent_backdrop_win32.h)
         target_link_libraries(ImFluentGallery PRIVATE ole32 windowscodecs dwmapi)
+    elseif (APPLE)
+        enable_language(OBJCXX)
+        target_sources(ImFluentGallery PRIVATE src/backends/imfluent_backdrop_osx.mm src/backends/imfluent_backdrop_osx.h)
+        target_link_libraries(ImFluentGallery PRIVATE "-framework AppKit" "-framework ImageIO" "-framework CoreGraphics")
+    else()
+        find_package(Stb REQUIRED)
+        target_sources(ImFluentGallery PRIVATE
+            src/backends/imfluent_backdrop_linux.cpp src/backends/imfluent_backdrop_linux.h
+            src/backends/imfluent_backdrop_sdl3.cpp src/backends/imfluent_backdrop_sdl3.h
+        )
+        target_include_directories(ImFluentGallery PRIVATE ${Stb_INCLUDE_DIR})
+        target_compile_definitions(ImFluentGallery PRIVATE IMFLUENT_BACKDROP_STB_IMAGE=1)
     endif()
 
     # Automation: Dear ImGui Test Engine regression tests + an MCP server (see src/automation).

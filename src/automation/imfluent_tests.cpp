@@ -1931,4 +1931,29 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         ImFluent::SetThemePreset( preset );
         hooks = backup;
     };
+
+    // The wallpaper placement every backend uses, on a 1920x1080 monitor.
+    t           = IM_REGISTER_TEST( engine, "api", "place_wallpaper" );
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        auto near = []( const ImVec2 & a, float x, float y )
+        {
+            return ImAbs( a.x - x ) < 1e-4f && ImAbs( a.y - y ) < 1e-4f;
+        };
+        const ImVec4 monitor( 0.f, 0.f, 1920.f, 1080.f );
+        ImFluentWallpaper wp;
+        ImFluent::PlaceWallpaper( &wp, ImFluentWallpaperFit_Fill, 1000.f, 1000.f, monitor, monitor ); // Crops top and bottom
+        IM_CHECK( near( wp.UV0, 0.f, 0.21875f ) && near( wp.UV1, 1.f, 0.78125f ) );
+        ImFluent::PlaceWallpaper( &wp, ImFluentWallpaperFit_Fit, 1000.f, 1000.f, monitor, monitor ); // Letterboxed left and right
+        IM_CHECK( near( wp.UV0, -420.f / 1080.f, 0.f ) && near( wp.UV1, 1500.f / 1080.f, 1.f ) );
+        ImFluent::PlaceWallpaper( &wp, ImFluentWallpaperFit_Center, 960.f, 540.f, monitor, monitor );
+        IM_CHECK( near( wp.UV0, -0.5f, -0.5f ) && near( wp.UV1, 1.5f, 1.5f ) );
+        ImFluent::PlaceWallpaper( &wp, ImFluentWallpaperFit_Tile, 960.f, 540.f, monitor, monitor );
+        IM_CHECK( wp.Repeat && near( wp.UV0, 0.f, 0.f ) && near( wp.UV1, 2.f, 2.f ) );
+        ImFluent::PlaceWallpaper( &wp, ImFluentWallpaperFit_Stretch, 100.f, 300.f, monitor, monitor );
+        IM_CHECK( !wp.Repeat && near( wp.UV0, 0.f, 0.f ) && near( wp.UV1, 1.f, 1.f ) );
+        const ImVec4 right( 1920.f, 0.f, 3840.f, 1080.f ), desktop( 0.f, 0.f, 3840.f, 1080.f ); // Right half of a span
+        ImFluent::PlaceWallpaper( &wp, ImFluentWallpaperFit_Span, 3840.f, 1080.f, right, desktop );
+        IM_CHECK( near( wp.UV0, 0.5f, 0.f ) && near( wp.UV1, 1.f, 1.f ) );
+    };
 }

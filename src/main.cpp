@@ -6,6 +6,11 @@
 #include "imfluent.h"
 #if defined( _WIN32 )
 #include "backends/imfluent_backdrop_win32.h"
+#elif defined( __APPLE__ )
+#include "backends/imfluent_backdrop_osx.h"
+#else
+#include "backends/imfluent_backdrop_linux.h"
+#include "backends/imfluent_backdrop_sdl3.h"
 #endif
 
 #include <SDL3/SDL.h>
@@ -186,6 +191,11 @@ int main( int argc, char ** argv )
     // --backdrop mica | mica-alt. The SDL_GPU swapchain is opaque: no OS backdrop.
 #if defined( _WIN32 )
     ImFluent_ImplWin32_InstallBackdropHooks( false );
+#elif defined( __APPLE__ )
+    ImFluent_ImplOSX_InstallBackdropHooks( false );
+#else
+    ImFluent_ImplLinux_InstallBackdropHooks();
+    ImFluent_ImplSDL3_InstallBackdropScreenRects();
 #endif
     if ( const char * backdrop = ArgValue( argc, argv, "--backdrop", nullptr ) )
         ImFluent::SetBackdrop( strcmp( backdrop, "mica-alt" ) == 0 ? ImFluentBackdrop_MicaAlt : strcmp( backdrop, "mica" ) == 0 ? ImFluentBackdrop_Mica : ImFluentBackdrop_None );
@@ -331,6 +341,10 @@ int main( int argc, char ** argv )
     SDL_WaitForGPUIdle( gpu_device );
 #if defined( _WIN32 )
     ImFluent_ImplWin32_UninstallBackdropHooks();
+#elif defined( __APPLE__ )
+    ImFluent_ImplOSX_UninstallBackdropHooks();
+#else
+    ImFluent_ImplLinux_UninstallBackdropHooks();
 #endif
     ImGui_ImplSDL3_Shutdown();
     ImGui_ImplSDLGPU3_Shutdown();

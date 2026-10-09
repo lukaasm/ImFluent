@@ -139,40 +139,31 @@ namespace
 
     void PlaceWallpaper( const Win32BackdropState & st, ImFluentWallpaper * out )
     {
-        const double iw = st.ImageW, ih = st.ImageH;
-        double mx = st.Monitor.left, my = st.Monitor.top;
-        double mw = st.Monitor.right - st.Monitor.left, mh = st.Monitor.bottom - st.Monitor.top;
-        double area_x = mx, area_y = my, area_w = mw, area_h = mh;
-        if ( st.Position == DWPOS_SPAN )
+        ImFluentWallpaperFit fit = ImFluentWallpaperFit_Fill;
+        switch ( st.Position )
         {
-            area_x = GetSystemMetrics( SM_XVIRTUALSCREEN );
-            area_y = GetSystemMetrics( SM_YVIRTUALSCREEN );
-            area_w = GetSystemMetrics( SM_CXVIRTUALSCREEN );
-            area_h = GetSystemMetrics( SM_CYVIRTUALSCREEN );
+            case DWPOS_CENTER:
+                fit = ImFluentWallpaperFit_Center;
+                break;
+            case DWPOS_TILE:
+                fit = ImFluentWallpaperFit_Tile;
+                break;
+            case DWPOS_STRETCH:
+                fit = ImFluentWallpaperFit_Stretch;
+                break;
+            case DWPOS_FIT:
+                fit = ImFluentWallpaperFit_Fit;
+                break;
+            case DWPOS_SPAN:
+                fit = ImFluentWallpaperFit_Span;
+                break;
+            default:
+                break;
         }
-        if ( st.Position == DWPOS_STRETCH )
-        {
-            out->UV0 = ImVec2( 0.f, 0.f );
-            out->UV1 = ImVec2( 1.f, 1.f );
-            return;
-        }
-        if ( st.Position == DWPOS_TILE )
-        {
-            out->UV0    = ImVec2( 0.f, 0.f );
-            out->UV1    = ImVec2( ( float )( mw / iw ), ( float )( mh / ih ) );
-            out->Repeat = true;
-            return;
-        }
-        // Scale: fill and span cover the area, fit contains the image, center is 1:1.
-        double s = 1.0;
-        if ( st.Position == DWPOS_FILL || st.Position == DWPOS_SPAN )
-            s = ( area_w / iw > area_h / ih ) ? area_w / iw : area_h / ih;
-        else if ( st.Position == DWPOS_FIT )
-            s = ( area_w / iw < area_h / ih ) ? area_w / iw : area_h / ih;
-        const double ox = area_x + ( area_w - iw * s ) * 0.5;
-        const double oy = area_y + ( area_h - ih * s ) * 0.5;
-        out->UV0        = ImVec2( ( float )( ( mx - ox ) / ( iw * s ) ), ( float )( ( my - oy ) / ( ih * s ) ) );
-        out->UV1        = ImVec2( ( float )( ( mx + mw - ox ) / ( iw * s ) ), ( float )( ( my + mh - oy ) / ( ih * s ) ) );
+        const float vx = ( float )GetSystemMetrics( SM_XVIRTUALSCREEN ), vy = ( float )GetSystemMetrics( SM_YVIRTUALSCREEN );
+        const ImVec4 desktop( vx, vy, vx + ( float )GetSystemMetrics( SM_CXVIRTUALSCREEN ), vy + ( float )GetSystemMetrics( SM_CYVIRTUALSCREEN ) );
+        const ImVec4 monitor( ( float )st.Monitor.left, ( float )st.Monitor.top, ( float )st.Monitor.right, ( float )st.Monitor.bottom );
+        ImFluent::PlaceWallpaper( out, fit, ( float )st.ImageW, ( float )st.ImageH, monitor, desktop );
     }
 
     bool GetWallpaper( ImGuiViewport * vp, ImFluentWallpaper * out, void * )

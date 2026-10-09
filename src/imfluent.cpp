@@ -7,6 +7,7 @@
 
 #include <math.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <time.h>
 
 #if defined( _WIN32 )
@@ -1939,6 +1940,37 @@ bool ImFluent::IsBackdropVisible()
 {
     // WinUI turns Mica off in high contrast.
     return g_Ctx.Backdrop.Kind != ImFluentBackdrop_None && g_Ctx.Preset != ImFluentThemePreset_HighContrast;
+}
+
+void ImFluent::PlaceWallpaper( ImFluentWallpaper * wp, ImFluentWallpaperFit fit, float image_w, float image_h, const ImVec4 & monitor, const ImVec4 & desktop )
+{
+    const float mw = monitor.z - monitor.x, mh = monitor.w - monitor.y;
+    wp->Repeat = false;
+    if ( fit == ImFluentWallpaperFit_Stretch || image_w <= 0.f || image_h <= 0.f || mw <= 0.f || mh <= 0.f )
+    {
+        wp->UV0 = ImVec2( 0.f, 0.f );
+        wp->UV1 = ImVec2( 1.f, 1.f );
+        return;
+    }
+    if ( fit == ImFluentWallpaperFit_Tile )
+    {
+        wp->UV0    = ImVec2( 0.f, 0.f );
+        wp->UV1    = ImVec2( mw / image_w, mh / image_h );
+        wp->Repeat = true;
+        return;
+    }
+    // The image is centred on `area` at `s` screen units per image pixel.
+    const ImVec4 area = ( fit == ImFluentWallpaperFit_Span && desktop.z > desktop.x && desktop.w > desktop.y ) ? desktop : monitor;
+    const float aw = area.z - area.x, ah = area.w - area.y;
+    float s = 1.f;
+    if ( fit == ImFluentWallpaperFit_Fill || fit == ImFluentWallpaperFit_Span )
+        s = ImMax( aw / image_w, ah / image_h );
+    else if ( fit == ImFluentWallpaperFit_Fit )
+        s = ImMin( aw / image_w, ah / image_h );
+    const float ox = area.x + ( aw - image_w * s ) * 0.5f;
+    const float oy = area.y + ( ah - image_h * s ) * 0.5f;
+    wp->UV0        = ImVec2( ( monitor.x - ox ) / ( image_w * s ), ( monitor.y - oy ) / ( image_h * s ) );
+    wp->UV1        = ImVec2( ( monitor.z - ox ) / ( image_w * s ), ( monitor.w - oy ) / ( image_h * s ) );
 }
 
 void ImFluent::RenderBackdrop( ImGuiViewport * vp )

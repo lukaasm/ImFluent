@@ -35,6 +35,18 @@ struct ImFluentWallpaper
     unsigned int Serial          = 0;                        // Changes when the wallpaper changes
 };
 
+// How the desktop places the wallpaper image (for ImFluent::PlaceWallpaper).
+enum ImFluentWallpaperFit_
+{
+    ImFluentWallpaperFit_Fill = 0, // Cover the monitor, crop the rest
+    ImFluentWallpaperFit_Fit,      // Whole image, letterboxed
+    ImFluentWallpaperFit_Stretch,
+    ImFluentWallpaperFit_Center, // 1:1, letterboxed or cropped
+    ImFluentWallpaperFit_Tile,
+    ImFluentWallpaperFit_Span, // Fill across all monitors
+};
+typedef int ImFluentWallpaperFit;
+
 // Platform hooks for backdrops, all optional; see backends/imfluent_backdrop_*.cpp.
 struct ImFluentBackdropHooks
 {
@@ -434,6 +446,9 @@ namespace ImFluent
     IMGUI_API ImFluentBackdropHooks & GetBackdropHooks();
     IMGUI_API void RenderBackdrop( ImGuiViewport * viewport = NULL );
     IMGUI_API bool IsBackdropVisible();
+    // For GetWallpaper hooks: UV0, UV1 and Repeat of an image_w x image_h image placed on `monitor` (x1, y1, x2, y2);
+    // `desktop` is the rect of all monitors (Span only).
+    IMGUI_API void PlaceWallpaper( ImFluentWallpaper * wallpaper, ImFluentWallpaperFit fit, float image_w, float image_h, const ImVec4 & monitor, const ImVec4 & desktop );
 
     // Segoe UI and the Segoe icon font where installed, else a common UI font and no icons.
     IMGUI_API void LoadFluentSystemFonts();

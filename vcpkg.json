@@ -18,6 +18,10 @@
                         "sdl3-binding",
                         "sdlgpu3-binding"
                     ]
+                },
+                {
+                    "name": "stb",
+                    "platform": "!windows & !osx"
                 }
             ]
         },
