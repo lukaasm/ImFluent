@@ -146,18 +146,20 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         GotoPage( ctx, "Item_Button" );
         ctx->SetInputMode( ImGuiInputSource_Keyboard );
         ctx->NavMoveTo( "**/Settings" );
-        ctx->KeyPress( ImGuiKey_Tab );
-        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Standard button" );
+        ctx->KeyPress( ImGuiKey_Tab ); // The page header's first button
+        IM_CHECK( strstr( FocusLabel( ctx ), "Documentation" ) != NULL );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Settings" );
     };
 
-    t           = IM_REGISTER_TEST( engine, "smoke", "nav_pane_toggle_reachable" );
+    // The pane toggle sits in the title bar (WinUI Gallery), before the search box, and toggles the pane.
+    t           = IM_REGISTER_TEST( engine, "smoke", "title_bar_pane_toggle_reachable" );
     t->TestFunc = []( ImGuiTestContext * ctx )
     {
         GotoPage( ctx, "Item_Button" );
         ctx->SetInputMode( ImGuiInputSource_Keyboard );
         ctx->NavMoveTo( "**/Home" );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab ); // The search box
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Toggle pane" );
     };

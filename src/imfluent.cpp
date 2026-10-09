@@ -93,6 +93,8 @@ struct ImFluentNavViewState
     ImFluentNavViewMode PrevMode;
     bool NextToggleVisible;
     bool NextToggleVisibleSet;
+    bool MenuRegionOpen;       // Left modes: the menu items' scrolling region is open (see BeginNavMenuRegion)
+    float FooterStartY = -1.f; // Pane cursor y where the footer items (Settings) start, -1 without footer
 };
 
 struct ImFluentPopupAnchor
@@ -1926,16 +1928,25 @@ void ImFluent::LoadFluentSystemFonts()
     SetFluentTextStyleFont( ImFluentTextStyle_Caption, regularFont, 16.0f );
     SetFluentTextStyleFont( ImFluentTextStyle_Body, regularFont, 20.0f );
 
-    ImFont * boldFont = LoadFontAndMergeWithIcons( fontsDirectory, "segoeuib.ttf" );
+    // The Fluent type ramp sets BodyStrong, Subtitle, Title, TitleLarge and Display in Semibold (Bold before
+    // Windows 10 shipped Segoe UI Semibold).
+    char semiboldPath[ MAX_PATH ];
+    ImFormatString( semiboldPath, MAX_PATH, "%s/seguisb.ttf", fontsDirectory );
+    const bool hasSemibold = ::GetFileAttributesA( semiboldPath ) != INVALID_FILE_ATTRIBUTES;
+    ImFont * strongFont    = LoadFontAndMergeWithIcons( fontsDirectory, hasSemibold ? "seguisb.ttf" : "segoeuib.ttf" );
 
-    SetFluentTextStyleFont( ImFluentTextStyle_BodyStrong, boldFont, 20.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_Subtitle, boldFont, 28.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_Title, boldFont, 36.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_TitleLarge, boldFont, 52.0f );
-    SetFluentTextStyleFont( ImFluentTextStyle_Display, boldFont, 92.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_BodyStrong, strongFont, 20.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_Subtitle, strongFont, 28.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_Title, strongFont, 36.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_TitleLarge, strongFont, 52.0f );
+    SetFluentTextStyleFont( ImFluentTextStyle_Display, strongFont, 92.0f );
 
     if ( ImGui::GetIO().FontDefault == NULL )
-        ImGui::GetIO().FontDefault = g_Ctx.Fonts[ ImFluentTextStyle_Body ].Font;
+    {
+        // Widget text (buttons, check boxes, lists) uses the Body size, as in WinUI.
+        ImGui::GetIO().FontDefault     = g_Ctx.Fonts[ ImFluentTextStyle_Body ].Font;
+        ImGui::GetStyle().FontSizeBase = g_Ctx.Fonts[ ImFluentTextStyle_Body ].FontSize;
+    }
 }
 
 void ImFluent::PushFont( ImFluentTextStyle style, float size )
@@ -4395,6 +4406,29 @@ bool ImFluent::IsNavPaneClosing()
     return g_Ctx.NavView.PrevMode == ImFluentNavViewMode_LeftOpen && g_Ctx.NavView.Mode != ImFluentNavViewMode_LeftOpen;
 }
 
+// Left modes (WinUI): the menu items scroll in a region of their own; footer items (Settings) stay pinned under it.
+// The footer's height comes from the previous frame, in the pane's storage.
+static const ImGuiID NAVVIEW_KEY_FOOTER_H = 0xF0073Eu;
+
+static void BeginNavMenuRegion()
+{
+    const float footer_h = ImGui::GetStateStorage()->GetFloat( NAVVIEW_KEY_FOOTER_H, 0.f );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
+    ImGui::BeginChild( "##nav-menu", ImVec2( 0.f, footer_h > 0.f ? -footer_h : 0.f ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar );
+    ImGui::PopStyleVar();
+    g_Ctx.NavView.MenuRegionOpen = true;
+    g_Ctx.NavView.FooterStartY   = -1.f;
+}
+
+static void EndNavMenuRegion()
+{
+    if ( !g_Ctx.NavView.MenuRegionOpen )
+        return;
+    ImGui::EndChild();
+    g_Ctx.NavView.MenuRegionOpen = false;
+    g_Ctx.NavView.FooterStartY   = ImGui::GetCursorPosY();
+}
+
 bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_io )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
@@ -4424,7 +4458,8 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
 
         ImGui::PushID( id );
         ImGui::BeginGroup();
-        ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
+        // WinUI: the pane has no fill of its own; the window's base color shows through.
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, IM_COL32( 0, 0, 0, 0 ) );
         ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
         const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( 0, h + FluentDpx( style.SpacingSmall ) * 2.f ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar );
@@ -4436,7 +4471,7 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
 
     ImGui::PushID( id );
     ImGui::BeginGroup();
-    ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
+    ImGui::PushStyleColor( ImGuiCol_ChildBg, IM_COL32( 0, 0, 0, 0 ) ); // As in Top mode: no pane fill
     ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, 0.f );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingSmall ), FluentDpx( style.SpacingSmall ) ) );
     const bool pane_open = ImGui::BeginChild( "##nav-pane", ImVec2( g_Ctx.NavView.CurrentWidth, 0.f ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar );
@@ -4444,7 +4479,10 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
         return true;
 
     if ( !toggle_visible )
+    {
+        BeginNavMenuRegion();
         return true;
+    }
 
     const float row_h = FluentDpx( style.NavItemHeight );
     // InvisibleButton is NoNav by default: EnableNav keeps the pane toggle reachable with Tab.
@@ -4469,7 +4507,15 @@ bool ImFluent::BeginNavigationView( const char * id, ImFluentNavViewMode * mode_
         for ( int i = -1; i <= 1; ++i )
             dl->AddLine( ImVec2( cx - lw * 0.5f, cy + ( float )i * FluentDpx( style.SpacingSmall + 1.f ) ), ImVec2( cx + lw * 0.5f, cy + ( float )i * FluentDpx( style.SpacingSmall + 1.f ) ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), FluentDpx( style.StrokeMedium ) );
     }
+    BeginNavMenuRegion();
     return true;
+}
+
+// NavigationView item icons are 16 dp (WinUI), smaller than the label, and centered on the row.
+static void RenderNavGlyph( ImDrawList * dl, float x, const ImRect & row, const char * glyph )
+{
+    const float size = ImFluent::FluentDpx( 16.f );
+    dl->AddText( ImGui::GetFont(), size, ImVec2( x, ( row.Min.y + row.Max.y - size ) * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
 }
 
 // Menu items of a NavigationView form one tab-stop group; footer items (Settings) and items outside a
@@ -4521,7 +4567,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
         float text_x   = bb.Min.x + pad_x;
         if ( glyph )
         {
-            dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
+            RenderNavGlyph( dl, text_x, bb, glyph );
             text_x += gw;
         }
         dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
@@ -4561,10 +4607,11 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
         dl->AddRectFilled( ImVec2( bx, ( bb.Min.y + bb.Max.y - bh ) * 0.5f ), ImVec2( bx + FluentDpx( style.SelectionIndicatorThickness ), ( bb.Min.y + bb.Max.y + bh ) * 0.5f ), ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( style.SpacingXSmall ) );
     }
     const float icon_x = bb.Min.x + indent_x + FluentDpx( ( style.NavPaneCompactWidth - style.StandardIconSize ) * 0.5f );
-    const float text_x = bb.Min.x + indent_x + FluentDpx( style.NavPaneCompactWidth );
+    // WinUI: an item without an icon has no icon column; its label starts 16 dp in.
+    const float text_x = bb.Min.x + indent_x + FluentDpx( glyph ? style.NavPaneCompactWidth : style.SpacingXLarge );
     const float cy     = ( bb.Min.y + bb.Max.y - ImGui::GetFontSize() ) * 0.5f;
     if ( glyph )
-        dl->AddText( ImVec2( icon_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
+        RenderNavGlyph( dl, icon_x, bb, glyph );
     if ( g_Ctx.NavView.CurrentWidth > FluentDpx( style.AppBarButtonWidth ) )
         dl->AddText( ImVec2( text_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label );
     RenderNavFocusRing( id, bb, r );
@@ -4584,6 +4631,15 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     const ImVec2 pos     = w->DC.CursorPos;
     const float indent_x = w->DC.Indent.x;
     const ImRect bb( ImVec2( w->Pos.x, pos.y ), ImVec2( w->Pos.x + w->Size.x, pos.y + row_h ) );
+    // ImGui::SetNextItemOpen() sets the expanded state, as for a TreeNode (read before ItemAdd clears it).
+    ImGuiContext & g       = *GImGui;
+    ImGuiStorage * storage = ImGui::GetStateStorage();
+    if ( g.NextItemData.HasFlags & ImGuiNextItemDataFlags_HasOpen )
+    {
+        const bool first_use = storage->GetInt( id, -1 ) == -1;
+        if ( ( g.NextItemData.OpenCond & ( ImGuiCond_Always | ImGuiCond_Appearing ) ) || first_use )
+            storage->SetBool( id, g.NextItemData.OpenVal );
+    }
     ImGui::ItemSize( ImVec2( w->Size.x, row_h ) );
     if ( !ImGui::ItemAdd( bb, id, NULL, NavMenuItemFlags( id, selected ) ) )
         return false;
@@ -4592,8 +4648,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
     NavMenuItemNav( id );
 
-    ImGuiStorage * storage = ImGui::GetStateStorage();
-    bool expanded          = storage->GetBool( id, false );
+    bool expanded = storage->GetBool( id, false );
     if ( pressed )
     {
         expanded = !expanded;
@@ -4623,7 +4678,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
     const float text_x = bb.Min.x + indent_x + FluentDpx( style.NavPaneCompactWidth );
     const float cy     = ( bb.Min.y + bb.Max.y - ImGui::GetFontSize() ) * 0.5f;
     if ( glyph )
-        dl->AddText( ImVec2( icon_x, cy ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), glyph );
+        RenderNavGlyph( dl, icon_x, bb, glyph );
 
     const bool show_text = g_Ctx.NavView.CurrentWidth > FluentDpx( style.AppBarButtonWidth );
     if ( show_text )
@@ -4644,7 +4699,8 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
 
     if ( expanded )
     {
-        const float indent_amt = FluentDpx( style.SpacingXXLarge );
+        // WinUI: child items are indented so that their label (no icon column) lines up with the parent's label.
+        const float indent_amt = FluentDpx( style.NavPaneCompactWidth - style.SpacingXLarge );
         ImGui::Indent( indent_amt );
         g_Ctx.NavItemIndentStack.push_back( indent_amt );
         return true;
@@ -4752,6 +4808,7 @@ void ImFluent::NavPaneFooterEnd()
 
 bool ImFluent::NavSettingsItem( bool selected )
 {
+    EndNavMenuRegion(); // A footer item: pinned under the scrolling menu items
     SetNextItemGlyph( ImFluentIcon_Settings );
     g_Ctx.NavView.FooterItem = true;
     const bool pressed       = NavItem( "Settings", selected );
@@ -4761,6 +4818,14 @@ bool ImFluent::NavSettingsItem( bool selected )
 
 void ImFluent::EndNavigationView()
 {
+    const bool had_region = g_Ctx.NavView.MenuRegionOpen || g_Ctx.NavView.FooterStartY >= 0.f;
+    EndNavMenuRegion();
+    if ( had_region )
+    {
+        const float footer_h = ImMax( 0.f, ImGui::GetCursorPosY() - g_Ctx.NavView.FooterStartY );
+        ImGui::GetStateStorage()->SetFloat( NAVVIEW_KEY_FOOTER_H, footer_h );
+        g_Ctx.NavView.FooterStartY = -1.f;
+    }
     ImGui::EndChild();
     g_Ctx.NavView.InTabGroup = false;
     EndTabGroup();
@@ -4771,12 +4836,30 @@ void ImFluent::EndNavigationView()
     ImGui::SameLine( 0.f, 0.f );
 }
 
-void ImFluent::NavigationViewBeginContent()
+void ImFluent::NavigationViewBeginContent( const ImVec2 & padding )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
-    ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_LayerFillAlt ) );
-    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( style.SpacingXXLarge ), FluentDpx( style.SpacingXXLarge ) ) );
+    // WinUI: the content is a layer over the window's base color, with a 1 px stroke and a rounded top-left
+    // corner (it meets the window edges on the right and at the bottom). Drawn in the parent, under the child.
+    {
+        ImDrawList * dl    = ImGui::GetWindowDrawList();
+        const ImVec2 p0    = ImGui::GetCursorScreenPos();
+        const ImVec2 avail = ImGui::GetContentRegionAvail();
+        const ImVec2 p1( p0.x + avail.x, p0.y + avail.y );
+        const float r = FluentDpx( style.OverlayCornerRadius );
+        dl->AddRectFilled( p0, p1, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ), r, ImDrawFlags_RoundCornersTopLeft );
+        dl->AddRect( p0, ImVec2( p1.x + r, p1.y + r ), ImFluent::GetColorU32( ImFluentCol_CardStrokeDefault ), r, ImDrawFlags_RoundCornersTopLeft );
+    }
+    ImGui::PushStyleColor( ImGuiCol_ChildBg, IM_COL32( 0, 0, 0, 0 ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( padding.x >= 0.f ? padding.x : FluentDpx( style.SpacingXXLarge ), padding.y >= 0.f ? padding.y : FluentDpx( style.SpacingXXLarge ) ) );
+    // Fluent scroll bar (as ScrollViewer): a thin rounded thumb on a clear track. Only for this window's own bar.
+    ImGui::PushStyleColor( ImGuiCol_ScrollbarBg, IM_COL32( 0, 0, 0, 0 ) );
+    ImGui::PushStyleColor( ImGuiCol_ScrollbarGrab, ImFluent::GetColorU32( ImFluentCol_ControlStrongFillDefault ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ScrollbarSize, FluentDpx( style.SpacingMedium ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ScrollbarRounding, FluentDpx( style.SpacingMedium ) );
     ImGui::BeginChild( "##nav-content", ImVec2( 0, 0 ), ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened );
+    ImGui::PopStyleVar( 2 );
+    ImGui::PopStyleColor( 2 );
     g_Ctx.NavView.ContentStarted = true;
 }
 
@@ -6584,8 +6667,10 @@ static bool TitleBarChromeButton( const char * id, const char * name, const char
         dl->AddRectFilled( bb.Min, bb.Max, ImFluent::AnimateColorU32( iid, fill_target ), r );
     }
     const ImU32 textCol = ImFluent::GetColorU32( enabled ? ImFluentCol_TextPrimary : ImFluentCol_TextDisabled );
-    const ImVec2 ts     = ImGui::CalcTextSize( glyph );
-    dl->AddText( ImVec2( bb.Min.x + ( btn_w - ts.x ) * 0.5f, bb.Min.y + ( bar_h - ts.y ) * 0.5f ), textCol, glyph );
+    // WinUI title bar icons are 16 dp.
+    const float glyph_size = ImFluent::FluentDpx( 16.f );
+    const ImVec2 ts        = ImGui::GetFont()->CalcTextSizeA( glyph_size, FLT_MAX, 0.f, glyph );
+    dl->AddText( ImGui::GetFont(), glyph_size, ImVec2( bb.Min.x + ( btn_w - ts.x ) * 0.5f, bb.Min.y + ( bar_h - ts.y ) * 0.5f ), textCol, glyph );
     if ( enabled )
         ImFluent::RenderNavFocusRing( iid, bb, r );
     ImGui::SameLine();

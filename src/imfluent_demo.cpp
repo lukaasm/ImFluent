@@ -218,6 +218,7 @@ namespace ImFluentGalleryApp
             char SearchBuf[ 128 ]       = {};
             int ExpandedGroup           = -1;
             bool ResetScroll            = false;
+            std::string ExpandedForPage; // The page whose category the pane last expanded
         };
     } // namespace
     static GalleryState g_State;
@@ -256,52 +257,197 @@ namespace ImFluentGalleryApp
     }
 
     // [SECTION] PageHeader + ControlExample helpers
+    static void OpenUrl( const char * url )
+    {
+        ImGuiPlatformIO & pio = ImGui::GetPlatformIO();
+        if ( pio.Platform_OpenInShellFn )
+            pio.Platform_OpenInShellFn( ImGui::GetCurrentContext(), url );
+    }
+
+    // WinUI Gallery PageHeader (Controls/PageHeader.xaml): the title, then a row with the Documentation and Source
+    // drop-down buttons and the theme toggle on the right, then the description.
     static void PageHeader( const char * title, const char * subtitle = nullptr )
     {
-        TextBlock( title, ImFluentTextStyle_TitleLarge );
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        TextBlock( title, ImFluentTextStyle_Title );
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 4.f ) ) );
+
+        // "\xEE\xA2\xA5" is the document glyph, "\xEE\xA5\x83" the code glyph (Segoe Fluent Icons).
+        if ( DropDownButton( "\xEE\xA2\xA5  Documentation" ) )
+            OpenMenuFlyout( "##page-docs" );
+        if ( BeginMenuFlyout( "##page-docs" ) )
+        {
+            char url[ 256 ];
+            ImFormatString( url, sizeof( url ), "https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml.controls.%s", title );
+            for ( char * p = url; *p; ++p )
+                *p = ( char )tolower( ( unsigned char )*p );
+            if ( MenuFlyoutItem( "WinUI API reference" ) )
+                OpenUrl( url );
+            EndMenuFlyout();
+        }
+        ImGui::SameLine( 0.f, FluentDpx( 4.f ) );
+        if ( DropDownButton( "\xEE\xA5\x83  Source" ) )
+            OpenMenuFlyout( "##page-source" );
+        if ( BeginMenuFlyout( "##page-source" ) )
+        {
+            if ( MenuFlyoutItem( "ImFluent sample (imfluent_demo.cpp)" ) )
+                OpenUrl( "https://github.com/lukaasm/ImFluent/blob/main/src/imfluent_demo.cpp" );
+            if ( MenuFlyoutItem( "ImFluent control (imfluent.cpp)" ) )
+                OpenUrl( "https://github.com/lukaasm/ImFluent/blob/main/src/imfluent.cpp" );
+            EndMenuFlyout();
+        }
+
+        // Theme toggle ("\xEE\x9E\x93"), right-aligned like the gallery's.
+        const float toggle_w = FluentDpx( style.ControlHeight );
+        ImGui::SameLine( ImGui::GetContentRegionMax().x - toggle_w );
+        if ( Button( "\xEE\x9E\x93##page-theme", ImVec2( toggle_w, 0.f ) ) )
+            SetThemePreset( GetThemePreset() == ImFluentThemePreset_Light ? ImFluentThemePreset_Dark : ImFluentThemePreset_Light );
+        SetItemTooltip( "Toggle theme" );
+
         if ( subtitle && *subtitle )
         {
-            const ImFluentStyle & style = ImFluent::GetStyle();
-            TextBlockColored( subtitle, GetColorU32( ImFluentCol_TextSecondary ), ImFluentTextStyle_Body );
+            ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
+            ImGui::PushTextWrapPos( 0.f );
+            TextBlock( subtitle, ImFluentTextStyle_Body );
+            ImGui::PopTextWrapPos();
         }
-        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
-        ImFluent::Separator();
-        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
+    }
+
+    // WinUI Gallery ControlExample (Controls/ControlExample.xaml): a BodyStrong header with 12 above and below, then a
+    // card (8 corner radius, CardStroke border). Its top part shows the example on SolidBackgroundFillColorBase with 12
+    // padding and, in a column on the right, "Output:" over the output; its bottom row is the "Source code" expander on
+    // CardBackgroundFillColorSecondary.
+    struct ControlExampleState
+    {
+        char Output[ 512 ] = {};
+        bool HasOutput     = false;
+        ImGuiID Id         = 0;
+    };
+    static ControlExampleState g_Example;
+    static const ImGuiID EXAMPLE_KEY_HEIGHT   = 0xE7A11u; // Height of the example part, last frame
+    static const ImGuiID EXAMPLE_KEY_OUTPUT_W = 0xE7A12u; // Width of the output column, last frame
+    static const ImGuiID EXAMPLE_KEY_SOURCE   = 0xE7A13u; // "Source code" expanded
+
+    static float ExampleDp( float v )
+    {
+        return FluentDpx( v );
     }
 
     static bool BeginControlExample( const char * header )
     {
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        ImGui::Dummy( ImVec2( 0.f, ExampleDp( 4.f ) ) );
         TextBlock( header, ImFluentTextStyle_BodyStrong );
-        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 4.f ) ) );
-        return BeginCard( header, ImVec2( 0.f, 0.f ), ImFluentCardStyle_Filled );
+        ImGui::Dummy( ImVec2( 0.f, ExampleDp( 4.f ) ) );
+
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_CardBgDefault ) );
+        ImGui::PushStyleColor( ImGuiCol_Border, GetColorU32( ImFluentCol_CardStrokeDefault ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, 1.f );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
+        ImGui::BeginChild( header, ImVec2( -FLT_MIN, 0.f ), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        ImGui::PopStyleVar( 3 );
+        ImGui::PopStyleColor( 2 );
+
+        g_Example    = ControlExampleState();
+        g_Example.Id = ImGui::GetCurrentWindow()->ID;
+
+        // The example part's background, sized from the last frame.
+        ImGuiWindow * w   = ImGui::GetCurrentWindow();
+        ImGuiStorage * st = ImGui::GetStateStorage();
+        const float h     = st->GetFloat( EXAMPLE_KEY_HEIGHT, 0.f );
+        const float r     = FluentDpx( style.OverlayCornerRadius );
+        if ( h > 0.f )
+        {
+            ImGui::PushClipRect( w->Rect().Min, w->Rect().Max, false );
+            w->DrawList->AddRectFilled( ImVec2( w->Pos.x + 1.f, w->Pos.y + 1.f ), ImVec2( w->Pos.x + w->Size.x - 1.f, w->Pos.y + h ), GetColorU32( ImFluentCol_SolidBgBase ), r - 1.f, ImDrawFlags_RoundCornersTop );
+            ImGui::PopClipRect();
+        }
+
+        // The example itself, left of the output column, with 12 padding.
+        const float out_w = st->GetFloat( EXAMPLE_KEY_OUTPUT_W, 0.f );
+        const float pad   = ExampleDp( 12.f );
+        ImGui::SetCursorPos( ImVec2( pad, pad ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
+        ImGui::BeginChild( "##example", ImVec2( ImGui::GetContentRegionAvail().x - pad - out_w, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground );
+        ImGui::PopStyleVar();
+        return true;
     }
 
     static void ControlExampleOptionsHeader()
     {
+        ImGui::Dummy( ImVec2( 0.f, ExampleDp( 8.f ) ) );
         ImFluent::Separator();
         TextBlock( "Options:", ImFluentTextStyle_Caption );
     }
 
     static void ControlExampleOutput( const char * fmt, ... )
     {
-        char buf[ 512 ];
         va_list ap;
         va_start( ap, fmt );
-        std::vsnprintf( buf, sizeof( buf ), fmt, ap );
+        std::vsnprintf( g_Example.Output, sizeof( g_Example.Output ), fmt, ap );
         va_end( ap );
-        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
-        ImFluent::Separator();
-        const char * line;
-        const char * line_end;
-        ImFormatStringToTempBuffer( &line, &line_end, "Output: %s", buf );
-        ( void )line_end;
-        TextBlock( line, ImFluentTextStyle_Caption );
+        g_Example.HasOutput = true;
     }
 
     static void EndControlExample()
     {
-        EndCard();
-        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 16.f ) ) );
+        ImGui::EndChild(); // ##example
+        const ImFluentStyle & style = ImFluent::GetStyle();
+        ImGuiWindow * w             = ImGui::GetCurrentWindow();
+        ImGuiStorage * st           = ImGui::GetStateStorage();
+        const float pad             = ExampleDp( 12.f );
+        const float example_bottom  = ImGui::GetItemRectMax().y + pad;
+        ImDrawList * dl             = w->DrawList;
+
+        // Output column: margin 0,12,12,12 and padding 16, "Output:" over the output.
+        float out_w = 0.f, out_bottom = example_bottom;
+        if ( g_Example.HasOutput )
+        {
+            const float out_pad = ExampleDp( 16.f );
+            const ImVec2 label  = ImGui::CalcTextSize( "Output:" );
+            const ImVec2 value  = ImGui::CalcTextSize( g_Example.Output );
+            const float text_w  = ImMin( ImMax( label.x, value.x ), ExampleDp( 320.f ) - out_pad * 2.f );
+            out_w               = text_w + out_pad * 2.f + pad;
+            const ImVec2 p( w->Pos.x + w->Size.x - pad - text_w - out_pad, w->Pos.y + pad + out_pad );
+            dl->AddText( p, GetColorU32( ImFluentCol_TextPrimary ), "Output:" );
+            dl->AddText( ImGui::GetFont(), ImGui::GetFontSize(), ImVec2( p.x, p.y + label.y ), GetColorU32( ImFluentCol_TextPrimary ), g_Example.Output, NULL, text_w );
+            out_bottom = p.y + label.y + value.y + out_pad + pad;
+        }
+        st->SetFloat( EXAMPLE_KEY_OUTPUT_W, out_w );
+        const float top_h = ImMax( example_bottom, out_bottom ) - w->Pos.y;
+        st->SetFloat( EXAMPLE_KEY_HEIGHT, top_h );
+
+        // "Source code" expander row, 48 high.
+        const float row_y = w->Pos.y + top_h;
+        const float row_h = ExampleDp( 48.f );
+        const ImRect row( w->Pos.x, row_y, w->Pos.x + w->Size.x, row_y + row_h );
+        ImGui::SetCursorScreenPos( row.Min );
+        const ImGuiID row_id = ImGui::GetID( "##source-code" );
+        ImGui::ItemSize( row );
+        bool expanded = st->GetBool( EXAMPLE_KEY_SOURCE, false );
+        if ( ImGui::ItemAdd( row, row_id ) )
+        {
+            bool hov = false, held = false;
+            if ( ImGui::ButtonBehavior( row, row_id, &hov, &held ) )
+                st->SetBool( EXAMPLE_KEY_SOURCE, expanded = !expanded );
+            ImGui::PushClipRect( w->Rect().Min, w->Rect().Max, false );
+            const float r = FluentDpx( style.OverlayCornerRadius );
+            dl->AddRectFilled( ImVec2( row.Min.x + 1.f, row.Min.y ), ImVec2( row.Max.x - 1.f, row.Max.y - 1.f ), GetColorU32( hov ? ImFluentCol_SubtleFillSecondary : ImFluentCol_CardBgSecondary ), expanded ? 0.f : r - 1.f, ImDrawFlags_RoundCornersBottom );
+            dl->AddLine( ImVec2( row.Min.x, row.Min.y ), ImVec2( row.Max.x, row.Min.y ), GetColorU32( ImFluentCol_CardStrokeDefault ) );
+            dl->AddText( ImVec2( row.Min.x + ExampleDp( 16.f ), ( row.Min.y + row.Max.y - ImGui::GetFontSize() ) * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), "Source code" );
+            dl->AddText( ImVec2( row.Max.x - ExampleDp( 36.f ), ( row.Min.y + row.Max.y - ImGui::GetFontSize() ) * 0.5f ), GetColorU32( ImFluentCol_TextPrimary ), expanded ? ImFluentIcon_ChevronUp : ImFluentIcon_ChevronDown );
+            ImGui::PopClipRect();
+            ImGui::RenderNavCursor( row, row_id );
+        }
+        if ( expanded )
+        {
+            ImGui::SetCursorScreenPos( ImVec2( w->Pos.x + ExampleDp( 16.f ), ImGui::GetCursorScreenPos().y ) );
+            TextBlockColored( "This sample is the page function for this control in src/imfluent_demo.cpp.", GetColorU32( ImFluentCol_TextSecondary ), ImFluentTextStyle_Caption );
+            ImGui::Dummy( ImVec2( 0.f, ExampleDp( 12.f ) ) );
+        }
+        ImGui::EndChild();
+        ImGui::Dummy( ImVec2( 0.f, ExampleDp( 4.f ) ) );
     }
 
     // [SECTION] Per-control demo pages
@@ -2392,34 +2538,41 @@ namespace ImFluentGalleryApp
 
     static void DrawTitleBar( bool * p_open )
     {
-        const ImFluentStyle & style = ImFluent::GetStyle();
-        const float h               = FluentDpx( 40.f );
-        const float closeW          = p_open ? FluentDpx( 40.f ) : 0.f;
+        // WinUI Gallery title bar: 48 high; back, pane toggle, app icon, title and a secondary tag on the left, the search
+        // box centered.
+        const float h      = FluentDpx( 48.f );
+        const float closeW = p_open ? FluentDpx( 46.f ) : 0.f;
 
         ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_SolidBgBase ) );
-        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 8.f ), FluentDpx( 4.f ) ) );
-        ImGui::BeginChild( "##titlebar", ImVec2( 0, h ), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 4.f ), 0.f ) );
+        ImGui::BeginChild( "##titlebar", ImVec2( 0, h ), ImGuiChildFlags_NavFlattened | ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
 
-        ImGui::BeginDisabled( g_State.NavCursor <= 0 );
-        if ( AppBarButton( ImFluentIcon_Back, nullptr, ImVec2( FluentDpx( 40.f ), FluentDpx( 32.f ) ) ) )
+        if ( TitleBarBackButton( g_State.NavCursor > 0 ) )
             NavigateBack();
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        ImGui::BeginDisabled( g_State.NavCursor + 1 >= ( int )g_State.NavStack.size() );
-        if ( AppBarButton( ImFluentIcon_Forward, nullptr, ImVec2( FluentDpx( 40.f ), FluentDpx( 32.f ) ) ) )
-            NavigateForward();
-        ImGui::EndDisabled();
+        if ( TitleBarPaneToggleButton() )
+            g_State.NavMode = ( g_State.NavMode == ImFluentNavViewMode_LeftOpen ) ? ImFluentNavViewMode_LeftCompact : ImFluentNavViewMode_LeftOpen;
 
-        ImGui::SameLine();
-        ImGui::Dummy( ImVec2( FluentDpx( 12.f ), 0 ) );
-        ImGui::SameLine();
-        ImFluent::TextBlock( ImFluentIcon_Home "  WinUI 3 Gallery (ImFluent)", ImFluentTextStyle_BodyStrong );
+        // App icon: an accent tile with a glyph, 16 dp.
+        {
+            ImGuiWindow * w = ImGui::GetCurrentWindow();
+            const float d   = FluentDpx( 16.f );
+            const ImVec2 p( ImGui::GetCursorScreenPos().x + FluentDpx( 8.f ), w->Pos.y + ( h - d ) * 0.5f );
+            w->DrawList->AddRectFilled( p, ImVec2( p.x + d, p.y + d ), GetColorU32( ImFluentCol_AccentFillDefault ), FluentDpx( 3.f ) );
+            const float gs  = d * 0.7f;
+            const ImVec2 gt = ImGui::GetFont()->CalcTextSizeA( gs, FLT_MAX, 0.f, ImFluentIcon_ViewAll );
+            w->DrawList->AddText( ImGui::GetFont(), gs, ImVec2( p.x + ( d - gt.x ) * 0.5f, p.y + ( d - gt.y ) * 0.5f ), GetColorU32( ImFluentCol_TextOnAccentPrimary ), ImFluentIcon_ViewAll );
+            ImGui::Dummy( ImVec2( d + FluentDpx( 20.f ), 0.f ) );
+            ImGui::SameLine( 0.f, 0.f );
+        }
+        TitleBarTitle( "WinUI 3 Gallery" );
+        ImGui::SameLine( 0.f, FluentDpx( 8.f ) );
+        TitleBarSubtitle( "ImFluent" );
 
-        const float searchW = FluentDpx( 280.f );
-        const float rightW  = searchW + ( closeW > 0.f ? FluentDpx( 8.f ) + closeW : 0.f );
-        ImGui::SameLine( ImGui::GetContentRegionMax().x - rightW );
+        const float searchW = FluentDpx( 320.f );
+        ImGui::SameLine( ( ImGui::GetWindowWidth() - searchW ) * 0.5f );
+        ImGui::SetCursorPosY( ( h - FluentDpx( 32.f ) ) * 0.5f );
         ImGui::PushItemWidth( searchW );
-        if ( ImFluent::TextBox( "##search", g_State.SearchBuf, sizeof( g_State.SearchBuf ), "Search controls..." ) )
+        if ( ImFluent::TextBox( "##search", g_State.SearchBuf, sizeof( g_State.SearchBuf ), "Search controls and samples..." ) )
         {
             if ( g_State.SearchBuf[ 0 ] != 0 )
                 Navigate( "AllControls" );
@@ -2427,8 +2580,9 @@ namespace ImFluentGalleryApp
         ImGui::PopItemWidth();
         if ( p_open )
         {
-            ImGui::SameLine( 0.f, FluentDpx( 8.f ) );
-            if ( AppBarButton( ImFluentIcon_Cancel, nullptr, ImVec2( closeW, FluentDpx( 32.f ) ) ) )
+            ImGui::SameLine( ImGui::GetContentRegionMax().x - closeW );
+            ImGui::SetCursorPosY( 0.f );
+            if ( AppBarButton( ImFluentIcon_Cancel, nullptr, ImVec2( closeW, h ) ) )
                 *p_open = false;
         }
 
@@ -2440,13 +2594,16 @@ namespace ImFluentGalleryApp
     // [SECTION] Navigation pane
     static void DrawNavigationPane()
     {
+        // As the WinUI Gallery: the pane toggle lives in the title bar; Home, then a "Controls" header over All and the
+        // categories (their items without icons); Settings pinned at the bottom.
+        SetNextNavPaneToggleButtonVisible( false );
         BeginNavigationView( "##gallery-nav", &g_State.NavMode );
         if ( NavItem( "Home", std::strcmp( CurrentPageId(), "Home" ) == 0, ImFluentIcon_Home ) )
             Navigate( "Home" );
-        if ( NavItem( "All controls", std::strcmp( CurrentPageId(), "AllControls" ) == 0, ImFluentIcon_ViewAll ) )
-            Navigate( "AllControls" );
 
-        NavSubHeader( "Categories" );
+        NavSubHeader( "Controls" );
+        if ( NavItem( "All", std::strcmp( CurrentPageId(), "AllControls" ) == 0, ImFluentIcon_ViewAll ) )
+            Navigate( "AllControls" );
         for ( int g = 0; g < g_GroupsCount; ++g )
         {
             const GroupInfo & gi = g_Groups[ g ];
@@ -2454,7 +2611,14 @@ namespace ImFluentGalleryApp
             const char * pid_end;
             ImFormatStringToTempBuffer( &pid, &pid_end, "Section_%s", gi.GroupId );
             ( void )pid_end;
-            const bool sel  = ( std::strcmp( CurrentPageId(), pid ) == 0 );
+            const bool sel            = ( std::strcmp( CurrentPageId(), pid ) == 0 );
+            // Opening a control page expands its category, so the page's item shows as selected (WinUI Gallery).
+            const ControlInfo * shown = std::strncmp( CurrentPageId(), "Item_", 5 ) == 0 ? FindControl( CurrentPageId() + 5 ) : nullptr;
+            if ( shown && std::strcmp( shown->GroupId, gi.GroupId ) == 0 && g_State.ExpandedForPage != CurrentPageId() )
+            {
+                ImGui::SetNextItemOpen( true );
+                g_State.ExpandedForPage = CurrentPageId();
+            }
             const bool open = BeginNavItem( gi.Title, sel, gi.Glyph );
             if ( ImGui::IsItemActivated() )
                 Navigate( pid );
@@ -2469,15 +2633,14 @@ namespace ImFluentGalleryApp
                     const char * ipid_end;
                     ImFormatStringToTempBuffer( &ipid, &ipid_end, "Item_%s", c.UniqueId );
                     ( void )ipid_end;
-                    if ( NavItem( c.Title, std::strcmp( CurrentPageId(), ipid ) == 0, c.Glyph ) )
+                    if ( NavItem( c.Title, std::strcmp( CurrentPageId(), ipid ) == 0 ) )
                         Navigate( ipid );
                 }
                 EndNavItem();
             }
         }
 
-        NavSubHeader( "App" );
-        if ( NavSettingsItem( std::strcmp( CurrentPageId(), "Settings" ) == 0 ) ) // Footer item: its own tab stop
+        if ( NavSettingsItem( std::strcmp( CurrentPageId(), "Settings" ) == 0 ) ) // Footer: pinned, its own tab stop
             Navigate( "Settings" );
         EndNavigationView();
     }
@@ -2506,7 +2669,7 @@ namespace ImFluentGalleryApp
 
         DrawTitleBar( p_open );
         DrawNavigationPane();
-        NavigationViewBeginContent();
+        NavigationViewBeginContent( ImVec2( FluentDpx( 36.f ), FluentDpx( 24.f ) ) ); // WinUI Gallery ItemPage padding
         if ( g_State.ResetScroll )
         {
             ImGui::SetScrollY( 0.f );

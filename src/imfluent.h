@@ -511,7 +511,8 @@ namespace ImFluent
     IMGUI_API void NavPaneFooterEnd();
     IMGUI_API bool NavSettingsItem( bool selected );
     IMGUI_API void EndNavigationView();
-    IMGUI_API void NavigationViewBeginContent();
+    // padding < 0: 24 dp on that axis.
+    IMGUI_API void NavigationViewBeginContent( const ImVec2 & padding = ImVec2( -1.f, -1.f ) );
     IMGUI_API void NavContentHeader( const char * title );
     IMGUI_API void NavigationViewEndContent();
 
