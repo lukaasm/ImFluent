@@ -108,6 +108,11 @@ struct ImFluentCommandBarState
     float Height;
     bool HasItem              = false;
     bool SuppressAutoSameLine = false;
+    ImGuiWindow * Window      = NULL; // The bar's child window (the overflow popup is another window)
+    ImGuiID PrevFirst         = 0;    // First and last commands of the previous frame: Left/Right stop there
+    ImGuiID PrevLast          = 0;
+    ImGuiID First             = 0;
+    ImGuiID Last              = 0;
 };
 
 struct ImFluentSplitViewState
@@ -6652,6 +6657,9 @@ void ImFluent::EndMenuBar()
 
 // [SECTION] CommandBar & AppBar
 
+static const ImGuiID COMMANDBAR_KEY_FIRST = 0xCBF1F57u; // In the bar's child window storage
+static const ImGuiID COMMANDBAR_KEY_LAST  = 0xCB1A57u;
+
 bool ImFluent::BeginCommandBar( const char * id, float height )
 {
     const ImFluentStyle & style = ImFluent::GetStyle();
@@ -6672,9 +6680,31 @@ bool ImFluent::BeginCommandBar( const char * id, float height )
     ImFluentCommandBarState s;
     ImStrncpy( s.Id, id, sizeof( s.Id ) );
     ImFormatString( s.PopupId, sizeof( s.PopupId ), "##cb-overflow-%s", id );
-    s.Height = h;
+    s.Height          = h;
+    s.Window          = ImGui::GetCurrentWindow();
+    ImGuiStorage * st = ImGui::GetStateStorage();
+    s.PrevFirst       = ( ImGuiID )st->GetInt( COMMANDBAR_KEY_FIRST, 0 );
+    s.PrevLast        = ( ImGuiID )st->GetInt( COMMANDBAR_KEY_LAST, 0 );
     g_Ctx.CommandBarStack.push_back( s );
     return true;
+}
+
+// Primary commands (WinUI CommandBar): each is a tab stop; Left/Right move between them and stop at the first
+// command and at the last one (More). Commands inside the overflow popup use the menu keys instead.
+static void CommandBarItemNav( ImGuiID id )
+{
+    if ( g_Ctx.CommandBarStack.empty() )
+        return;
+    ImFluentCommandBarState & s = g_Ctx.CommandBarStack.back();
+    if ( GImGui->CurrentWindow != s.Window )
+        return;
+    if ( !s.First )
+        s.First = id;
+    s.Last = id;
+    if ( id == s.PrevFirst )
+        ImFluent::ConsumeNavArrow( id, ImGuiDir_Left );
+    if ( id == s.PrevLast )
+        ImFluent::ConsumeNavArrow( id, ImGuiDir_Right );
 }
 
 bool ImFluent::BeginCommandBarOverflow()
@@ -6694,7 +6724,10 @@ bool ImFluent::BeginCommandBarOverflow()
         s.SuppressAutoSameLine = true;
     }
     SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition_Collapsed );
-    if ( AppBarButton( "##cb-more", ImFluentIcon_More, ImVec2( chev_w, s.Height ) ) )
+    const bool pressed    = AppBarButton( "##cb-more", ImFluentIcon_More, ImVec2( chev_w, s.Height ) );
+    const ImGuiID more_id = GImGui->LastItemData.ID;
+    // WinUI: Down or Up on More also opens the overflow.
+    if ( pressed || ConsumeNavArrow( more_id, ImGuiDir_Down ) || ConsumeNavArrow( more_id, ImGuiDir_Up ) )
         OpenMenuFlyout( s.PopupId );
     return BeginMenuFlyout( s.PopupId );
 }
@@ -6707,7 +6740,12 @@ void ImFluent::EndCommandBarOverflow()
 void ImFluent::EndCommandBar()
 {
     if ( !g_Ctx.CommandBarStack.empty() )
+    {
+        const ImFluentCommandBarState & s = g_Ctx.CommandBarStack.back();
+        ImGui::GetStateStorage()->SetInt( COMMANDBAR_KEY_FIRST, ( int )s.First );
+        ImGui::GetStateStorage()->SetInt( COMMANDBAR_KEY_LAST, ( int )s.Last );
         g_Ctx.CommandBarStack.pop_back();
+    }
     ImGui::EndChild();
     ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor();
@@ -6756,6 +6794,7 @@ bool ImFluent::AppBarButton( const char * label, const char * glyph, const ImVec
         return false;
     bool hov = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+    CommandBarItemNav( id );
     ReportItemInfo( id, label ? label : glyph );
     ImDrawList * dl    = w->DrawList;
     const float r      = FluentDpx( style.ControlCornerRadius );
@@ -6788,6 +6827,7 @@ bool ImFluent::AppBarToggleButton( const char * label, const char * glyph, bool 
         return false;
     bool hov = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+    CommandBarItemNav( id );
     if ( pressed && v )
         *v = !*v;
     const bool on = v && *v;

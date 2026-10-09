@@ -9,6 +9,7 @@
 #include "imfluent_automation.h"
 
 #include "imfluent.h"
+#include "imfluent_icons.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -109,6 +110,7 @@ struct KeyboardVars
     bool TreeSubOpen = false;
     bool TreeSubChk  = false;
 
+    char City[ 64 ]     = "";
     char Text[ 64 ]     = "";
     char Password[ 64 ] = "secret";
 };
@@ -1332,5 +1334,68 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
         ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab ); // Back to the last focused row
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "sub" );
+    };
+
+    // WinUI CommandBar: Left/Right stop at the first command and at More; Down on More opens the overflow, Escape
+    // gives focus back to More.
+    t          = IM_REGISTER_TEST( engine, "keyboard", "command_bar_left_right_and_more" );
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        IM_UNUSED( ctx );
+        BeginTestWindow();
+        if ( ImFluent::BeginCommandBar( "bar" ) )
+        {
+            ImFluent::AppBarButton( "Save", ImFluentIcon_Save );
+            ImFluent::AppBarButton( "Copy", ImFluentIcon_Copy );
+            if ( ImFluent::BeginCommandBarOverflow() )
+            {
+                ImFluent::MenuFlyoutItem( "Settings" );
+                ImFluent::EndCommandBarOverflow();
+            }
+            ImFluent::EndCommandBar();
+        }
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "**/Save" );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // First command: stays
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Save" );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "##cb-more" );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // More: stays
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "##cb-more" );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Settings" );
+        ctx->KeyPress( ImGuiKey_Escape );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "##cb-more" );
+    };
+
+    // WinUI AutoSuggestBox: Escape closes the suggestion list and keeps the typed text; focus stays in the box.
+    t = IM_REGISTER_TEST( engine, "keyboard", "auto_suggest_box_escape_keeps_typed_text" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v             = ctx->GetVars< KeyboardVars >();
+        static const char * cities[] = { "Paris", "Parma", "Prague" };
+        BeginTestWindow();
+        ImFluent::AutoSuggestBox( "city", v.City, sizeof( v.City ), cities, 3 );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "city" );
+        ctx->KeyPress( ImGuiKey_Enter );
+        ctx->KeyCharsAppend( "Par" );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->KeyPress( ImGuiKey_Escape );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_STR_EQ( v.City, "Par" );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "city" );
     };
 }
