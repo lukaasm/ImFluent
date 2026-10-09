@@ -101,6 +101,10 @@ struct KeyboardVars
     int Pip     = 2;
     int Crumb   = -1;
     int TabSel  = 0;
+    int Loose   = 0;
+
+    char Text[ 64 ]     = "";
+    char Password[ 64 ] = "secret";
 };
 
 static bool DateIs( const ImFluent::ImFluentDate & d, int y, int m, int day )
@@ -1068,5 +1072,125 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "Three" );
         ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK_EQ( v.TabSel, 2 );
+    };
+
+    // Loose radio buttons (one int* = one group): each is a tab stop; arrows move focus inside the group and wrap.
+    t = IM_REGISTER_TEST( engine, "keyboard", "loose_radio_buttons_wrap_focus_only" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::RadioButton( "A", &v.Loose, 0 );
+        ImFluent::RadioButton( "B", &v.Loose, 1 );
+        ImFluent::RadioButton( "C", &v.Loose, 2 );
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "A" );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "B" );
+        IM_CHECK_EQ( v.Loose, 0 ); // Focus only
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "C" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Wraps, does not leave the group
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "A" );
+        ctx->KeyPress( ImGuiKey_UpArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "C" );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( v.Loose, 2 );
+        ctx->NavMoveTo( "A" );
+        ctx->KeyPress( ImGuiKey_Tab ); // Each loose radio button is its own tab stop
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "B" );
+    };
+
+    // WinUI TextBox keeps its text on Escape (ImGui InputText would revert the edit).
+    t = IM_REGISTER_TEST( engine, "keyboard", "text_box_escape_keeps_text" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::TextBox( "name", v.Text, sizeof( v.Text ) );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "name" );
+        ctx->KeyPress( ImGuiKey_Enter ); // Edit
+        IM_CHECK_EQ( ctx->UiContext->ActiveId, ctx->GetID( "name" ) );
+        ctx->KeyCharsAppend( "abc" );
+        ctx->KeyPress( ImGuiKey_Escape );
+        IM_CHECK_STR_EQ( v.Text, "abc" );
+        IM_CHECK_EQ( ctx->UiContext->ActiveId, ( ImGuiID )0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "name" ); // Escape leaves edit mode; focus stays
+    };
+
+    // WinUI PasswordBox: Alt+F8 reveals the password while F8 is held.
+    t = IM_REGISTER_TEST( engine, "keyboard", "password_box_alt_f8_peek" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::PasswordBox( "pw", v.Password, sizeof( v.Password ) );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "pw" );
+        ImGuiWindow * win = ctx->GetWindowByRef( "//Test Window" );
+        IM_CHECK_NO_RET( win != NULL );
+        if ( !win )
+            return;
+        const ImGuiID key = ctx->GetID( "pw" ) ^ 0x9EE6F8u; // Peek state, see ImFluent::PasswordBox
+        IM_CHECK( !win->StateStorage.GetBool( key, false ) );
+        ctx->KeyDown( ImGuiMod_Alt );
+        ctx->KeyDown( ImGuiKey_F8 );
+        ctx->Yield( 2 );
+        IM_CHECK( win->StateStorage.GetBool( key, false ) );
+        ctx->KeyUp( ImGuiMod_Alt );
+        ctx->Yield( 2 );
+        IM_CHECK( win->StateStorage.GetBool( key, false ) ); // Held F8 keeps the peek
+        ctx->KeyUp( ImGuiKey_F8 );
+        ctx->Yield( 2 );
+        IM_CHECK( !win->StateStorage.GetBool( key, false ) );
+    };
+
+    // ImFluentActions: an application rebinds a command chord, and the old chord stops working.
+    t = IM_REGISTER_TEST( engine, "keyboard", "actions_rebind_toggle_popup" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "Apple", "Banana", "Cherry" };
+        BeginTestWindow();
+        ImFluent::ComboBox( "fruit", &v.Combo, items, 3 );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        ImFluentActions & actions  = ImFluent::GetActions();
+        const ImGuiKeyChord backup = actions.TogglePopup;
+        actions.TogglePopup        = ImGuiMod_Ctrl | ImGuiKey_F2;
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "fruit" );
+        ctx->KeyPress( ImGuiKey_F4 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 ); // Closes the open list too
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        actions.TogglePopup = 0; // Turned off
+        ctx->KeyPress( ImGuiMod_Ctrl | ImGuiKey_F2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        actions.TogglePopup = backup;
     };
 }

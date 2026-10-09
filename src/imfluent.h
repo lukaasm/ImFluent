@@ -348,11 +348,37 @@ struct ImFluentStyle
     const char * LocalizationTable[ ImFluentLocKey_COUNT ];
 };
 
+// Key chords of the ImFluent keyboard commands, with WinUI defaults. Change them through ImFluent::GetActions().
+// A chord is an ImGuiKey plus optional ImGuiMod_ flags, e.g. ImGuiMod_Ctrl | ImGuiKey_Tab; 0 turns the command off.
+// The modifiers must match exactly. Basic navigation stays with Dear ImGui: arrows, Tab, Enter, Space, Escape.
+struct ImFluentActions
+{
+    ImGuiKeyChord RevealPassword;      // PasswordBox: show the password while the key is held. Alt+F8
+    ImGuiKeyChord TogglePopup;         // ComboBox, DropDownButton, SplitButton: open the popup; close the ComboBox list. F4
+    ImGuiKeyChord OpenPopup;           // ComboBox, DropDownButton, SplitButton: open the popup. Alt+Down
+    ImGuiKeyChord ClosePopup;          // ComboBox: close the open list. Alt+Up
+    ImGuiKeyChord PickerOpenCommit;    // DatePicker, TimePicker: open the flyout; in the flyout, commit. Alt+Down
+    ImGuiKeyChord PickerOpenCommitAlt; // Second chord for PickerOpenCommit. Alt+Up
+    ImGuiKeyChord NextTab;             // TabView: select the next tab, wrapping. Ctrl+Tab
+    ImGuiKeyChord PreviousTab;         // TabView: select the previous tab, wrapping. Ctrl+Shift+Tab
+    ImGuiKeyChord CloseTab;            // TabView: close the selected tab. Ctrl+F4
+    ImGuiKeyChord CalendarZoomOut;     // CalendarView: month view, then year view, then decade view. Ctrl+Up
+    ImGuiKeyChord CalendarZoomIn;      // CalendarView: back towards the month view. Ctrl+Down
+    ImGuiKeyChord FirstItem;           // Lists, groups, ComboBox, picker columns: first item; Slider, Rating: minimum. Home
+    ImGuiKeyChord LastItem;            // As FirstItem, for the last item or the maximum. End
+    ImGuiKeyChord PageUp;              // Slider, NumberBox: large increase; CalendarView: previous page; columns: page. PageUp
+    ImGuiKeyChord PageDown;            // As PageUp, the other way. PageDown
+    ImGuiKeyChord CloseDialog;         // ContentDialog: close with the close button's result. Escape
+
+    IMGUI_API ImFluentActions();
+};
+
 typedef int ( *ImFluentAutoSuggestPredicate )( const char * item, const char * filter, void * user_data );
 
 namespace ImFluent
 {
     IMGUI_API ImFluentStyle & GetStyle();
+    IMGUI_API ImFluentActions & GetActions();
 
     IMGUI_API void SetThemePreset( ImFluentThemePreset preset );
     IMGUI_API ImFluentThemePreset GetThemePreset();

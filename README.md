@@ -27,6 +27,19 @@ ImFluent::ShowDemoWindow();
 
 Define `IMFLUENT_DISABLE_DEMO_WINDOWS` to compile out the demo.
 
+## Keyboard
+
+Every widget works with the keyboard alone, following WinUI: composite controls (RadioButtons, ListBox,
+SelectorBar, NavigationView, TabView, ...) are one Tab stop, arrows move inside them, and popups open, close
+with Escape and give focus back to their owner. The command shortcuts are key chords in `ImFluentActions`,
+with WinUI defaults. Change them, or set one to 0 to turn it off:
+
+```cpp
+ImFluentActions & actions = ImFluent::GetActions();
+actions.RevealPassword    = ImGuiMod_Ctrl | ImGuiKey_R; // default Alt+F8
+actions.TogglePopup       = 0;                          // no F4 for ComboBox and drop-down buttons
+```
+
 ## Automation and tests
 
 The `test-engine` vcpkg feature (on in the `configure-win64` preset) builds `ImFluentGallery` with the

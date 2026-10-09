@@ -168,6 +168,7 @@ struct ImFluentContext
 
     ImFluentThemePreset Preset;
     ImFluentStyle Style;
+    ImFluentActions Actions;
     ImFluentTextStyleFont Fonts[ ImFluentTextStyle_COUNT ];
 
     ImFluentNextItemData NextItem;
@@ -181,6 +182,7 @@ struct ImFluentContext
     ImVector< ImFluentCommandBarState > CommandBarStack;
     ImVector< float > NavItemIndentStack;
     ImVector< ImFluentTabGroup > TabGroupStack;
+    bool InRadioButtons;                 // RadioButtons() moves focus itself: its items are not loose radio buttons
     ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
     ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
 
@@ -1125,15 +1127,38 @@ namespace ImFluent
         return true;
     }
 
-    // Key press for the item that has nav focus. While focused, the item owns `key`, so ImGui's
-    // navigation does not also use it (Home/End/PageUp/PageDown would otherwise scroll the window).
-    static bool IsFocusedItemKeyPressed( ImGuiID id, ImGuiKey key, bool repeat = true )
+    // Chord press with exact modifiers, wherever focus is. A 0 chord (action turned off) is never pressed.
+    static bool IsActionPressed( ImGuiKeyChord chord )
+    {
+        return chord != 0 && ImGui::IsKeyChordPressed( chord );
+    }
+
+    // Chord press (exact modifiers) whose key `owner_id` takes, so ImGui's navigation does not also use it
+    // (Home/End/PageUp/PageDown would otherwise scroll the window). A 0 chord is never pressed.
+    static bool IsChordPressedOwned( ImGuiKeyChord chord, ImGuiID owner_id, bool repeat = true )
+    {
+        if ( chord == 0 )
+            return false;
+        ImGui::SetKeyOwner( ( ImGuiKey )( chord & ~ImGuiMod_Mask_ ), owner_id );
+        return ImGui::IsKeyChordPressed( chord, repeat ? ImGuiInputFlags_Repeat : ImGuiInputFlags_None, owner_id );
+    }
+
+    // Chord press for the item that has nav focus (an ImFluentActions entry). An arrow-key chord is read from
+    // the nav move request and cancels it; other keys are owned by the item while it has focus.
+    static bool IsFocusedItemChordPressed( ImGuiID id, ImGuiKeyChord chord, bool repeat = true )
     {
         ImGuiContext & g = *GImGui;
-        if ( g.NavId != id || g.ActiveId != 0 )
+        if ( chord == 0 || g.NavId != id || g.ActiveId != 0 )
             return false;
-        ImGui::SetKeyOwner( key, id );
-        return ImGui::IsKeyPressed( key, repeat ? ImGuiInputFlags_Repeat : ImGuiInputFlags_None, id );
+        const ImGuiKey key = ( ImGuiKey )( chord & ~ImGuiMod_Mask_ );
+        if ( key == ImGuiKey_LeftArrow || key == ImGuiKey_RightArrow || key == ImGuiKey_UpArrow || key == ImGuiKey_DownArrow )
+        {
+            if ( g.IO.KeyMods != ( chord & ImGuiMod_Mask_ ) )
+                return false;
+            const ImGuiDir dir = key == ImGuiKey_LeftArrow ? ImGuiDir_Left : key == ImGuiKey_RightArrow ? ImGuiDir_Right : key == ImGuiKey_UpArrow ? ImGuiDir_Up : ImGuiDir_Down;
+            return ConsumeNavArrow( id, dir );
+        }
+        return IsChordPressedOwned( chord, id, repeat );
     }
 
     // WinUI CheckBox, RadioButton and ToggleSwitch ignore Enter: only Space (and the mouse) toggle them.
@@ -1141,6 +1166,18 @@ namespace ImFluent
     {
         ImGuiContext & g = *GImGui;
         return g.NavActivatePressedId == id && ( g.NavActivateFlags & ImGuiActivateFlags_PreferInput ) != 0;
+    }
+
+    // WinUI TextBox, PasswordBox and RichEditBox keep their text on Escape, where ImGui's InputText reverts the
+    // edit. Call before the InputText: Escape then only leaves edit mode, and the same press is not also a nav
+    // cancel. NumberBox keeps the ImGui revert (WinUI NumberBox reverts to its value too).
+    static void TextInputEscapeKeepsText( ImGuiID input_id )
+    {
+        ImGuiContext & g = *GImGui;
+        if ( g.ActiveId != input_id || !ImGui::IsKeyPressed( ImGuiKey_Escape, ImGuiInputFlags_None, ImGuiKeyOwner_Any ) )
+            return;
+        ImGui::ClearActiveID();
+        ImGui::SetKeyOwner( ImGuiKey_Escape, input_id, ImGuiInputFlags_LockUntilRelease );
     }
 
     static const ImGuiID TABGROUP_KEY_SELECTED       = 0x7A6B0001u;
@@ -1226,9 +1263,9 @@ namespace ImFluent
             }
             if ( flags & ImFluentTabGroupFlags_HomeEnd )
             {
-                if ( IsFocusedItemKeyPressed( item_id, ImGuiKey_Home ) )
+                if ( IsFocusedItemChordPressed( item_id, g_Ctx.Actions.FirstItem ) )
                     jump = grp.PrevFirst;
-                if ( IsFocusedItemKeyPressed( item_id, ImGuiKey_End ) )
+                if ( IsFocusedItemChordPressed( item_id, g_Ctx.Actions.LastItem ) )
                     jump = grp.PrevLast;
             }
             if ( jump && jump != item_id )
@@ -1382,6 +1419,31 @@ IMGUI_API ImFluentStyle::ImFluentStyle()
 ImFluentStyle & ImFluent::GetStyle()
 {
     return g_Ctx.Style;
+}
+
+IMGUI_API ImFluentActions::ImFluentActions()
+{
+    RevealPassword      = ImGuiMod_Alt | ImGuiKey_F8;
+    TogglePopup         = ImGuiKey_F4;
+    OpenPopup           = ImGuiMod_Alt | ImGuiKey_DownArrow;
+    ClosePopup          = ImGuiMod_Alt | ImGuiKey_UpArrow;
+    PickerOpenCommit    = ImGuiMod_Alt | ImGuiKey_DownArrow;
+    PickerOpenCommitAlt = ImGuiMod_Alt | ImGuiKey_UpArrow;
+    NextTab             = ImGuiMod_Ctrl | ImGuiKey_Tab;
+    PreviousTab         = ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab;
+    CloseTab            = ImGuiMod_Ctrl | ImGuiKey_F4;
+    CalendarZoomOut     = ImGuiMod_Ctrl | ImGuiKey_UpArrow;
+    CalendarZoomIn      = ImGuiMod_Ctrl | ImGuiKey_DownArrow;
+    FirstItem           = ImGuiKey_Home;
+    LastItem            = ImGuiKey_End;
+    PageUp              = ImGuiKey_PageUp;
+    PageDown            = ImGuiKey_PageDown;
+    CloseDialog         = ImGuiKey_Escape;
+}
+
+ImFluentActions & ImFluent::GetActions()
+{
+    return g_Ctx.Actions;
 }
 
 float ImFluent::FluentDpx( float v )
@@ -1969,7 +2031,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
     RenderNavFocusRing( id_main, bb_total, r );
 
     // SplitButton keyboard (WinUI): one tab stop; Space/Enter run the primary action, Alt+Down and F4 open the flyout.
-    if ( split && !disabled && ( IsFocusedItemKeyPressed( id_main, ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ConsumeNavArrow( id_main, ImGuiDir_Down ) ) ) )
+    if ( split && !disabled && ( IsFocusedItemChordPressed( id_main, g_Ctx.Actions.TogglePopup, false ) || IsFocusedItemChordPressed( id_main, g_Ctx.Actions.OpenPopup, false ) ) )
         chev_pressed = true;
     if ( dropdown_clicked )
         *dropdown_clicked = split ? chev_pressed : false;
@@ -2143,10 +2205,55 @@ bool ImFluent::RadioButton( const char * label, bool active )
     return pressed;
 }
 
+// Loose radio buttons that share one int* form a group (WinUI GroupName). Down/Right focus the next one and
+// Up/Left the previous one, in submission order, wrapping at the ends. Focus only: Space checks. The links come
+// from the previous frame and live in the window storage.
+static void LooseRadioGroupNav( const int * group, ImGuiID id )
+{
+    static const ImGuiID KEY_FRAME = 0x4AD10001u, KEY_FIRST = 0x4AD10002u, KEY_LAST = 0x4AD10003u, KEY_PREV_LAST = 0x4AD10004u;
+    static const ImGuiID KEY_NEXT = 0x4AD10005u, KEY_PREV = 0x4AD10006u;
+    ImGuiContext & g   = *GImGui;
+    ImGuiStorage * st  = ImGui::GetStateStorage();
+    const ImGuiID gkey = ImHashData( &group, sizeof( group ) );
+    if ( st->GetInt( gkey ^ KEY_FRAME, -1 ) != g.FrameCount )
+    {
+        st->SetInt( gkey ^ KEY_FRAME, g.FrameCount );
+        st->SetInt( gkey ^ KEY_PREV_LAST, st->GetInt( gkey ^ KEY_LAST, 0 ) );
+        st->SetInt( gkey ^ KEY_FIRST, ( int )id );
+        st->SetInt( id ^ KEY_PREV, 0 );
+    }
+    else
+    {
+        const ImGuiID prev = ( ImGuiID )st->GetInt( gkey ^ KEY_LAST, 0 );
+        st->SetInt( prev ^ KEY_NEXT, ( int )id );
+        st->SetInt( id ^ KEY_PREV, ( int )prev );
+    }
+    st->SetInt( gkey ^ KEY_LAST, ( int )id );
+    if ( g.NavId != id )
+        return;
+    const ImGuiID first     = ( ImGuiID )st->GetInt( gkey ^ KEY_FIRST, 0 );
+    const ImGuiID prev_last = ( ImGuiID )st->GetInt( gkey ^ KEY_PREV_LAST, 0 );
+    const bool fwd          = ImFluent::ConsumeNavArrow( id, ImGuiDir_Down ) | ImFluent::ConsumeNavArrow( id, ImGuiDir_Right );
+    const bool back         = ImFluent::ConsumeNavArrow( id, ImGuiDir_Up ) | ImFluent::ConsumeNavArrow( id, ImGuiDir_Left );
+    ImGuiID target          = 0;
+    if ( fwd )
+        target = ( id == prev_last ) ? first : ( ImGuiID )st->GetInt( id ^ KEY_NEXT, 0 );
+    else if ( back )
+        target = ( id == first ) ? prev_last : ( ImGuiID )st->GetInt( id ^ KEY_PREV, 0 );
+    if ( target && target != id )
+    {
+        ImGui::SetFocusID( target, g.CurrentWindow );
+        g.NavCursorVisible = true;
+    }
+}
+
 bool ImFluent::RadioButton( const char * label, int * v, int v_button )
 {
-    const bool active = v && ( *v == v_button );
-    if ( RadioButton( label, active ) )
+    const bool active  = v && ( *v == v_button );
+    const bool pressed = RadioButton( label, active );
+    if ( v && !g_Ctx.InRadioButtons && GImGui->LastItemData.ID == ImGui::GetID( label ) )
+        LooseRadioGroupNav( v, GImGui->LastItemData.ID );
+    if ( pressed )
     {
         if ( v )
             *v = v_button;
@@ -2186,8 +2293,10 @@ bool ImFluent::RadioButtons( const char * label, int * v, const char * const ite
                 ImGui::SameLine();
             const ImGuiID item_id = ImGui::GetID( items[ i ] );
             ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, TabGroupItemFlags( item_id, v && *v == i ) != ImGuiItemFlags_None );
+            g_Ctx.InRadioButtons = true;
             if ( RadioButton( items[ i ], v, i ) )
                 changed = true;
+            g_Ctx.InRadioButtons = false;
             ImGui::PopItemFlag();
             if ( g.NavId == item_id )
             {
@@ -2313,9 +2422,9 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
         float new_val = *value;
         if ( const int step = ConsumeNavIncrement( id ) )
             new_val = ImClamp( ImFloor( new_val + ( step > 0 ? 1.f : -0.5f ) ), 0.f, ( float )max_stars );
-        if ( IsFocusedItemKeyPressed( id, ImGuiKey_Home ) )
+        if ( IsFocusedItemChordPressed( id, g_Ctx.Actions.FirstItem ) )
             new_val = 0.f;
-        if ( IsFocusedItemKeyPressed( id, ImGuiKey_End ) )
+        if ( IsFocusedItemChordPressed( id, g_Ctx.Actions.LastItem ) )
             new_val = ( float )max_stars;
         if ( new_val != *value )
         {
@@ -2450,13 +2559,13 @@ static bool SliderKeyboardStep( ImGuiID id, ImGuiDataType dtype, void * v, const
     double next        = cur;
     if ( const int step = ImFluent::ConsumeNavIncrement( id ) )
         next += step * small;
-    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_PageUp ) )
+    if ( ImFluent::IsFocusedItemChordPressed( id, g_Ctx.Actions.PageUp ) )
         next += large;
-    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_PageDown ) )
+    if ( ImFluent::IsFocusedItemChordPressed( id, g_Ctx.Actions.PageDown ) )
         next -= large;
-    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_Home ) )
+    if ( ImFluent::IsFocusedItemChordPressed( id, g_Ctx.Actions.FirstItem ) )
         next = ImMin( lo, hi );
-    if ( ImFluent::IsFocusedItemKeyPressed( id, ImGuiKey_End ) )
+    if ( ImFluent::IsFocusedItemChordPressed( id, g_Ctx.Actions.LastItem ) )
         next = ImMax( lo, hi );
     next = ImClamp( next, ImMin( lo, hi ), ImMax( lo, hi ) );
     if ( next == cur )
@@ -2995,6 +3104,7 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
     void * cb_user;
     PrepareTextInputCallback( buf, max_length, consume_clear, extra_flags, chain, cb, cb_user );
 
+    TextInputEscapeKeepsText( input_id_predicted );
     bool changed = hint ? ImGui::InputTextWithHint( label, hint, buf, buf_size, extra_flags, cb, cb_user ) : ImGui::InputText( label, buf, buf_size, extra_flags, cb, cb_user );
 
     // SetKeyboardFocusHere has a one-frame latency: nav-activate Enter on the clear
@@ -3123,9 +3233,22 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     const float inset            = FluentDpx( style.SpacingXSmall );
     const ImRect btn_pred( ImVec2( input_predicted.Max.x - reveal_w - inset, input_predicted.Min.y + inset ), ImVec2( input_predicted.Max.x - inset, input_predicted.Max.y - inset ) );
 
-    const bool hov      = ImGui::IsMouseHoveringRect( btn_pred.Min, btn_pred.Max );
-    const bool held     = hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
-    const bool revealed = held;
+    const bool hov  = ImGui::IsMouseHoveringRect( btn_pred.Min, btn_pred.Max );
+    const bool held = hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
+
+    // WinUI PasswordBox: Alt+F8 (ImFluentActions::RevealPassword) shows the password while the key is held.
+    ImGuiContext & g           = *GImGui;
+    const ImGuiID pw_id        = ImGui::GetID( label );
+    ImGuiStorage * st          = ImGui::GetStateStorage();
+    const ImGuiID peek_key     = pw_id ^ 0x9EE6F8u;
+    const bool has_focus       = g.ActiveId == pw_id || g.NavId == pw_id;
+    const ImGuiKeyChord reveal = g_Ctx.Actions.RevealPassword;
+    const ImGuiKey reveal_key  = ( ImGuiKey )( reveal & ~ImGuiMod_Mask_ );
+    bool key_peek              = reveal != 0 && st->GetBool( peek_key, false ) && has_focus && ImGui::IsKeyDown( reveal_key );
+    if ( has_focus && IsActionPressed( reveal ) )
+        key_peek = true;
+    st->SetBool( peek_key, key_peek );
+    const bool revealed = held || key_peek;
 
     ImGuiInputTextFlags fl = revealed ? flags : ( flags | ImGuiInputTextFlags_Password );
 
@@ -3135,6 +3258,7 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     PrepareTextInputCallback( buf, /*max_length*/ 0, /*clear_pending*/ false, fl, chain, cb, cb_user );
 
     PushControlFrameStyle( h );
+    TextInputEscapeKeepsText( pw_id );
     const bool changed = hint ? ImGui::InputTextWithHint( label, hint, buf, buf_size, fl, cb, cb_user ) : ImGui::InputText( label, buf, buf_size, fl, cb, cb_user );
     PopControlFrameStyle();
 
@@ -3279,9 +3403,9 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
             delta += step;
         if ( ImGui::IsKeyPressed( ImGuiKey_DownArrow, ImGuiInputFlags_Repeat, input_id ) )
             delta -= step;
-        if ( ImGui::IsKeyPressed( ImGuiKey_PageUp, ImGuiInputFlags_Repeat, input_id ) )
+        if ( IsChordPressedOwned( g_Ctx.Actions.PageUp, input_id ) )
             delta += step_fast;
-        if ( ImGui::IsKeyPressed( ImGuiKey_PageDown, ImGuiInputFlags_Repeat, input_id ) )
+        if ( IsChordPressedOwned( g_Ctx.Actions.PageDown, input_id ) )
             delta -= step_fast;
         if ( delta != 0.0 )
         {
@@ -3308,6 +3432,7 @@ bool ImFluent::RichEditBox( const char * label, char * buf, size_t buf_size, con
     PrepareTextInputCallback( buf, max_length, /*clear_pending*/ false, flags, chain, cb, cb_user );
 
     PushControlFrameStyle( ImGui::GetFontSize() + FluentDpx( style.SpacingXLarge ) );
+    TextInputEscapeKeepsText( ImGui::GetID( label ) );
     const bool changed = ImGui::InputTextMultiline( label, buf, buf_size, size, flags, cb, cb_user );
     PopControlFrameStyle();
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
@@ -3973,7 +4098,7 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
     // Ctrl+F4 asks to close the selected tab while focus is inside the tab view (WinUI TabView accelerator).
     ImGuiContext & g = *GImGui;
     if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
-        if ( p_open && *p_open && tab_bar->SelectedTabId == ImGui::GetID( label ) && ImGui::GetStateStorage()->GetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, false ) && ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_F4 ) )
+        if ( p_open && *p_open && tab_bar->SelectedTabId == ImGui::GetID( label ) && ImGui::GetStateStorage()->GetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, false ) && IsActionPressed( g_Ctx.Actions.CloseTab ) )
             *p_open = false;
     // WinUI TabView: the tab strip is one tab stop on the selected tab; Left/Right move along the tabs and wrap,
     // Home/End go to the first/last tab (focus only: Space/Enter select); Up/Down do not leave the strip.
@@ -4017,9 +4142,9 @@ void ImFluent::EndTabView()
         if ( focus_inside && n > 1 )
         {
             int dir = 0;
-            if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_Tab ) )
+            if ( IsActionPressed( g_Ctx.Actions.NextTab ) )
                 dir = +1;
-            else if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Tab ) )
+            else if ( IsActionPressed( g_Ctx.Actions.PreviousTab ) )
                 dir = -1;
             if ( dir != 0 )
             {
@@ -4781,7 +4906,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
     const bool nav_activate = ( gctx.NavActivateId == id );
     // WinUI ComboBox also opens with Alt+Down and F4.
-    const bool key_open     = !popup_open && !disabled && ( IsFocusedItemKeyPressed( id, ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ConsumeNavArrow( id, ImGuiDir_Down ) ) );
+    const bool key_open     = !popup_open && !disabled && ( IsFocusedItemChordPressed( id, g_Ctx.Actions.TogglePopup, false ) || IsFocusedItemChordPressed( id, g_Ctx.Actions.OpenPopup, false ) );
     const bool toggle       = ( click_in_bb || nav_activate || key_open ) && !disabled;
 
     if ( toggle )
@@ -4806,9 +4931,9 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
             sel = ( sel < 0 ) ? 0 : ImMin( sel + 1, items_count - 1 );
         if ( ConsumeNavArrow( id, ImGuiDir_Up ) && sel > 0 )
             sel = sel - 1;
-        if ( IsFocusedItemKeyPressed( id, ImGuiKey_Home ) )
+        if ( IsFocusedItemChordPressed( id, g_Ctx.Actions.FirstItem ) )
             sel = 0;
-        if ( IsFocusedItemKeyPressed( id, ImGuiKey_End ) )
+        if ( IsFocusedItemChordPressed( id, g_Ctx.Actions.LastItem ) )
             sel = items_count - 1;
         if ( gctx.NavId == id && gctx.ActiveId == 0 )
         {
@@ -4890,11 +5015,9 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         int focus_only = -1;
         if ( gctx.NavWindow == popup_window && gctx.NavId != 0 )
         {
-            ImGui::SetKeyOwner( ImGuiKey_Home, popup_id );
-            ImGui::SetKeyOwner( ImGuiKey_End, popup_id );
-            if ( ImGui::IsKeyPressed( ImGuiKey_Home, ImGuiInputFlags_None, popup_id ) )
+            if ( IsChordPressedOwned( g_Ctx.Actions.FirstItem, popup_id, false ) )
                 focus_only = 0;
-            if ( ImGui::IsKeyPressed( ImGuiKey_End, ImGuiInputFlags_None, popup_id ) )
+            if ( IsChordPressedOwned( g_Ctx.Actions.LastItem, popup_id, false ) )
                 focus_only = items_count - 1;
         }
 
@@ -4938,7 +5061,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
         }
         // Only a list that was already open closes: the key press that opened it must not close it again.
         // Tab closes without committing, as in WinUI; focus returns to the box.
-        if ( popup_open && ( ImGui::IsKeyPressed( ImGuiKey_F4, false ) || ( ImGui::GetIO().KeyAlt && ImGui::IsKeyPressed( ImGuiKey_UpArrow, false ) ) || ImGui::IsKeyPressed( ImGuiKey_Tab, false ) ) )
+        if ( popup_open && ( IsActionPressed( g_Ctx.Actions.TogglePopup ) || IsActionPressed( g_Ctx.Actions.ClosePopup ) || ImGui::IsKeyPressed( ImGuiKey_Tab, false ) ) )
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
@@ -5937,7 +6060,7 @@ int ImFluent::EndContentDialog( const char * primary, const char * secondary, co
         run( close_text, ImFluentContentDialogButton_Close, 3 );
     }
     // Escape works like the close button (WinUI ContentDialog). ImGui does not close modals on Escape by itself.
-    if ( close_text && result == 0 && ImGui::IsWindowFocused( ImGuiFocusedFlags_RootAndChildWindows ) && ImGui::IsKeyPressed( ImGuiKey_Escape, false ) )
+    if ( close_text && result == 0 && ImGui::IsWindowFocused( ImGuiFocusedFlags_RootAndChildWindows ) && IsActionPressed( g_Ctx.Actions.CloseDialog ) )
     {
         result = 3;
         ImGui::CloseCurrentPopup();
@@ -6685,25 +6808,22 @@ namespace ImFluent
         const ImRect band( ImVec2( col_pos.x, col_pos.y + pad_h ), ImVec2( col_pos.x + col_w, col_pos.y + pad_h + row_h ) );
         const ImGuiID focus_id = host->GetID( "##column" );
 
-        // Keyboard, before the scroll position for this frame is chosen.
-        if ( ImGui::GetIO().KeyAlt )
-        {
-            if ( ConsumeNavArrow( focus_id, ImGuiDir_Up ) || ConsumeNavArrow( focus_id, ImGuiDir_Down ) )
-                *out_commit = true;
-        }
-        else
+        // Keyboard, before the scroll position for this frame is chosen. Alt+Up/Alt+Down commit (WinUI).
+        if ( IsFocusedItemChordPressed( focus_id, g_Ctx.Actions.PickerOpenCommit, false ) || IsFocusedItemChordPressed( focus_id, g_Ctx.Actions.PickerOpenCommitAlt, false ) )
+            *out_commit = true;
+        else if ( !ImGui::GetIO().KeyAlt )
         {
             if ( ConsumeNavArrow( focus_id, ImGuiDir_Up ) )
                 new_index = ( new_index > 0 ) ? new_index - 1 : ( loop ? count - 1 : 0 );
             if ( ConsumeNavArrow( focus_id, ImGuiDir_Down ) )
                 new_index = ( new_index < count - 1 ) ? new_index + 1 : ( loop ? 0 : count - 1 );
-            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_PageUp ) )
+            if ( IsFocusedItemChordPressed( focus_id, g_Ctx.Actions.PageUp ) )
                 new_index = ImMax( 0, new_index - SPINNER_CENTER_ROW );
-            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_PageDown ) )
+            if ( IsFocusedItemChordPressed( focus_id, g_Ctx.Actions.PageDown ) )
                 new_index = ImMin( count - 1, new_index + SPINNER_CENTER_ROW );
-            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_Home ) )
+            if ( IsFocusedItemChordPressed( focus_id, g_Ctx.Actions.FirstItem ) )
                 new_index = 0;
-            if ( IsFocusedItemKeyPressed( focus_id, ImGuiKey_End ) )
+            if ( IsFocusedItemChordPressed( focus_id, g_Ctx.Actions.LastItem ) )
                 new_index = count - 1;
         }
         if ( GImGui->NavActivateId == focus_id )
@@ -6958,14 +7078,14 @@ namespace ImFluent
     }
 
     // Opens the picker flyout on click, Space/Enter, and (when `alt_arrows_open`) Alt+Up/Alt+Down as WinUI
-    // DatePicker/TimePicker do.
+    // DatePicker/TimePicker do (ImFluentActions::PickerOpenCommit and PickerOpenCommitAlt).
     static bool PickerTogglePopup( ImGuiID popup_id, const ImRect & bb, ImGuiID trig_id, bool disabled, bool alt_arrows_open )
     {
         ImGuiContext & gctx     = *ImGui::GetCurrentContext();
         const bool popup_open   = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
         const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
         const bool nav_activate = ( gctx.NavActivateId == trig_id );
-        const bool key_open     = alt_arrows_open && !popup_open && gctx.IO.KeyAlt && ( ConsumeNavArrow( trig_id, ImGuiDir_Up ) || ConsumeNavArrow( trig_id, ImGuiDir_Down ) );
+        const bool key_open     = alt_arrows_open && !popup_open && ( IsFocusedItemChordPressed( trig_id, g_Ctx.Actions.PickerOpenCommit, false ) || IsFocusedItemChordPressed( trig_id, g_Ctx.Actions.PickerOpenCommitAlt, false ) );
         const bool toggle       = ( click_in_bb || nav_activate || key_open ) && !disabled;
         if ( toggle )
         {
@@ -7488,25 +7608,30 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     ImGuiContext & g = *GImGui;
     if ( g.NavId == grid_id )
     {
-        if ( g.IO.KeyCtrl )
+        const bool zoom_out = IsFocusedItemChordPressed( grid_id, g_Ctx.Actions.CalendarZoomOut, false );
+        const bool zoom_in  = IsFocusedItemChordPressed( grid_id, g_Ctx.Actions.CalendarZoomIn, false );
+        if ( zoom_out || zoom_in )
         {
-            if ( ConsumeNavArrow( grid_id, ImGuiDir_Up ) && view_mode < 2 )
+            if ( zoom_out && view_mode < 2 )
                 view_mode++;
-            if ( ConsumeNavArrow( grid_id, ImGuiDir_Down ) && view_mode > 0 )
+            if ( zoom_in && view_mode > 0 )
                 view_mode--;
-            ConsumeNavArrow( grid_id, ImGuiDir_Left );
-            ConsumeNavArrow( grid_id, ImGuiDir_Right );
             view_y = focus_y;
             view_m = focus_m;
+        }
+        else if ( g.IO.KeyCtrl ) // Other Ctrl+arrows do nothing
+        {
+            for ( int dir = ImGuiDir_Left; dir <= ImGuiDir_Down; ++dir )
+                ConsumeNavArrow( grid_id, ( ImGuiDir )dir );
         }
         else
         {
             const int dx      = ConsumeNavArrow( grid_id, ImGuiDir_Left ) ? -1 : ConsumeNavArrow( grid_id, ImGuiDir_Right ) ? 1 : 0;
             const int dy      = ConsumeNavArrow( grid_id, ImGuiDir_Up ) ? -1 : ConsumeNavArrow( grid_id, ImGuiDir_Down ) ? 1 : 0;
-            const bool k_home = IsFocusedItemKeyPressed( grid_id, ImGuiKey_Home );
-            const bool k_end  = IsFocusedItemKeyPressed( grid_id, ImGuiKey_End );
-            const bool k_pgup = IsFocusedItemKeyPressed( grid_id, ImGuiKey_PageUp );
-            const bool k_pgdn = IsFocusedItemKeyPressed( grid_id, ImGuiKey_PageDown );
+            const bool k_home = IsFocusedItemChordPressed( grid_id, g_Ctx.Actions.FirstItem );
+            const bool k_end  = IsFocusedItemChordPressed( grid_id, g_Ctx.Actions.LastItem );
+            const bool k_pgup = IsFocusedItemChordPressed( grid_id, g_Ctx.Actions.PageUp );
+            const bool k_pgdn = IsFocusedItemChordPressed( grid_id, g_Ctx.Actions.PageDown );
             int ny = focus_y, nm = focus_m, nd = focus_d;
             if ( view_mode == 0 )
             {
