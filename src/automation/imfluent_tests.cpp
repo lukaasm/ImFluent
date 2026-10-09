@@ -110,6 +110,11 @@ struct KeyboardVars
     bool TreeSubOpen = false;
     bool TreeSubChk  = false;
 
+    int MenuCmd  = 0;
+    int CbfCmd   = 0;
+    int Flip     = 0;
+    int PivotSel = 0;
+
     char City[ 64 ]     = "";
     char Text[ 64 ]     = "";
     char Password[ 64 ] = "secret";
@@ -1474,4 +1479,167 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
             IM_CHECK_EQ( PopupCount( ctx ), 0 );
         };
     }
+
+    // [SECTION] Keyboard: MenuBar, CommandBarFlyout, FlipView, Pivot
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "menu_bar_open_switch_escape" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        if ( ImFluent::BeginMenuBar( "bar" ) )
+        {
+            if ( ImFluent::BeginMenuBarItem( "File" ) )
+            {
+                if ( ImFluent::MenuFlyoutItem( "New" ) )
+                    v.MenuCmd = 1;
+                ImFluent::EndMenuBarItem();
+            }
+            if ( ImFluent::BeginMenuBarItem( "Edit" ) )
+            {
+                if ( ImFluent::MenuFlyoutItem( "Undo" ) )
+                    v.MenuCmd = 2;
+                ImFluent::EndMenuBarItem();
+            }
+            ImFluent::EndMenuBar();
+        }
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab ); // The bar is one tab stop
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "File" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Edit" );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "File" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Opens the menu
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "New" );
+        ctx->KeyPress( ImGuiKey_RightArrow ); // Switches to the next menu
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Undo" );
+        ctx->KeyPress( ImGuiKey_Escape ); // Focus back on that menu's bar item
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Edit" );
+        ctx->KeyPress( ImGuiKey_Enter ); // Opens again at once
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Undo" );
+        ctx->KeyPress( ImGuiKey_Enter );
+        IM_CHECK_EQ( v.MenuCmd, 2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "command_bar_flyout_rows" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        if ( ImFluent::Button( "show" ) )
+            ImFluent::OpenFlyout( "##cbf" );
+        if ( ImFluent::BeginCommandBarFlyout( "##cbf" ) )
+        {
+            ImFluent::AppBarButton( "Share", ImFluentIcon_Share );
+            ImFluent::AppBarButton( "Save", ImFluentIcon_Save );
+            ImFluent::CommandBarFlyoutSecondary();
+            if ( ImFluent::MenuFlyoutItem( "Resize" ) )
+                v.CbfCmd++;
+            ImFluent::EndCommandBarFlyout();
+        }
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "show" );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Share" ); // First primary command
+        ctx->KeyPress( ImGuiKey_LeftArrow );           // Row start: stays
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Share" );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 ); // Row end: stays on the last command
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Save" );
+        ctx->KeyPress( ImGuiKey_DownArrow ); // Into the secondary commands
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Resize" );
+        ctx->KeyPress( ImGuiKey_Enter ); // A secondary command closes the flyout
+        IM_CHECK_EQ( v.CbfCmd, 1 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "show" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "flip_view_left_right" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        if ( ImFluent::BeginFlipView( "flip", &v.Flip, 3, ImVec2( 200.f, 100.f ) ) )
+            ImGui::Text( "Item %d", v.Flip );
+        ImFluent::EndFlipView();
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "flip" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_EQ( v.Flip, 1 );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 ); // No wrap
+        IM_CHECK_EQ( v.Flip, 2 );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK_EQ( v.Flip, 1 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "flip" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "pivot_one_stop_wraps" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v              = ctx->GetVars< KeyboardVars >();
+        static const char * headers[] = { "A", "B", "C" };
+        BeginTestWindow();
+        ImFluent::Button( "before" );
+        if ( ImFluent::BeginPivot( "pivot" ) )
+        {
+            for ( int i = 0; i < 3; ++i )
+                if ( ImFluent::PivotItem( headers[ i ], v.PivotSel == i ) )
+                    v.PivotSel = i;
+            ImFluent::EndPivot();
+        }
+        ImFluent::Button( "after" );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "before" );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "A" );
+        ctx->KeyPress( ImGuiKey_LeftArrow ); // Wraps to the last header and selects it
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "C" );
+        IM_CHECK_EQ( v.PivotSel, 2 );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_EQ( v.PivotSel, 0 );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_EQ( v.PivotSel, 1 );
+        ctx->KeyPress( ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "after" );
+    };
 }

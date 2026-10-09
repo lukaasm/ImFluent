@@ -108,7 +108,8 @@ struct ImFluentCommandBarState
     float Height;
     bool HasItem              = false;
     bool SuppressAutoSameLine = false;
-    ImGuiWindow * Window      = NULL; // The bar's child window (the overflow popup is another window)
+    bool IconOnly             = false; // CommandBarFlyout primary commands: no labels
+    ImGuiWindow * Window      = NULL;  // The bar's child window (the overflow popup is another window)
     ImGuiID PrevFirst         = 0;    // First and last commands of the previous frame: Left/Right stop there
     ImGuiID PrevLast          = 0;
     ImGuiID First             = 0;
@@ -200,6 +201,30 @@ struct ImFluentContext
     ImVector< float > NavItemIndentStack;
     ImVector< ImFluentTabGroup > TabGroupStack;
     ImPool< ImFluentTabGroupLayout > TabGroupLayouts;
+
+    struct FlipViewState
+    {
+        ImGuiID Id;
+        const char * Label;
+        int * Current;
+        int Count;
+    };
+    ImVector< FlipViewState > FlipViewStack;
+
+    struct MenuBarState
+    {
+        static const int MaxItems = 16;
+        bool InPage               = false; // BeginMenuBar( id ), else the application's main menu bar
+        ImGuiID Id                = 0;
+        int Count                 = 0;
+        int OpenIndex             = -1; // The item whose menu is open this frame
+        int PrevOpenIndex         = -1; // ...and last frame
+        int SwitchDir             = 0;  // Left/Right inside an open menu: open the neighbouring menu
+        ImGuiID ItemIds[ MaxItems ];
+        ImGuiID PopupIds[ MaxItems ];
+        ImRect Rects[ MaxItems ];
+    };
+    ImVector< MenuBarState > MenuBarStack;
     bool InRadioButtons;                 // RadioButtons() moves focus itself: its items are not loose radio buttons
     ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
     ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
@@ -1010,7 +1035,7 @@ namespace ImFluent
     static ImFluentAppBarLabelPosition ConsumeAppBarLabelPos()
     {
         if ( !g_Ctx.NextAppBarLabelPosSet )
-            return ImFluentAppBarLabelPosition_Bottom;
+            return ( !g_Ctx.CommandBarStack.empty() && g_Ctx.CommandBarStack.back().IconOnly ) ? ImFluentAppBarLabelPosition_Collapsed : ImFluentAppBarLabelPosition_Bottom;
         const ImFluentAppBarLabelPosition v = g_Ctx.NextAppBarLabelPos;
         g_Ctx.NextAppBarLabelPosSet         = false;
         return v;
@@ -6146,17 +6171,6 @@ void ImFluent::EndMenuFlyout()
     ImGui::PopStyleColor( 4 );
 }
 
-// [SECTION] CommandBarFlyout
-
-bool ImFluent::BeginCommandBarFlyout( const char * id )
-{
-    return BeginFlyout( id );
-}
-void ImFluent::EndCommandBarFlyout()
-{
-    EndFlyout();
-}
-
 // [SECTION] ContentDialog
 
 void ImFluent::OpenContentDialog( const char * id )
@@ -6640,19 +6654,141 @@ void ImFluent::TitleBarSubtitle( const char * subtitle )
 
 bool ImFluent::BeginMenuBar()
 {
-    const ImFluentStyle & style = ImFluent::GetStyle();
     ImGui::PushStyleColor( ImGuiCol_MenuBarBg, ImFluent::GetColorU32( ImFluentCol_LayerFillDefault ) );
     if ( !ImGui::BeginMainMenuBar() )
     {
         ImGui::PopStyleColor();
         return false;
     }
+    g_Ctx.MenuBarStack.push_back( ImFluentContext::MenuBarState() );
     return true;
 }
+
+// WinUI MenuBar inside the page. The menus are one tab stop: Left/Right move between them (wrapping), Enter, Space
+// or Down open one. While a menu is open, Left/Right in it and the pointer over another menu switch menus.
+static const ImGuiID MENUBAR_KEY_OPEN = 0x4D42u; // Index of the open menu, in the window storage
+
+bool ImFluent::BeginMenuBar( const char * id )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems )
+        return false;
+    ImGui::PushID( id );
+    ImGui::BeginGroup();
+    ImFluentContext::MenuBarState mb;
+    mb.InPage        = true;
+    mb.Id            = ImGui::GetID( "##menubar" );
+    mb.PrevOpenIndex = ImGui::GetStateStorage()->GetInt( mb.Id ^ MENUBAR_KEY_OPEN, -1 );
+    g_Ctx.MenuBarStack.push_back( mb );
+    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 0.f ) );
+    BeginTabGroup( mb.Id, ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_Wrap );
+    return true;
+}
+
+bool ImFluent::BeginMenuBarItem( const char * label )
+{
+    IM_ASSERT( !g_Ctx.MenuBarStack.empty() && g_Ctx.MenuBarStack.back().InPage && "BeginMenuBarItem() needs BeginMenuBar( id )" );
+    ImFluentContext::MenuBarState & mb = g_Ctx.MenuBarStack.back();
+    ImGuiContext & g                   = *GImGui;
+    ImGuiWindow * w                    = g.CurrentWindow;
+    if ( w->SkipItems )
+        return false;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const ImGuiID id            = w->GetID( label );
+    char popup_name[ 80 ];
+    ImFormatString( popup_name, sizeof( popup_name ), "##menubar-%s", label );
+    const ImGuiID popup_id = w->GetID( popup_name );
+
+    const float pad_x = FluentDpx( style.SpacingLarge );
+    const ImVec2 ts   = ImGui::CalcTextSize( label, NULL, true );
+    const ImVec2 pos  = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + ts.x + pad_x * 2.f, pos.y + FluentDpx( style.ControlHeight ) ) );
+    ImGui::ItemSize( bb );
+    const int index = mb.Count;
+    if ( mb.Count < ImFluentContext::MenuBarState::MaxItems )
+    {
+        mb.ItemIds[ mb.Count ]  = id;
+        mb.PopupIds[ mb.Count ] = popup_id;
+        mb.Rects[ mb.Count ]    = bb;
+        ++mb.Count;
+    }
+    if ( !ImGui::ItemAdd( bb, id, NULL, TabGroupItemFlags( id, false ) ) )
+    {
+        ImGui::SameLine();
+        return false;
+    }
+    bool hovered = false, held = false;
+    const bool pressed  = ImGui::ButtonBehavior( bb, id, &hovered, &held, ImGuiButtonFlags_PressedOnClick );
+    const bool key_open = ConsumeNavArrow( id, ImGuiDir_Down );
+    TabGroupItemNav( id );
+    const bool open     = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
+    const bool was_open = mb.PrevOpenIndex == index;
+    // A click on the open menu's own item closes it: ImGui already closed the popup on the click outside it.
+    bool want_open      = ( pressed && !open && !was_open ) || ( key_open && !open );
+    // The pointer over another menu while one is open switches to it.
+    if ( !open && mb.PrevOpenIndex >= 0 && !was_open && ImGui::IsMouseHoveringRect( bb.Min, bb.Max ) && ( g.IO.MouseDelta.x != 0.f || g.IO.MouseDelta.y != 0.f ) )
+        want_open = true;
+    if ( want_open )
+    {
+        ImGui::ClosePopupsOverWindow( w, false );
+        StorePopupAnchor( popup_id, bb );
+        ImGui::OpenPopupEx( popup_id, ImGuiPopupFlags_None );
+    }
+    ReportItemInfo( id, label, OpenedFlags( open || want_open ) );
+    ImDrawList * dl = w->DrawList;
+    const float r   = FluentDpx( style.ControlCornerRadius );
+    dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, ResolveSubtleFillState( open, held, hovered ) ), r );
+    dl->AddText( ImVec2( bb.Min.x + pad_x, ( bb.Min.y + bb.Max.y - ts.y ) * 0.5f ), ImFluent::GetColorU32( ImFluentCol_TextPrimary ), label, ImGui::FindRenderedTextEnd( label ) );
+    RenderNavFocusRing( id, bb, r );
+    ImGui::SameLine();
+
+    if ( !BeginMenuFlyout( popup_name ) )
+        return false;
+    mb.OpenIndex = index;
+    return true;
+}
+
+void ImFluent::EndMenuBarItem()
+{
+    ImFluentContext::MenuBarState & mb = g_Ctx.MenuBarStack.back();
+    ImGuiContext & g                   = *GImGui;
+    // Left/Right on this menu (a submenu item consumes them first) open the neighbouring menu.
+    if ( g.NavWindow == g.CurrentWindow && g.NavMoveSubmitted && ( g.NavMoveDir == ImGuiDir_Left || g.NavMoveDir == ImGuiDir_Right ) )
+    {
+        mb.SwitchDir = g.NavMoveDir == ImGuiDir_Left ? -1 : 1;
+        ImGui::NavMoveRequestCancel();
+    }
+    EndMenuFlyout();
+}
+
 void ImFluent::EndMenuBar()
 {
-    ImGui::EndMainMenuBar();
-    ImGui::PopStyleColor();
+    IM_ASSERT( !g_Ctx.MenuBarStack.empty() && "EndMenuBar() without BeginMenuBar()" );
+    const ImFluentContext::MenuBarState mb = g_Ctx.MenuBarStack.back();
+    g_Ctx.MenuBarStack.pop_back();
+    if ( !mb.InPage )
+    {
+        ImGui::EndMainMenuBar();
+        ImGui::PopStyleColor();
+        return;
+    }
+    EndTabGroup();
+    ImGui::PopStyleVar();
+    int open_index = mb.OpenIndex;
+    if ( mb.SwitchDir != 0 && mb.OpenIndex >= 0 && mb.Count > 1 )
+    {
+        const int next = ( mb.OpenIndex + mb.SwitchDir + mb.Count ) % mb.Count;
+        ImGui::ClosePopupsOverWindow( ImGui::GetCurrentWindow(), false );
+        // Escape in the new menu gives focus back to its own bar item.
+        ImGui::SetFocusID( mb.ItemIds[ next ], ImGui::GetCurrentWindow() );
+        StorePopupAnchor( mb.PopupIds[ next ], mb.Rects[ next ] );
+        ImGui::OpenPopupEx( mb.PopupIds[ next ], ImGuiPopupFlags_None );
+        open_index = next;
+    }
+    ImGui::GetStateStorage()->SetInt( mb.Id ^ MENUBAR_KEY_OPEN, open_index );
+    ImGui::EndGroup();
+    ImGui::PopID();
+    ImGui::NewLine();
 }
 
 // [SECTION] CommandBar & AppBar
@@ -6749,6 +6885,53 @@ void ImFluent::EndCommandBar()
     ImGui::EndChild();
     ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor();
+}
+
+// [SECTION] CommandBarFlyout
+// WinUI CommandBarFlyout: a flyout with a row of icon-only primary commands (AppBarButton, AppBarToggleButton) and,
+// after CommandBarFlyoutSecondary(), a list of secondary commands (MenuFlyoutItem). Focus opens on the first
+// primary command; Left/Right stop at the ends of the row; invoking a secondary command closes the flyout; Escape
+// closes the whole flyout.
+
+bool ImFluent::BeginCommandBarFlyout( const char * id )
+{
+    if ( !BeginFlyout( id ) )
+        return false;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    ImFluentCommandBarState s;
+    ImStrncpy( s.Id, id, sizeof( s.Id ) );
+    s.PopupId[ 0 ]    = 0;
+    s.Height          = FluentDpx( style.AppBarButtonHeight );
+    s.IconOnly        = true;
+    s.Window          = ImGui::GetCurrentWindow();
+    ImGuiStorage * st = ImGui::GetStateStorage();
+    s.PrevFirst       = ( ImGuiID )st->GetInt( COMMANDBAR_KEY_FIRST, 0 );
+    s.PrevLast        = ( ImGuiID )st->GetInt( COMMANDBAR_KEY_LAST, 0 );
+    g_Ctx.CommandBarStack.push_back( s );
+    return true;
+}
+
+// Ends the primary row of the flyout begun last.
+static void EndCommandBarFlyoutPrimary()
+{
+    if ( g_Ctx.CommandBarStack.empty() || g_Ctx.CommandBarStack.back().Window != ImGui::GetCurrentWindow() )
+        return;
+    const ImFluentCommandBarState & s = g_Ctx.CommandBarStack.back();
+    ImGui::GetStateStorage()->SetInt( COMMANDBAR_KEY_FIRST, ( int )s.First );
+    ImGui::GetStateStorage()->SetInt( COMMANDBAR_KEY_LAST, ( int )s.Last );
+    g_Ctx.CommandBarStack.pop_back();
+}
+
+void ImFluent::CommandBarFlyoutSecondary()
+{
+    EndCommandBarFlyoutPrimary();
+    MenuFlyoutSeparator();
+}
+
+void ImFluent::EndCommandBarFlyout()
+{
+    EndCommandBarFlyoutPrimary();
+    EndFlyout();
 }
 
 void ImFluent::SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition pos )
@@ -8507,4 +8690,295 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
 
     RenderAndConsumePendingError( bb );
     return changed;
+}
+
+// [SECTION] PersonPicture / Image
+
+// Initials of a display name: the first letter of the first and of the last word ("Ada Lovelace" -> "AL").
+static void PersonInitials( const char * name, char * out, int out_size )
+{
+    out[ 0 ] = 0;
+    if ( !name )
+        return;
+    const char * first = NULL;
+    const char * last  = NULL;
+    for ( const char * p = name; *p; ++p )
+        if ( *p != ' ' && ( p == name || p[ -1 ] == ' ' ) )
+        {
+            if ( !first )
+                first = p;
+            last = p;
+        }
+    int n = 0;
+    for ( const char * src : { first, last != first ? last : NULL } )
+    {
+        if ( !src )
+            continue;
+        unsigned int c   = 0;
+        const int length = ImTextCharFromUtf8( &c, src, NULL );
+        if ( n + length >= out_size )
+            break;
+        if ( c < 128 )
+            out[ n++ ] = ( char )ImToUpper( ( char )c );
+        else
+            for ( int i = 0; i < length; ++i )
+                out[ n++ ] = src[ i ];
+    }
+    out[ n ] = 0;
+}
+
+static bool HasTexture( ImTextureRef texture )
+{
+    return texture._TexData != NULL || texture._TexID != ImTextureID_Invalid;
+}
+
+void ImFluent::PersonPicture( const char * display_name, float size, int badge_number, ImTextureRef texture, const char * initials )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems )
+        return;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const float D               = size > 0.f ? size : FluentDpx( 100.f );
+    const ImVec2 pos            = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + D, pos.y + D ) );
+    const ImGuiID id = w->GetID( display_name && *display_name ? display_name : "##person" );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id, NULL, ImGuiItemFlags_NoNav ) )
+        return;
+    ReportItemInfo( id, display_name ? display_name : "PersonPicture" );
+
+    ImDrawList * dl = w->DrawList;
+    const ImVec2 c( pos.x + D * 0.5f, pos.y + D * 0.5f );
+    if ( HasTexture( texture ) )
+        dl->AddImageRounded( texture, bb.Min, bb.Max, ImVec2( 0, 0 ), ImVec2( 1, 1 ), IM_COL32_WHITE, D * 0.5f );
+    else
+    {
+        dl->AddCircleFilled( c, D * 0.5f, ImFluent::GetColorU32( ImFluentCol_ControlAltFillQuarternary ), 48 );
+        char buf[ 16 ];
+        if ( initials && *initials )
+            ImStrncpy( buf, initials, sizeof( buf ) );
+        else
+            PersonInitials( display_name, buf, sizeof( buf ) );
+        // WinUI: initials at about 40% of the picture size; the person glyph when there is no name.
+        const char * text = buf[ 0 ] ? buf : ImFluentIcon_Contact;
+        ImFluent::RenderCenteredText( dl, c, D * 0.4f, ImFluent::GetColorU32( ImFluentCol_TextPrimary ), text );
+    }
+
+    if ( badge_number > 0 )
+    {
+        const float bd = ImMax( FluentDpx( style.BadgeHeight ), D * 0.25f );
+        const ImVec2 bc( bb.Max.x - bd * 0.5f, bb.Min.y + bd * 0.5f );
+        char num[ 8 ];
+        ImFormatString( num, sizeof( num ), badge_number > 99 ? "99+" : "%d", badge_number );
+        dl->AddCircleFilled( bc, bd * 0.5f + FluentDpx( style.StrokeMedium ), ImFluent::GetColorU32( ImFluentCol_SolidBgBase ), 32 );
+        dl->AddCircleFilled( bc, bd * 0.5f, ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), 32 );
+        ImFluent::RenderCenteredText( dl, bc, bd * 0.6f, ImFluent::GetColorU32( ImFluentCol_TextOnAccentPrimary ), num );
+    }
+}
+
+void ImFluent::Image( ImTextureRef texture, const ImVec2 & size, float corner_radius, const ImVec2 & uv0, const ImVec2 & uv1 )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems )
+        return;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const ImVec2 pos            = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + size.x, pos.y + size.y ) );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, 0 ) )
+        return;
+    const float r = corner_radius >= 0.f ? corner_radius : FluentDpx( style.OverlayCornerRadius );
+    if ( HasTexture( texture ) )
+        w->DrawList->AddImageRounded( texture, bb.Min, bb.Max, uv0, uv1, IM_COL32_WHITE, r );
+    else
+        w->DrawList->AddRectFilled( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_ControlAltFillQuarternary ), r );
+}
+
+// [SECTION] Border / ScrollViewer
+
+bool ImFluent::BeginBorder( const char * id, const ImVec2 & size, ImFluentCol background, ImFluentCol stroke, float thickness, float corner_radius, const ImVec2 & padding )
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const ImVec2 pad            = ImVec2( padding.x >= 0.f ? padding.x : FluentDpx( style.SpacingLarge ), padding.y >= 0.f ? padding.y : FluentDpx( style.SpacingLarge ) );
+    ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( background ) );
+    ImGui::PushStyleColor( ImGuiCol_Border, ImFluent::GetColorU32( stroke ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, corner_radius >= 0.f ? corner_radius : FluentDpx( style.ControlCornerRadius ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ChildBorderSize, thickness );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, pad );
+    // A zero size fits the content on that axis.
+    ImGuiChildFlags flags = ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened;
+    if ( thickness > 0.f )
+        flags |= ImGuiChildFlags_Borders;
+    if ( size.x == 0.f )
+        flags |= ImGuiChildFlags_AutoResizeX;
+    if ( size.y == 0.f )
+        flags |= ImGuiChildFlags_AutoResizeY;
+    const bool visible = ImGui::BeginChild( id, size, flags, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+    ImGui::PopStyleVar( 3 );
+    ImGui::PopStyleColor( 2 );
+    return visible;
+}
+
+void ImFluent::EndBorder()
+{
+    ImGui::EndChild();
+}
+
+bool ImFluent::BeginScrollViewer( const char * id, const ImVec2 & size, bool horizontal )
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    // Fluent scroll bars: a thin rounded thumb on a clear track.
+    ImGui::PushStyleColor( ImGuiCol_ScrollbarBg, IM_COL32( 0, 0, 0, 0 ) );
+    ImGui::PushStyleColor( ImGuiCol_ScrollbarGrab, ImFluent::GetColorU32( ImFluentCol_ControlStrongFillDefault ) );
+    ImGui::PushStyleColor( ImGuiCol_ScrollbarGrabHovered, ImFluent::GetColorU32( ImFluentCol_TextSecondary ) );
+    ImGui::PushStyleColor( ImGuiCol_ScrollbarGrabActive, ImFluent::GetColorU32( ImFluentCol_TextPrimary ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ScrollbarSize, FluentDpx( style.SpacingMedium ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ScrollbarRounding, FluentDpx( style.SpacingMedium ) );
+    return ImGui::BeginChild( id, size, ImGuiChildFlags_NavFlattened, horizontal ? ImGuiWindowFlags_HorizontalScrollbar : ImGuiWindowFlags_None );
+}
+
+void ImFluent::EndScrollViewer()
+{
+    ImGui::EndChild();
+    ImGui::PopStyleVar( 2 );
+    ImGui::PopStyleColor( 4 );
+}
+
+// [SECTION] FlipView / Pivot
+
+// WinUI FlipView: one item at a time. The view is one tab stop: Left/Right show the previous/next item (no wrap).
+// Previous/next buttons appear while the pointer is over the view or it has keyboard focus; they are not tab stops.
+bool ImFluent::BeginFlipView( const char * id, int * current_item, int items_count, const ImVec2 & size )
+{
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    ImGui::PushID( id );
+    g_Ctx.FlipViewStack.push_back( { ImGui::GetID( "##flip" ), id, current_item, items_count } );
+    ImGui::PushStyleColor( ImGuiCol_ChildBg, ImFluent::GetColorU32( ImFluentCol_CardBgDefault ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_ChildRounding, FluentDpx( style.OverlayCornerRadius ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
+    const bool visible = ImGui::BeginChild( "##flip-content", size, ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
+    ImGui::PopStyleVar( 2 );
+    ImGui::PopStyleColor();
+    return visible;
+}
+
+static bool FlipViewButton( const char * str_id, const char * name, const ImRect & bb, const char * glyph )
+{
+    ImGuiWindow * w             = ImGui::GetCurrentWindow();
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const ImGuiID id            = w->GetID( str_id );
+    if ( !ImGui::ItemAdd( bb, id, NULL, ImGuiItemFlags_NoNav ) )
+        return false;
+    bool hov = false, held = false;
+    const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+    ImFluent::ReportItemInfo( id, name );
+    const float r   = ImFluent::FluentDpx( style.ControlCornerRadius );
+    ImDrawList * dl = w->DrawList;
+    dl->AddRectFilled( bb.Min, bb.Max, ImFluent::AnimateColorU32( id, ImFluent::ResolveControlFillState( false, held, hov ) ), r );
+    dl->AddRect( bb.Min, bb.Max, ImFluent::GetColorU32( ImFluentCol_ControlStrokeDefault ), r );
+    ImFluent::RenderCenteredText( dl, bb.GetCenter(), ImGui::GetFontSize() * 0.7f, ImFluent::GetColorU32( ImFluentCol_TextSecondary ), glyph );
+    return pressed;
+}
+
+void ImFluent::EndFlipView()
+{
+    IM_ASSERT( !g_Ctx.FlipViewStack.empty() && "EndFlipView() without BeginFlipView()" );
+    const ImFluentContext::FlipViewState st = g_Ctx.FlipViewStack.back();
+    g_Ctx.FlipViewStack.pop_back();
+    ImGuiContext & g            = *GImGui;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    int cur                     = st.Current ? ImClamp( *st.Current, 0, ImMax( 0, st.Count - 1 ) ) : 0;
+
+    // Overlay buttons, drawn inside the child so they sit above the item content.
+    ImGuiWindow * cw  = ImGui::GetCurrentWindow();
+    const ImRect area = cw->Rect();
+    const bool show   = st.Count > 1 && ( ImGui::IsWindowHovered( ImGuiHoveredFlags_ChildWindows ) || g.NavId == st.Id );
+    if ( show )
+    {
+        const float bw  = FluentDpx( 20.f );
+        const float bh  = FluentDpx( 36.f );
+        const float pad = FluentDpx( style.SpacingXSmall );
+        const float cy  = ( area.Min.y + area.Max.y ) * 0.5f;
+        if ( cur > 0 && FlipViewButton( "##flip-prev", "Previous", ImRect( area.Min.x + pad, cy - bh * 0.5f, area.Min.x + pad + bw, cy + bh * 0.5f ), ImFluentIcon_ChevronLeft ) )
+            --cur;
+        if ( cur < st.Count - 1 && FlipViewButton( "##flip-next", "Next", ImRect( area.Max.x - pad - bw, cy - bh * 0.5f, area.Max.x - pad, cy + bh * 0.5f ), ImFluentIcon_ChevronRight ) )
+            ++cur;
+    }
+    ImGui::EndChild();
+
+    // The view itself is the tab stop, over the whole area.
+    const ImRect view( ImGui::GetItemRectMin(), ImGui::GetItemRectMax() );
+    if ( ImGui::ItemAdd( view, st.Id ) )
+    {
+        ReportItemInfo( st.Id, st.Label );
+        if ( g.NavId == st.Id )
+        {
+            if ( ConsumeNavArrow( st.Id, ImGuiDir_Left ) && cur > 0 )
+                --cur;
+            if ( ConsumeNavArrow( st.Id, ImGuiDir_Right ) && cur < st.Count - 1 )
+                ++cur;
+        }
+        RenderNavFocusRing( st.Id, view, FluentDpx( style.OverlayCornerRadius ) );
+    }
+    if ( st.Current )
+        *st.Current = cur;
+    ImGui::PopID();
+}
+
+// WinUI Pivot: large text headers with an accent pipe under the selected one. The headers are one tab stop;
+// Left/Right select the previous/next header and wrap around.
+bool ImFluent::BeginPivot( const char * id )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems )
+        return false;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    ImGui::PushID( id );
+    ImGui::BeginGroup();
+    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( FluentDpx( style.SpacingSmall ), 0.f ) );
+    ImFluent::PushFont( ImFluentTextStyle_Subtitle );
+    BeginTabGroup( ImGui::GetID( "##pivot-group" ), ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_Wrap | ImFluentTabGroupFlags_SelectionFollowsFocus );
+    return true;
+}
+
+bool ImFluent::PivotItem( const char * header, bool selected )
+{
+    ImGuiWindow * w = ImGui::GetCurrentWindow();
+    if ( w->SkipItems )
+        return false;
+    const ImFluentStyle & style = ImFluent::GetStyle();
+    const ImGuiID id            = w->GetID( header );
+    const float pad_x           = FluentDpx( style.SpacingMedium );
+    const float pad_y           = FluentDpx( style.SpacingSmall );
+    const float pipe_h          = FluentDpx( 3.f );
+    const ImVec2 ts             = ImGui::CalcTextSize( header, NULL, true );
+    const ImVec2 pos            = w->DC.CursorPos;
+    const ImRect bb( pos, ImVec2( pos.x + ts.x + pad_x * 2.f, pos.y + ts.y + pad_y * 2.f + pipe_h ) );
+    ImGui::ItemSize( bb );
+    if ( !ImGui::ItemAdd( bb, id, NULL, TabGroupItemFlags( id, selected ) ) )
+    {
+        ImGui::SameLine();
+        return false;
+    }
+    bool hovered = false, held = false;
+    const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held ) | TabGroupItemNav( id );
+    ReportItemInfo( id, header, CheckedFlags( selected ) );
+    ImDrawList * dl          = w->DrawList;
+    const ImFluentCol text_c = selected ? ImFluentCol_TextPrimary : held ? ImFluentCol_TextTertiary : hovered ? ImFluentCol_TextPrimary : ImFluentCol_TextSecondary;
+    dl->AddText( ImVec2( bb.Min.x + pad_x, bb.Min.y + pad_y ), AnimateColorU32( id, ImFluent::GetColorU32( text_c ) ), header, ImGui::FindRenderedTextEnd( header ) );
+    if ( selected )
+        dl->AddRectFilled( ImVec2( bb.Min.x + pad_x, bb.Max.y - pipe_h ), ImVec2( bb.Max.x - pad_x, bb.Max.y ), ImFluent::GetColorU32( ImFluentCol_AccentFillDefault ), pipe_h * 0.5f );
+    RenderNavFocusRing( id, bb, FluentDpx( style.ControlCornerRadius ) );
+    ImGui::SameLine();
+    return pressed;
+}
+
+void ImFluent::EndPivot()
+{
+    EndTabGroup();
+    ImFluent::PopFont();
+    ImGui::PopStyleVar();
+    ImGui::EndGroup();
+    ImGui::PopID();
+    ImGui::NewLine();
 }

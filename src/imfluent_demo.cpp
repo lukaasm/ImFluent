@@ -86,6 +86,18 @@ namespace ImFluentGalleryApp
     static void Page_Item_SplitView();
     static void Page_Item_WrapPanel();
     static void Page_Item_TeachingTip();
+    static void Page_Item_ToggleSplitButton();
+    static void Page_Item_AppBarToggleButton();
+    static void Page_Item_AppBarSeparator();
+    static void Page_Item_CommandBarFlyout();
+    static void Page_Item_MenuBar();
+    static void Page_Item_CalendarView();
+    static void Page_Item_PersonPicture();
+    static void Page_Item_Image();
+    static void Page_Item_Border();
+    static void Page_Item_ScrollViewer();
+    static void Page_Item_FlipView();
+    static void Page_Item_Pivot();
     static void Page_Item_TitleBar();
     static void Page_Item_StyleStack();
     static void Page_Item_CommandBar();
@@ -96,6 +108,7 @@ namespace ImFluentGalleryApp
         { "HyperlinkButton", "BasicInput", "HyperlinkButton", "A button that appears as hyperlink text and can navigate to a URI.", ImFluentIcon_Share, &Page_Item_HyperlinkButton },
         { "DropDownButton", "BasicInput", "DropDownButton", "A button with a chevron that opens a flyout when clicked.", ImFluentIcon_ChevronDown, &Page_Item_DropDownButton },
         { "SplitButton", "BasicInput", "SplitButton", "A button with two parts: an action button and a chevron drop-down.", ImFluentIcon_ChevronDown, &Page_Item_SplitButton },
+        { "ToggleSplitButton", "BasicInput", "ToggleSplitButton", "A SplitButton whose primary part toggles on and off.", ImFluentIcon_ChevronDown, &Page_Item_ToggleSplitButton },
         { "ToggleButton", "BasicInput", "ToggleButton", "A button that can be on, off, or indeterminate.", ImFluentIcon_CheckboxComposite, &Page_Item_ToggleButton },
         { "RepeatButton", "BasicInput", "RepeatButton", "A button that fires its Click event repeatedly while held.", ImFluentIcon_Refresh, &Page_Item_RepeatButton },
         { "CheckBox", "BasicInput", "CheckBox", "A control a user can select or clear.", ImFluentIcon_CheckboxComposite, &Page_Item_CheckBox },
@@ -122,9 +135,11 @@ namespace ImFluentGalleryApp
         { "ListView", "Collections", "ListView", "A vertical list of items with selection.", ImFluentIcon_ViewAll, &Page_Item_ListView },
         { "TreeView", "Collections", "TreeView", "A hierarchical list of items.", ImFluentIcon_Folder, &Page_Item_TreeView },
         { "GridView", "Collections", "GridView", "A grid layout of selectable items.", ImFluentIcon_ViewAll, &Page_Item_GridView },
+        { "FlipView", "Collections", "FlipView", "Shows one item of a collection at a time.", ImFluentIcon_Photo, &Page_Item_FlipView },
         { "PipsPager", "Collections", "PipsPager", "A pager rendered as a row of dots.", ImFluentIcon_More, &Page_Item_PipsPager },
         { "PagerControl", "Collections", "PagerControl", "Page navigator with numeric buttons, combo box, or editable number; first/last/prev/next controls.", ImFluentIcon_Page, &Page_Item_PagerControl },
 
+        { "Border", "Layout", "Border", "Draws a background, an outline and rounded corners around content.", ImFluentIcon_Folder, &Page_Item_Border },
         { "Card", "Layout", "Card", "A surface that groups related content.", ImFluentIcon_Folder, &Page_Item_Card },
         { "SettingsCard", "Layout", "SettingsCard", "Card row used on settings pages: glyph + header + description + control slot.", ImFluentIcon_Settings, &Page_Item_SettingsCard },
         { "Expander", "Layout", "Expander", "A control with a header that expands to reveal a body.", ImFluentIcon_ChevronDown, &Page_Item_Expander },
@@ -136,6 +151,7 @@ namespace ImFluentGalleryApp
         { "TabView", "Navigation", "TabView", "A control with multiple tabs the user can switch between.", ImFluentIcon_ViewAll, &Page_Item_TabView },
         { "NavigationView", "Navigation", "NavigationView", "A side-pane navigation control.", ImFluentIcon_GlobalNavButton, &Page_Item_NavigationView },
         { "SelectorBar", "Navigation", "SelectorBar", "A horizontal list of pill-shaped pivot items.", ImFluentIcon_ViewAll, &Page_Item_SelectorBar },
+        { "Pivot", "Navigation", "Pivot", "Large header tabs that switch the content below them.", ImFluentIcon_ViewAll, &Page_Item_Pivot },
         { "BreadcrumbBar", "Navigation", "BreadcrumbBar", "A trail of clickable parent items showing the current location.", ImFluentIcon_ChevronRight, &Page_Item_BreadcrumbBar },
 
         { "ContentDialog", "DialogsAndFlyouts", "ContentDialog", "A modal dialog with title, body, and action buttons.", ImFluentIcon_Important, &Page_Item_ContentDialog },
@@ -144,11 +160,21 @@ namespace ImFluentGalleryApp
         { "TeachingTip", "DialogsAndFlyouts", "TeachingTip", "Anchored callout used to teach a feature; placement = Top/Bottom/Left/Right.", ImFluentIcon_Info, &Page_Item_TeachingTip },
 
         { "AppBarButton", "MenusAndToolbars", "AppBarButton", "A toolbar button with an icon glyph above its label.", ImFluentIcon_Add, &Page_Item_AppBarButton },
+        { "AppBarToggleButton", "MenusAndToolbars", "AppBarToggleButton", "A toolbar button that toggles on and off.", ImFluentIcon_Bold, &Page_Item_AppBarToggleButton },
+        { "AppBarSeparator", "MenusAndToolbars", "AppBarSeparator", "A vertical line that groups commands in a command bar.", ImFluentIcon_More, &Page_Item_AppBarSeparator },
         { "CommandBar", "MenusAndToolbars", "CommandBar", "Toolbar with primary commands + overflow flyout for secondary.", ImFluentIcon_More, &Page_Item_CommandBar },
+        { "CommandBarFlyout", "MenusAndToolbars", "CommandBarFlyout", "A mini toolbar of icon commands with a menu of secondary commands.", ImFluentIcon_More, &Page_Item_CommandBarFlyout },
+        { "MenuBar", "MenusAndToolbars", "MenuBar", "A row of top-level menus inside the page.", ImFluentIcon_More, &Page_Item_MenuBar },
 
         { "DatePicker", "DateTime", "DatePicker", "Lets a user pick a date.", ImFluentIcon_Calendar, &Page_Item_DatePicker },
         { "TimePicker", "DateTime", "TimePicker", "Lets a user pick a time.", ImFluentIcon_Clock, &Page_Item_TimePicker },
         { "CalendarDatePicker", "DateTime", "CalendarDatePicker", "Drop-down calendar for picking a date.", ImFluentIcon_Calendar, &Page_Item_CalendarDatePicker },
+        { "CalendarView", "DateTime", "CalendarView", "A calendar with month, year and decade views.", ImFluentIcon_Calendar, &Page_Item_CalendarView },
+
+        { "PersonPicture", "Media", "PersonPicture", "A round avatar with a picture, initials or a placeholder glyph.", ImFluentIcon_Contact, &Page_Item_PersonPicture },
+        { "Image", "Media", "Image", "Shows a texture with rounded corners.", ImFluentIcon_Photo, &Page_Item_Image },
+
+        { "ScrollViewer", "Scrolling", "ScrollViewer", "A scrolling region with Fluent scroll bars.", ImFluentIcon_ScrollUpDown, &Page_Item_ScrollViewer },
 
         { "StyleStack", "Design", "Style stack", "Push/pop Fluent color and sizing tokens for scoped overrides.", ImFluentIcon_Color, &Page_Item_StyleStack },
         { "ColorPicker", "Design", "ColorPicker", "Pick a color via hue/saturation rect, sliders, hex, or palette swatch.", ImFluentIcon_Color, &Page_Item_ColorPicker },
@@ -162,8 +188,10 @@ namespace ImFluentGalleryApp
         { "Design", "Design", ImFluentIcon_Color },
         { "DialogsAndFlyouts", "Dialogs & flyouts", ImFluentIcon_Important },
         { "Layout", "Layout", ImFluentIcon_Folder },
+        { "Media", "Media", ImFluentIcon_Photo },
         { "MenusAndToolbars", "Menus & toolbars", ImFluentIcon_More },
         { "Navigation", "Navigation", ImFluentIcon_GlobalNavButton },
+        { "Scrolling", "Scrolling", ImFluentIcon_ScrollUpDown },
         { "StatusAndInfo", "Status & info", ImFluentIcon_Info },
         { "Text", "Text", ImFluentIcon_Font },
     };
@@ -383,6 +411,11 @@ namespace ImFluentGalleryApp
             ControlExampleOutput( "Mode = %s   Sends = %d", send_modes[ picked_mode ], send_count );
         }
         EndControlExample();
+    }
+
+    static void Page_Item_ToggleSplitButton()
+    {
+        PageHeader( "ToggleSplitButton", "A SplitButton whose primary part toggles on and off; the chevron opens a flyout." );
 
         if ( BeginControlExample( "ToggleSplitButton (paragraph alignment)" ) )
         {
@@ -1482,18 +1515,6 @@ namespace ImFluentGalleryApp
         }
         EndControlExample();
 
-        if ( BeginControlExample( "AppBarToggleButton" ) )
-        {
-            static bool bold = true, italic = false, under = false;
-            AppBarToggleButton( "Bold", "B", &bold );
-            ImGui::SameLine();
-            AppBarToggleButton( "Italic", "I", &italic );
-            ImGui::SameLine();
-            AppBarToggleButton( "Underline", "U", &under );
-            ControlExampleOutput( "B=%d I=%d U=%d", bold ? 1 : 0, italic ? 1 : 0, under ? 1 : 0 );
-        }
-        EndControlExample();
-
         if ( BeginControlExample( "LabelPosition: Bottom (default), Right, Collapsed" ) )
         {
             SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition_Bottom );
@@ -1504,6 +1525,247 @@ namespace ImFluentGalleryApp
             ImGui::SameLine();
             SetNextAppBarLabelPosition( ImFluentAppBarLabelPosition_Collapsed );
             AppBarButton( "Share", ImFluentIcon_Share );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_AppBarToggleButton()
+    {
+        PageHeader( "AppBarToggleButton", "A toolbar button that toggles on and off." );
+        if ( BeginControlExample( "Text formatting" ) )
+        {
+            static bool bold = true, italic = false, under = false;
+            AppBarToggleButton( "Bold", ImFluentIcon_Bold, &bold );
+            ImGui::SameLine();
+            AppBarToggleButton( "Italic", ImFluentIcon_Italic, &italic );
+            ImGui::SameLine();
+            AppBarToggleButton( "Underline", ImFluentIcon_Underline, &under );
+            ControlExampleOutput( "B=%d I=%d U=%d", bold ? 1 : 0, italic ? 1 : 0, under ? 1 : 0 );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_AppBarSeparator()
+    {
+        PageHeader( "AppBarSeparator", "A vertical line that groups commands in a command bar." );
+        if ( BeginControlExample( "Clipboard and formatting groups" ) )
+        {
+            if ( BeginCommandBar( "##separator-bar" ) )
+            {
+                AppBarButton( "Cut", ImFluentIcon_Cut );
+                AppBarButton( "Copy", ImFluentIcon_Copy );
+                AppBarButton( "Paste", ImFluentIcon_Paste );
+                AppBarSeparator();
+                AppBarButton( "Bold", ImFluentIcon_Bold );
+                AppBarButton( "Italic", ImFluentIcon_Italic );
+                EndCommandBar();
+            }
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_CommandBarFlyout()
+    {
+        PageHeader( "CommandBarFlyout", "A mini toolbar of icon commands with a menu of secondary commands. Escape closes the whole flyout." );
+        if ( BeginControlExample( "Picture actions" ) )
+        {
+            static const char * last = "(none)";
+            if ( Button( "Show flyout" ) )
+                OpenFlyout( "##picture-actions" );
+            if ( BeginCommandBarFlyout( "##picture-actions" ) )
+            {
+                if ( AppBarButton( "Share", ImFluentIcon_Share ) )
+                    last = "Share";
+                if ( AppBarButton( "Save", ImFluentIcon_Save ) )
+                    last = "Save";
+                if ( AppBarButton( "Delete", ImFluentIcon_Delete ) )
+                    last = "Delete";
+                CommandBarFlyoutSecondary();
+                if ( MenuFlyoutItem( "Resize" ) )
+                    last = "Resize";
+                if ( MenuFlyoutItem( "Move" ) )
+                    last = "Move";
+                EndCommandBarFlyout();
+            }
+            ControlExampleOutput( "Last command: %s", last );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_MenuBar()
+    {
+        PageHeader( "MenuBar", "Top-level menus inside the page. Tab reaches the bar, Left/Right move between menus, Down or Enter opens one." );
+        if ( BeginControlExample( "File, Edit, Help" ) )
+        {
+            static const char * last = "(none)";
+            if ( BeginMenuBar( "##menubar" ) )
+            {
+                if ( BeginMenuBarItem( "File" ) )
+                {
+                    if ( MenuFlyoutItem( "New", "Ctrl+N" ) )
+                        last = "New";
+                    if ( MenuFlyoutItem( "Open...", "Ctrl+O" ) )
+                        last = "Open";
+                    if ( MenuFlyoutItem( "Save", "Ctrl+S" ) )
+                        last = "Save";
+                    MenuFlyoutSeparator();
+                    if ( MenuFlyoutItem( "Exit" ) )
+                        last = "Exit";
+                    EndMenuBarItem();
+                }
+                if ( BeginMenuBarItem( "Edit" ) )
+                {
+                    if ( MenuFlyoutItem( "Undo", "Ctrl+Z" ) )
+                        last = "Undo";
+                    MenuFlyoutSeparator();
+                    if ( MenuFlyoutItem( "Cut", "Ctrl+X" ) )
+                        last = "Cut";
+                    if ( MenuFlyoutItem( "Copy", "Ctrl+C" ) )
+                        last = "Copy";
+                    if ( MenuFlyoutItem( "Paste", "Ctrl+V" ) )
+                        last = "Paste";
+                    EndMenuBarItem();
+                }
+                if ( BeginMenuBarItem( "Help" ) )
+                {
+                    if ( MenuFlyoutItem( "About" ) )
+                        last = "About";
+                    EndMenuBarItem();
+                }
+                EndMenuBar();
+            }
+            ControlExampleOutput( "Last command: %s", last );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_PersonPicture()
+    {
+        PageHeader( "PersonPicture", "A round avatar: a picture, the person's initials, or a placeholder glyph." );
+        if ( BeginControlExample( "Initials, placeholder and badge" ) )
+        {
+            PersonPicture( "Ada Lovelace" );
+            ImGui::SameLine( 0.f, FluentDpx( 24.f ) );
+            PersonPicture( "" );
+            ImGui::SameLine( 0.f, FluentDpx( 24.f ) );
+            PersonPicture( "Grace Hopper", FluentDpx( 64.f ), 5 );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_Image()
+    {
+        PageHeader( "Image", "Shows a texture with rounded corners. Any ImTextureRef works; this sample shows the font atlas." );
+        if ( BeginControlExample( "Rounded texture" ) )
+        {
+            if ( BeginBorder( "##atlas", ImVec2( 0, 0 ), ImFluentCol_AccentFillDefault, ImFluentCol_CardStrokeDefault, 0.f, -1.f, ImVec2( 0.f, 0.f ) ) )
+                Image( ImGui::GetIO().Fonts->TexRef, ImVec2( FluentDpx( 256.f ), FluentDpx( 256.f ) ) );
+            EndBorder();
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_Border()
+    {
+        PageHeader( "Border", "Draws a background, an outline and rounded corners around its content." );
+        if ( BeginControlExample( "Default border" ) )
+        {
+            if ( BeginBorder( "##border-default" ) )
+                TextBlock( "Content inside a Border", ImFluentTextStyle_Body );
+            EndBorder();
+        }
+        EndControlExample();
+        if ( BeginControlExample( "Accent outline, 2 px stroke, 16 px corners" ) )
+        {
+            if ( BeginBorder( "##border-accent", ImVec2( 0, 0 ), ImFluentCol_LayerFillAlt, ImFluentCol_AccentFillDefault, FluentDpx( 2.f ), FluentDpx( 16.f ), ImVec2( FluentDpx( 24.f ), FluentDpx( 16.f ) ) ) )
+            {
+                TextBlock( "BorderBrush = accent, CornerRadius = 16", ImFluentTextStyle_BodyStrong );
+                Button( "A button inside" );
+            }
+            EndBorder();
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_ScrollViewer()
+    {
+        PageHeader( "ScrollViewer", "A scrolling region with Fluent scroll bars." );
+        if ( BeginControlExample( "Vertical" ) )
+        {
+            if ( BeginScrollViewer( "##scroll-vertical", ImVec2( FluentDpx( 320.f ), FluentDpx( 160.f ) ) ) )
+                for ( int i = 1; i <= 30; ++i )
+                    ImGui::Text( "Line %d of the scrolling content", i );
+            EndScrollViewer();
+        }
+        EndControlExample();
+        if ( BeginControlExample( "Both directions" ) )
+        {
+            if ( BeginScrollViewer( "##scroll-both", ImVec2( FluentDpx( 320.f ), FluentDpx( 160.f ) ), true ) )
+                for ( int i = 1; i <= 20; ++i )
+                    ImGui::Text( "Row %d: a long line that needs horizontal scrolling to read it to the very end.", i );
+            EndScrollViewer();
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_FlipView()
+    {
+        PageHeader( "FlipView", "Shows one item at a time. Left/Right, or the arrow buttons that appear on hover, flip through the items." );
+        if ( BeginControlExample( "Cards with a PipsPager" ) )
+        {
+            static int cur                   = 0;
+            static const char * titles[]     = { "Cliff", "Grapes", "Rainier", "Sunset", "Valley" };
+            static const ImFluentCol fills[] = { ImFluentCol_AccentFillDefault, ImFluentCol_SystemFillSuccess, ImFluentCol_SystemFillAttention, ImFluentCol_SystemFillCaution, ImFluentCol_SystemFillCritical };
+            const ImVec2 size( FluentDpx( 400.f ), FluentDpx( 220.f ) );
+            if ( BeginFlipView( "##flip", &cur, 5, size ) )
+            {
+                const ImVec2 p = ImGui::GetCursorScreenPos();
+                ImGui::GetWindowDrawList()->AddRectFilled( p, ImVec2( p.x + size.x, p.y + size.y ), GetColorU32( fills[ cur ] ), FluentDpx( 8.f ) );
+                ImGui::SetCursorScreenPos( ImVec2( p.x + FluentDpx( 16.f ), p.y + size.y - FluentDpx( 40.f ) ) );
+                TextBlock( titles[ cur ], ImFluentTextStyle_Subtitle );
+            }
+            EndFlipView();
+            PipsPager( "##flip-pips", &cur, 5 );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_Pivot()
+    {
+        PageHeader( "Pivot", "Large header tabs; the selected header's content shows below them." );
+        if ( BeginControlExample( "Mail folders" ) )
+        {
+            static int sel                = 0;
+            static const char * headers[] = { "All", "Unread", "Flagged", "Urgent" };
+            if ( BeginPivot( "##pivot" ) )
+            {
+                for ( int i = 0; i < 4; ++i )
+                    if ( PivotItem( headers[ i ], sel == i ) )
+                        sel = i;
+                EndPivot();
+            }
+            ControlExampleOutput( "Content of the '%s' item", headers[ sel ] );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_CalendarView()
+    {
+        PageHeader( "CalendarView", "A calendar with month, year and decade views. Ctrl+Up and Ctrl+Down switch views." );
+        if ( BeginControlExample( "Calendar" ) )
+        {
+            static ImFluentDate d = { 2026, 10, 9 };
+            CalendarView( "##calendar", &d );
+            ControlExampleOutput( "Date = %04d-%02d-%02d", d.Year, d.Month, d.Day );
+        }
+        EndControlExample();
+        if ( BeginControlExample( "Limited to October to December 2026" ) )
+        {
+            static ImFluentDate d        = { 2026, 10, 9 };
+            static const ImFluentDate lo = { 2026, 10, 1 };
+            static const ImFluentDate hi = { 2026, 12, 31 };
+            CalendarView( "##calendar-range", &d, &lo, &hi );
+            ControlExampleOutput( "Date = %04d-%02d-%02d", d.Year, d.Month, d.Day );
         }
         EndControlExample();
     }

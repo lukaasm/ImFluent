@@ -558,7 +558,10 @@ namespace ImFluent
     IMGUI_API void MenuFlyoutSeparator();
     IMGUI_API void EndMenuFlyout();
 
+    // A flyout with a row of icon-only primary commands (AppBarButton/AppBarToggleButton) and, after
+    // CommandBarFlyoutSecondary(), a list of MenuFlyoutItem. Open it with OpenFlyout( id ).
     IMGUI_API bool BeginCommandBarFlyout( const char * id );
+    IMGUI_API void CommandBarFlyoutSecondary();
     IMGUI_API void EndCommandBarFlyout();
 
     IMGUI_API void OpenContentDialog( const char * id );
@@ -567,6 +570,30 @@ namespace ImFluent
 
     IMGUI_API bool InfoBar( ImFluentInfoSeverity severity, const char * title, const char * message, bool * is_open = NULL, const char * glyph_override = NULL, bool show_icon = true, const char * action_label = NULL );
     IMGUI_API void InfoBadge( int count = -1, const char * glyph = NULL );
+
+    // A round avatar: the texture when set, else the initials of display_name (or `initials`), else a person glyph.
+    // size 0 = 100 dp. badge_number > 0 draws a count badge.
+    IMGUI_API void PersonPicture( const char * display_name, float size = 0.f, int badge_number = 0, ImTextureRef texture = ImTextureRef(), const char * initials = NULL );
+    // A texture with rounded corners (corner_radius < 0: the overlay corner radius).
+    IMGUI_API void Image( ImTextureRef texture, const ImVec2 & size, float corner_radius = -1.f, const ImVec2 & uv0 = ImVec2( 0, 0 ), const ImVec2 & uv1 = ImVec2( 1, 1 ) );
+
+    // A framed container. A zero size fits the content on that axis; corner_radius/padding < 0 use the style.
+    // Call EndBorder() whatever BeginBorder() returns (as BeginChild).
+    IMGUI_API bool BeginBorder( const char * id, const ImVec2 & size = ImVec2( 0, 0 ), ImFluentCol background = ImFluentCol_CardBgDefault, ImFluentCol stroke = ImFluentCol_CardStrokeDefault, float thickness = 1.f, float corner_radius = -1.f, const ImVec2 & padding = ImVec2( -1.f, -1.f ) );
+    IMGUI_API void EndBorder();
+    // A scrolling region with Fluent scroll bars. Call EndScrollViewer() whatever it returns.
+    IMGUI_API bool BeginScrollViewer( const char * id, const ImVec2 & size, bool horizontal = false );
+    IMGUI_API void EndScrollViewer();
+
+    // One item at a time: draw item *current_item between Begin and End. Left/Right (and the overlay buttons) change
+    // it. Call EndFlipView() whatever BeginFlipView() returns.
+    IMGUI_API bool BeginFlipView( const char * id, int * current_item, int items_count, const ImVec2 & size );
+    IMGUI_API void EndFlipView();
+    // Large header tabs; PivotItem returns true when clicked or reached with the arrow keys. Draw the selected
+    // item's content after EndPivot().
+    IMGUI_API bool BeginPivot( const char * id );
+    IMGUI_API bool PivotItem( const char * header, bool selected );
+    IMGUI_API void EndPivot();
 
 
     IMGUI_API void OpenTeachingTip( const char * id );
@@ -581,7 +608,13 @@ namespace ImFluent
     IMGUI_API void TitleBarSubtitle( const char * subtitle );
     IMGUI_API void EndTitleBar();
 
+    // BeginMenuBar(): the application's main menu bar (ImGui::BeginMainMenuBar). BeginMenuBar( id ): a WinUI MenuBar
+    // inside the page; BeginMenuBarItem returns true while its menu is open: submit MenuFlyoutItem, then
+    // EndMenuBarItem(). Both end with EndMenuBar().
     IMGUI_API bool BeginMenuBar();
+    IMGUI_API bool BeginMenuBar( const char * id );
+    IMGUI_API bool BeginMenuBarItem( const char * label );
+    IMGUI_API void EndMenuBarItem();
     IMGUI_API void EndMenuBar();
 
     IMGUI_API bool BeginCommandBar( const char * id, float height = 0.f );
