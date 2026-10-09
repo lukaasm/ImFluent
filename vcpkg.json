@@ -20,6 +20,25 @@
                     ]
                 }
             ]
+        },
+        "test-engine": {
+            "description": "Build the gallery with Dear ImGui Test Engine automation: regression tests and an MCP server",
+            "dependencies": [
+                {
+                    "name": "imfluent",
+                    "features": [
+                        "examples"
+                    ]
+                },
+                {
+                    "name": "imgui",
+                    "features": [
+                        "test-engine"
+                    ]
+                },
+                "nlohmann-json",
+                "stb"
+            ]
         }
     }
 }

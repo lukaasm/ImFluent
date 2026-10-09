@@ -2252,6 +2252,34 @@ namespace ImFluent
             return;
         ImFluentGalleryApp::ShowDemoWindowImpl( p_open );
     }
+
+    void SetDemoWindowPage( const char * page_id )
+    {
+        if ( page_id && std::strcmp( page_id, ImFluentGalleryApp::CurrentPageId() ) != 0 )
+            ImFluentGalleryApp::Navigate( page_id );
+    }
+
+    const char * GetDemoWindowPage()
+    {
+        return ImFluentGalleryApp::CurrentPageId();
+    }
+
+    const char * GetDemoWindowPageId( int index )
+    {
+        using namespace ImFluentGalleryApp;
+        static std::vector< std::string > s_pages;
+        if ( s_pages.empty() )
+        {
+            s_pages.push_back( "Home" );
+            s_pages.push_back( "AllControls" );
+            s_pages.push_back( "Settings" );
+            for ( int i = 0; i < g_GroupsCount; ++i )
+                s_pages.push_back( std::string( "Section_" ) + g_Groups[ i ].GroupId );
+            for ( int i = 0; i < g_ControlsCount; ++i )
+                s_pages.push_back( std::string( "Item_" ) + g_Controls[ i ].UniqueId );
+        }
+        return ( index >= 0 && index < ( int )s_pages.size() ) ? s_pages[ index ].c_str() : NULL;
+    }
 } // namespace ImFluent
 
 #else
@@ -2260,6 +2288,17 @@ namespace ImFluent
 {
     void ShowDemoWindow( bool * )
     {
+    }
+    void SetDemoWindowPage( const char * )
+    {
+    }
+    const char * GetDemoWindowPage()
+    {
+        return "";
+    }
+    const char * GetDemoWindowPageId( int )
+    {
+        return NULL;
     }
 } // namespace ImFluent
 

@@ -1036,6 +1036,31 @@ namespace ImFluent
         return g.NavId == id && g.NavCursorVisible;
     }
 
+    // Reports the item label and state to the Dear ImGui Test Engine, the way ImGui's own widgets do,
+    // so tests and automation can find items by label and read checked/opened state.
+    // Compiles to nothing unless IMGUI_ENABLE_TEST_ENGINE is defined.
+    static void ReportItemInfo( ImGuiID id, const char * label, ImGuiItemStatusFlags flags = 0 )
+    {
+#ifdef IMGUI_ENABLE_TEST_ENGINE
+        ImGuiContext & g = *GImGui;
+        IMGUI_TEST_ENGINE_ITEM_INFO( id, label, g.LastItemData.StatusFlags | flags );
+#else
+        IM_UNUSED( id );
+        IM_UNUSED( label );
+        IM_UNUSED( flags );
+#endif
+    }
+
+    static ImGuiItemStatusFlags CheckedFlags( bool checked )
+    {
+        return ImGuiItemStatusFlags_Checkable | ( checked ? ImGuiItemStatusFlags_Checked : 0 );
+    }
+
+    static ImGuiItemStatusFlags OpenedFlags( bool opened )
+    {
+        return ImGuiItemStatusFlags_Openable | ( opened ? ImGuiItemStatusFlags_Opened : 0 );
+    }
+
     // Overload of RenderNavFocusRing that performs the IsItemFocused(id) check
     // itself — mirrors ImGui's own RenderNavCursor(bb, id) idiom.
     static void RenderNavFocusRing( ImGuiID id, const ImRect & bb, float rounding )
@@ -1117,6 +1142,7 @@ namespace ImFluent
         bool hovered = false, held = false;
         const bool pressed  = ImGui::ButtonBehavior( bb, id, &hovered, &held, flags );
         const bool disabled = ImFluent::IsCurrentItemDisabled();
+        ReportItemInfo( id, label );
 
         ImU32 fillTarget;
         if ( disabled )
@@ -1603,6 +1629,7 @@ bool ImFluent::HyperlinkButton( const char * label )
         return false;
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    ReportItemInfo( id, label );
     const ImU32 col    = ImFluent::GetColorU32( held ? ImFluentCol_AccentTextTertiary : hovered ? ImFluentCol_AccentTextSecondary : ImFluentCol_AccentTextPrimary );
     const ImU32 anim   = AnimateColorU32( id, col );
 
@@ -1630,6 +1657,7 @@ bool ImFluent::ToggleButton( const char * label, bool * v, const ImVec2 & size )
     }
     if ( pressed && v )
         *v = !*v;
+    ReportItemInfo( ImGui::GetCurrentContext()->LastItemData.ID, label, CheckedFlags( v && *v ) );
     return pressed;
 }
 
@@ -1667,6 +1695,7 @@ bool ImFluent::DropDownButtonEx( const char * label, bool * v_state, bool * drop
         chev_pressed = ImGui::ButtonBehavior( bb_chev, id_chev, &chev_hovered, &chev_held );
 
     const bool disabled = ImFluent::IsCurrentItemDisabled();
+    ReportItemInfo( id_main, label, ( split && v_state ) ? CheckedFlags( toggled ) : 0 );
 
     ImU32 fillRest, fillHover, fillPress, fillDisabled, textCol, textDisabled, strokeCol, strokeBottom;
     if ( toggled )
@@ -1804,6 +1833,7 @@ bool ImFluent::CheckboxEx( const char * label, int * v_tri, bool * v_bool )
     const bool checked  = state > 0;
     const bool indet    = state < 0;
     const bool disabled = ImFluent::IsCurrentItemDisabled();
+    ReportItemInfo( id, label, CheckedFlags( checked ) );
 
     ImDrawList * dl = w->DrawList;
     const float r   = FluentDpx( style.ControlCornerRadius );
@@ -1884,6 +1914,7 @@ bool ImFluent::RadioButton( const char * label, bool active )
     bool hovered = false, held = false;
     const bool pressed  = ImGui::ButtonBehavior( total_bb, id, &hovered, &held );
     const bool disabled = ImFluent::IsCurrentItemDisabled();
+    ReportItemInfo( id, label, CheckedFlags( active ) );
 
     ImDrawList * dl = w->DrawList;
     const ImVec2 c( ( ring_bb.Min.x + ring_bb.Max.x ) * 0.5f, ( ring_bb.Min.y + ring_bb.Max.y ) * 0.5f );
@@ -1981,6 +2012,7 @@ bool ImFluent::ToggleSwitch( const char * label, bool * v, const char * on_text,
         *v = !*v;
     const bool on       = v && *v;
     const bool disabled = ImFluent::IsCurrentItemDisabled();
+    ReportItemInfo( id, label, CheckedFlags( on ) );
 
     ImU32 trackTarget;
     if ( disabled )
@@ -2038,6 +2070,7 @@ bool ImFluent::RatingControl( const char * label, float * value, int max_stars )
 
     const bool hovered = ImGui::ItemHoverable( bb, id, ImGuiItemFlags_None );
     bool changed       = false;
+    ReportItemInfo( id, label );
     if ( hovered && ImGui::IsMouseDown( ImGuiMouseButton_Left ) )
     {
         const float mx = ImGui::GetMousePos().x - bb.Min.x;
@@ -2112,6 +2145,7 @@ bool ImFluent::Slider( const char * label, ImGuiDataType dtype, void * v, const 
     const bool changed = ImGui::SliderBehavior( frame_bb, id, dtype, v, v_min, v_max, format, flags, &grab_bb );
     if ( changed )
         ImGui::MarkItemEdited( id );
+    ReportItemInfo( id, label );
 
     const bool active = ImGui::IsItemActive();
 
@@ -2178,6 +2212,13 @@ bool ImFluent::RangeSlider( const char * label, float * v_min, float * v_max, fl
     }
     ImGui::SetNextItemAllowOverlap();
     ImGui::ItemAdd( frame_bb, id_hi );
+    {
+        const char * hi_label;
+        const char * hi_label_end;
+        ImFormatStringToTempBuffer( &hi_label, &hi_label_end, "%s (upper)", label );
+        ReportItemInfo( id_lo, label );
+        ReportItemInfo( id_hi, hi_label );
+    }
 
     const float thumb_r     = FluentDpx( style.SliderThumbRadius );
     const float track_h     = FluentDpx( style.SliderTrackHeight );
@@ -2615,6 +2656,7 @@ bool ImFluent::TextBox( const char * label, char * buf, size_t buf_size, const c
         const ImGuiID button_id = input_id ^ 0xC1EA8u;
         ImGui::KeepAliveID( button_id );
         ImGui::ItemAdd( btn_bb, button_id );
+        ReportItemInfo( button_id, "Clear" );
 
         const ImGuiContext & g = *ImGui::GetCurrentContext();
         const bool nav_focused = ( g.NavId == button_id && g.NavCursorVisible );
@@ -2817,6 +2859,7 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
     {
         const SpinBtn & b = btns[ i ];
         ImGui::ItemAdd( b.bb, b.id );
+        ReportItemInfo( b.id, b.sign > 0.0 ? "Increase" : "Decrease" );
         bool hov = false, held = false;
         const bool pr = ImGui::ButtonBehavior( b.bb, b.id, &hov, &held );
         if ( pr && v )
@@ -3367,6 +3410,7 @@ static bool ExpanderHeader( const char * label, bool * open, ImFluentExpandDirec
     if ( pressed && open )
         *open = !*open;
     const bool isOpen = open && *open;
+    ImFluent::ReportItemInfo( id, label, ImFluent::OpenedFlags( isOpen ) );
 
     const float r   = ImFluent::FluentDpx( style.ControlCornerRadius );
     ImU32 fill      = ImFluent::ResolveControlFillState( false, held, hovered );
@@ -3587,6 +3631,7 @@ bool ImFluent::SelectorBarItem( const char * label, bool selected, const char * 
     }
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    ReportItemInfo( id, label, CheckedFlags( selected ) );
     ImDrawList * dl    = w->DrawList;
     ImU32 fillTarget;
     fillTarget           = ResolveSubtleFillState( selected, held, hovered );
@@ -3725,6 +3770,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
         }
         bool hov = false, held = false;
         const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+        ReportItemInfo( id, label, CheckedFlags( selected ) );
         const float r      = FluentDpx( style.ControlCornerRadius );
         const ImU32 fill   = AnimateColorU32( id, ResolveSubtleFillState( selected, held, hov ) );
         ImDrawList * dl    = w->DrawList;
@@ -3757,6 +3803,7 @@ bool ImFluent::NavItem( const char * label, bool selected, const char * glyph )
         return false;
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    ReportItemInfo( id, label, CheckedFlags( selected ) );
     const float r      = FluentDpx( style.ControlCornerRadius );
 
     ImU32 fillTarget;
@@ -3808,6 +3855,7 @@ bool ImFluent::BeginNavItem( const char * label, bool selected, const char * gly
         expanded = !expanded;
         storage->SetBool( id, expanded );
     }
+    ImFluent::ReportItemInfo( id, label, ImFluent::OpenedFlags( expanded ) | ImFluent::CheckedFlags( selected ) );
 
     const float r        = FluentDpx( style.ControlCornerRadius );
     ImU32 fillTarget     = ImFluent::ResolveSubtleFillState( selected, held, hovered );
@@ -3924,6 +3972,7 @@ bool ImFluent::NavBackButton( bool enabled, bool visible )
     bool pressed = false;
     if ( enabled )
         pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    ReportItemInfo( id, "Back" );
 
     ImDrawList * dl = w->DrawList;
     const float r   = FluentDpx( style.ControlCornerRadius );
@@ -4186,6 +4235,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
 
     const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_cb_popup" );
     const bool popup_open = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
+    ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
     const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
     const bool nav_activate = ( gctx.NavActivateId == id );
@@ -4307,6 +4357,7 @@ bool ImFluent::Selectable( const char * label, bool selected, const char * glyph
 
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    ReportItemInfo( id, label, CheckedFlags( selected ) );
 
     ImU32 fill_target;
     if ( held || selected )
@@ -4389,6 +4440,7 @@ bool ImFluent::ListViewItem( const char * label, bool selected, const char * gly
         return false;
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    ReportItemInfo( id, label, CheckedFlags( selected ) );
     ImDrawList * dl    = w->DrawList;
     const float r      = FluentDpx( style.ControlCornerRadius );
     ImU32 fillTarget;
@@ -4476,12 +4528,14 @@ bool ImFluent::TreeNode( const char * label, bool * p_open, bool * p_checked )
         check_pressed = ImGui::ButtonBehavior( check_bb, cid, &check_hov, &check_held );
         if ( check_pressed )
             *p_checked = !*p_checked;
+        ReportItemInfo( cid, "Check", CheckedFlags( *p_checked ) );
     }
     if ( row_pressed && !check_pressed && p_open )
         *p_open = !*p_open;
 
     const bool isOpen   = p_open && *p_open;
     const bool selected = p_checked && *p_checked;
+    ReportItemInfo( id, label, OpenedFlags( isOpen ) );
 
     ImDrawList * dl = w->DrawList;
     const float r   = FluentDpx( style.ControlCornerRadius );
@@ -4558,6 +4612,7 @@ bool ImFluent::GridViewItem( const char * label, bool selected, const ImVec2 & s
         return false;
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hovered, &held );
+    ReportItemInfo( id, label, CheckedFlags( selected ) );
     ImDrawList * dl    = w->DrawList;
     const float r      = FluentDpx( style.OverlayCornerRadius );
     ImU32 fill         = ImFluent::GetColorU32( selected ? ImFluentCol_AccentFillSecondary : held ? ImFluentCol_ControlFillTertiary : hovered ? ImFluentCol_ControlFillSecondary : ImFluentCol_CardBgDefault );
@@ -4593,6 +4648,7 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
     const ImGuiID gid = w->GetID( id );
     if ( !ImGui::ItemAdd( bb, gid ) )
         return false;
+    ReportItemInfo( gid, id );
     bool changed             = false;
     ImDrawList * dl          = w->DrawList;
     const ImU32 col_pip_sel  = ImFluent::GetColorU32( ImFluentCol_AccentFillDefault );
@@ -4619,7 +4675,7 @@ bool ImFluent::PipsPager( const char * id, int * current_item, int total_pages )
     return changed;
 }
 
-static bool RenderPagerButton( const char * btn_id, const char * text, float sz, bool enabled, bool repeat, bool active )
+static bool RenderPagerButton( const char * btn_id, const char * name, const char * text, float sz, bool enabled, bool repeat, bool active )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems )
@@ -4635,6 +4691,7 @@ static bool RenderPagerButton( const char * btn_id, const char * text, float sz,
 
     bool hov = false, held = false;
     const bool pressed      = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held ) : false;
+    ImFluent::ReportItemInfo( id, name, active ? ImFluent::CheckedFlags( true ) : 0 );
     const float r           = ImFluent::FluentDpx( style.ControlCornerRadius );
     const ImU32 fill_target = !enabled ? IM_COL32( 0, 0, 0, 0 ) : active ? ImFluent::ResolveAccentFillState( false, held, hov ) : ImFluent::ResolveSubtleFillState( false, held, hov );
     w->DrawList->AddRectFilled( bb.Min, bb.Max, ImFluent::AnimateColorU32( id, fill_target ), r );
@@ -4667,6 +4724,7 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
     struct NavBtn
     {
         const char * id;
+        const char * name;
         const char * glyph;
         int target_page;
         bool enabled;
@@ -4679,7 +4737,7 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
             return;
         if ( b.vis == ImFluentPagerButtonVisibility_HiddenOnEdge && !b.enabled )
             return;
-        if ( RenderPagerButton( b.id, b.glyph, btn_sz, b.enabled, true, false ) )
+        if ( RenderPagerButton( b.id, b.name, b.glyph, btn_sz, b.enabled, true, false ) )
         {
             *current_page = b.target_page;
             changed       = true;
@@ -4687,8 +4745,8 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
         ImGui::SameLine( 0.f, gap );
     };
 
-    draw_nav( { "##first", ImFluentIcon_Previous, 0, cur > 0, first_last_visibility, true } );
-    draw_nav( { "##prev", ImFluentIcon_ChevronLeft, cur - 1, cur > 0, prev_next_visibility, true } );
+    draw_nav( { "##first", "First page", ImFluentIcon_Previous, 0, cur > 0, first_last_visibility, true } );
+    draw_nav( { "##prev", "Previous page", ImFluentIcon_ChevronLeft, cur - 1, cur > 0, prev_next_visibility, true } );
 
     if ( display_mode == ImFluentPagerDisplayMode_ButtonPanel )
     {
@@ -4704,7 +4762,7 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
             ImGui::PushID( page );
             char num[ 8 ];
             ImFormatString( num, sizeof( num ), "%d", page + 1 );
-            if ( RenderPagerButton( "##np", num, btn_sz, true, false, page == cur ) )
+            if ( RenderPagerButton( "##np", num, num, btn_sz, true, false, page == cur ) )
             {
                 *current_page = page;
                 changed       = true;
@@ -4772,8 +4830,8 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
         ImGui::SameLine( 0.f, gap );
     }
 
-    draw_nav( { "##next", ImFluentIcon_ChevronRight, cur + 1, cur < total_pages - 1, prev_next_visibility, false } );
-    draw_nav( { "##last", ImFluentIcon_Next, total_pages - 1, cur < total_pages - 1, first_last_visibility, false } );
+    draw_nav( { "##next", "Next page", ImFluentIcon_ChevronRight, cur + 1, cur < total_pages - 1, prev_next_visibility, false } );
+    draw_nav( { "##last", "Last page", ImFluentIcon_Next, total_pages - 1, cur < total_pages - 1, first_last_visibility, false } );
 
     ImGui::EndGroup();
     ImGui::PopID();
@@ -4902,6 +4960,7 @@ bool ImFluent::MenuFlyoutItem( const char * label, const char * shortcut, const 
         return false;
     bool hov = false, held = false;
     const bool pressed    = enabled ? ImGui::ButtonBehavior( bb, id, &hov, &held ) : false;
+    ReportItemInfo( id, label );
     ImDrawList * dl       = w->DrawList;
     const ImU32 mf_target = ResolveSubtleFillState( selected, held, hov );
     dl->AddRectFilled( bb.Min, bb.Max, AnimateColorU32( id, mf_target ), FluentDpx( style.ControlCornerRadius ) );
@@ -4918,26 +4977,22 @@ bool ImFluent::ToggleMenuFlyoutItem( const char * label, bool * v, const char * 
 {
     const bool selected = v && *v;
     const char * mark   = selected ? ImFluentIcon_CheckMark : NULL;
-    if ( MenuFlyoutItem( label, shortcut, mark, false, enabled ) )
-    {
-        if ( v )
-            *v = !*v;
-        return true;
-    }
-    return false;
+    const bool pressed  = MenuFlyoutItem( label, shortcut, mark, false, enabled );
+    if ( pressed && v )
+        *v = !*v;
+    ReportItemInfo( ImGui::GetCurrentContext()->LastItemData.ID, label, CheckedFlags( v && *v ) );
+    return pressed;
 }
 
 bool ImFluent::RadioMenuFlyoutItem( const char * label, int * v, int v_button, const char * shortcut, bool enabled )
 {
     const bool selected = v && ( *v == v_button );
     const char * mark   = selected ? ImFluentIcon_CheckMark : NULL;
-    if ( MenuFlyoutItem( label, shortcut, mark, false, enabled ) )
-    {
-        if ( v )
-            *v = v_button;
-        return true;
-    }
-    return false;
+    const bool pressed  = MenuFlyoutItem( label, shortcut, mark, false, enabled );
+    if ( pressed && v )
+        *v = v_button;
+    ReportItemInfo( ImGui::GetCurrentContext()->LastItemData.ID, label, CheckedFlags( v && *v == v_button ) );
+    return pressed;
 }
 
 bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, bool enabled )
@@ -4965,6 +5020,7 @@ bool ImFluent::BeginMenuFlyoutSubItem( const char * label, const char * glyph, b
     {
         ImGui::OpenPopup( label );
     }
+    ReportItemInfo( id, label, OpenedFlags( open ) );
 
     ImDrawList * dl        = w->DrawList;
     const ImU32 mfs_target = ResolveSubtleFillState( open, held, hov );
@@ -5218,6 +5274,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         if ( ImGui::ItemAdd( btn_bb, aid ) )
         {
             action_clicked = ImGui::ButtonBehavior( btn_bb, aid, &ahov, &aheld );
+            ReportItemInfo( aid, action_label );
         }
         const ImU32 fill_target = ResolveControlFillState( false, aheld, ahov );
         const float r_btn       = FluentDpx( style.ControlCornerRadius );
@@ -5239,6 +5296,7 @@ bool ImFluent::InfoBar( ImFluentInfoSeverity sev, const char * title, const char
         if ( ImGui::ItemAdd( close_bb, cid ) )
         {
             const bool pr = ImGui::ButtonBehavior( close_bb, cid, &hov, &held );
+            ReportItemInfo( cid, "Close" );
             if ( pr )
                 *is_open = false;
         }
@@ -5408,7 +5466,7 @@ void ImFluent::EndTitleBar()
     ImGui::PopStyleColor();
 }
 
-static bool TitleBarChromeButton( const char * id, const char * glyph, bool enabled )
+static bool TitleBarChromeButton( const char * id, const char * name, const char * glyph, bool enabled )
 {
     ImGuiWindow * w = ImGui::GetCurrentWindow();
     if ( w->SkipItems )
@@ -5425,6 +5483,7 @@ static bool TitleBarChromeButton( const char * id, const char * glyph, bool enab
         return false;
     bool hov = false, held = false;
     const bool pressed = enabled ? ImGui::ButtonBehavior( bb, iid, &hov, &held ) : false;
+    ImFluent::ReportItemInfo( iid, name );
     ImDrawList * dl    = w->DrawList;
     const float r      = ImFluent::FluentDpx( style.ControlCornerRadius );
     if ( enabled )
@@ -5443,14 +5502,14 @@ bool ImFluent::TitleBarBackButton( bool enabled, bool visible )
 {
     if ( !visible )
         return false;
-    return TitleBarChromeButton( "##tb-back", ImFluentIcon_Back, enabled );
+    return TitleBarChromeButton( "##tb-back", "Back", ImFluentIcon_Back, enabled );
 }
 
 bool ImFluent::TitleBarPaneToggleButton( bool enabled, bool visible )
 {
     if ( !visible )
         return false;
-    return TitleBarChromeButton( "##tb-toggle", ImFluentIcon_GlobalNavButton, enabled );
+    return TitleBarChromeButton( "##tb-toggle", "Toggle pane", ImFluentIcon_GlobalNavButton, enabled );
 }
 
 static void TitleBarVerticallyCenterCursor()
@@ -5622,6 +5681,7 @@ bool ImFluent::AppBarButton( const char * label, const char * glyph, const ImVec
         return false;
     bool hov = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+    ReportItemInfo( id, label ? label : glyph );
     ImDrawList * dl    = w->DrawList;
     const float r      = FluentDpx( style.ControlCornerRadius );
     ImU32 fill         = ResolveSubtleFillState( false, held, hov );
@@ -5656,6 +5716,7 @@ bool ImFluent::AppBarToggleButton( const char * label, const char * glyph, bool 
     if ( pressed && v )
         *v = !*v;
     const bool on = v && *v;
+    ReportItemInfo( id, label ? label : glyph, CheckedFlags( on ) );
 
     ImDrawList * dl = w->DrawList;
     const float r   = FluentDpx( style.ControlCornerRadius );
@@ -5915,6 +5976,7 @@ namespace ImFluent
                 new_value = v;
 
             const bool sel = ( v == new_value );
+            ReportItemInfo( item_id, buf, CheckedFlags( sel ) );
             if ( !sel )
             {
                 ImU32 hover_fill = held ? col_subtle_ter : ( hov ? col_subtle_sec : 0u );
@@ -6049,6 +6111,7 @@ namespace ImFluent
                 new_value = v;
 
             const bool sel = ( v == new_value );
+            ReportItemInfo( item_id, labels[ v ], CheckedFlags( sel ) );
             if ( !sel )
             {
                 ImU32 hover_fill = held ? col_subtle_ter : ( hov ? col_subtle_sec : 0u );
@@ -6095,7 +6158,7 @@ namespace ImFluent
         return new_value;
     }
 
-    static bool RenderPickerActionButton( const char * label, const ImVec2 & size )
+    static bool RenderPickerActionButton( const char * label, const char * name, const ImVec2 & size )
     {
         ImGuiWindow * w = ImGui::GetCurrentWindow();
         if ( w->SkipItems )
@@ -6111,6 +6174,7 @@ namespace ImFluent
 
         bool hov = false, held = false;
         const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+        ReportItemInfo( id, name );
 
         ImU32 fill_target;
         if ( held )
@@ -6198,10 +6262,10 @@ namespace ImFluent
 
         int fired = 0;
         ImGui::Dummy( ImVec2( 0.f, ImFluent::FluentDpx( style.SpacingXSmall ) ) );
-        if ( RenderPickerActionButton( ImFluentIcon_CheckMark "##ok", ImVec2( btn_w, btn_h ) ) )
+        if ( RenderPickerActionButton( ImFluentIcon_CheckMark "##ok", "Accept", ImVec2( btn_w, btn_h ) ) )
             fired = 1;
         ImGui::SameLine( 0.f, 0.f );
-        if ( RenderPickerActionButton( ImFluentIcon_Cancel "##cancel", ImVec2( btn_w, btn_h ) ) )
+        if ( RenderPickerActionButton( ImFluentIcon_Cancel "##cancel", "Dismiss", ImVec2( btn_w, btn_h ) ) )
             fired = 2;
         if ( fired )
         {
@@ -6240,6 +6304,7 @@ bool ImFluent::DatePicker( const char * label, ImFluentDate * date )
     const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_dp_popup" );
 
     const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+    ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
     ImDrawList * dl = w->DrawList;
     RenderPickerTriggerFrame( dl, bb, r, hovered, held, popup_open, disabled, id );
@@ -6395,6 +6460,7 @@ bool ImFluent::TimePicker( const char * label, ImFluentTime * time, ImFluentTime
     const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_tp_popup" );
 
     const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+    ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
     ImDrawList * dl = w->DrawList;
     RenderPickerTriggerFrame( dl, bb, r, hovered, held, popup_open, disabled, id );
@@ -6680,6 +6746,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     {
         bool t_hov = false, t_held = false;
         const bool t_pr = view_mode < 2 ? ImGui::ButtonBehavior( title_bb, title_id, &t_hov, &t_held ) : false;
+        ReportItemInfo( title_id, title_buf );
         ImU32 t_fill_target;
         if ( t_held )
             t_fill_target = GetColorU32( ImFluentCol_SubtleFillTertiary );
@@ -6708,7 +6775,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     const float next_x = hdr_origin.x + grid_w - chev_btn_w;
 
     ImGui::SetCursorScreenPos( ImVec2( prev_x, chev_y ) );
-    if ( RenderPickerActionButton( ImFluentIcon_ChevronUpMed "##prev", ImVec2( chev_btn_w, chev_btn_w ) ) )
+    if ( RenderPickerActionButton( ImFluentIcon_ChevronUpMed "##prev", "Previous", ImVec2( chev_btn_w, chev_btn_w ) ) )
     {
         if ( view_mode == 0 )
         {
@@ -6729,7 +6796,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
         }
     }
     ImGui::SetCursorScreenPos( ImVec2( next_x, chev_y ) );
-    if ( RenderPickerActionButton( ImFluentIcon_ChevronDownMed "##next", ImVec2( chev_btn_w, chev_btn_w ) ) )
+    if ( RenderPickerActionButton( ImFluentIcon_ChevronDownMed "##next", "Next", ImVec2( chev_btn_w, chev_btn_w ) ) )
     {
         if ( view_mode == 0 )
         {
@@ -6845,6 +6912,11 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
                 const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld );
 
                 const bool is_sel = ( cell_y == date->Year && cell_m == date->Month && cell_d == date->Day );
+                {
+                    char cell_label[ 16 ];
+                    ImFormatString( cell_label, sizeof( cell_label ), "%04d-%02d-%02d", cell_y, cell_m, cell_d );
+                    ReportItemInfo( cell_id, cell_label, CheckedFlags( is_sel ) );
+                }
 
                 ImU32 fill_target;
                 if ( out_of_range )
@@ -6970,6 +7042,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
 
                 bool chov = false, chld = false;
                 const bool cpr = !out_of_range && ImGui::ButtonBehavior( cbb, cell_id, &chov, &chld );
+                ReportItemInfo( cell_id, buf2, CheckedFlags( is_sel ) );
 
                 ImU32 fill_target;
                 if ( out_of_range )
@@ -7061,6 +7134,7 @@ bool ImFluent::CalendarDatePicker( const char * label, ImFluentDate * date, cons
     const ImGuiID popup_id = GetWidgetPopupId( id, "##fl_cdp_popup" );
 
     const bool popup_open = PickerTogglePopup( popup_id, bb, id, disabled );
+    ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
     ImDrawList * dl = w->DrawList;
     RenderPickerTriggerFrame( dl, bb, r, hovered, held, popup_open, disabled, id );

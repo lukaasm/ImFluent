@@ -45,6 +45,25 @@ set_target_properties(ImFluent PROPERTIES
 if (VCPKG_MANIFEST_FEATURES MATCHES "examples")
     add_executable(ImFluentGallery src/main.cpp)
     target_link_libraries(ImFluentGallery PRIVATE ImFluent)
+
+    # Automation: Dear ImGui Test Engine regression tests + an MCP server (see src/automation).
+    if (VCPKG_MANIFEST_FEATURES MATCHES "test-engine")
+        find_package(nlohmann_json CONFIG REQUIRED)
+        find_package(Stb REQUIRED)
+        target_sources(ImFluentGallery PRIVATE
+            src/automation/imfluent_automation.cpp
+            src/automation/imfluent_automation.h
+            src/automation/imfluent_mcp_http.cpp
+            src/automation/imfluent_mcp_http.h
+            src/automation/imfluent_tests.cpp
+        )
+        target_include_directories(ImFluentGallery PRIVATE src ${Stb_INCLUDE_DIR})
+        target_compile_definitions(ImFluentGallery PRIVATE IMFLUENT_GALLERY_AUTOMATION=1)
+        target_link_libraries(ImFluentGallery PRIVATE nlohmann_json::nlohmann_json)
+        if (WIN32)
+            target_link_libraries(ImFluentGallery PRIVATE ws2_32)
+        endif()
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------

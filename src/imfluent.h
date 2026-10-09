@@ -571,5 +571,9 @@ namespace ImFluent
     IMGUI_API bool CalendarDatePicker( const char * label, ImFluentDate * date, const char * hint = "Pick a date", const ImFluentDate * min_date = NULL, const ImFluentDate * max_date = NULL );
 
     IMGUI_API void ShowDemoWindow( bool * p_open = NULL );
+    // Demo deep links. Page ids: "Home", "AllControls", "Settings", "Section_<Group>", "Item_<Control>" (e.g. "Item_ComboBox").
+    IMGUI_API void SetDemoWindowPage( const char * page_id );
+    IMGUI_API const char * GetDemoWindowPage();
+    IMGUI_API const char * GetDemoWindowPageId( int index ); // NULL past the last page
 
 } // namespace ImFluent

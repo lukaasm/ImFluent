@@ -27,6 +27,33 @@ ImFluent::ShowDemoWindow();
 
 Define `IMFLUENT_DISABLE_DEMO_WINDOWS` to compile out the demo.
 
+## Automation and tests
+
+The `test-engine` vcpkg feature (on in the `configure-win64` preset) builds `ImFluentGallery` with the
+[Dear ImGui Test Engine](https://github.com/ocornut/imgui_test_engine) and an MCP server.
+The Test Engine has its own license; the ImFluent library itself does not depend on it.
+
+```
+ImFluentGallery                      # MCP server on http://127.0.0.1:7801/mcp
+ImFluentGallery --run-tests [filter] # run the regression tests, exit code = failed tests
+ImFluentGallery --run-tests --junit results.xml
+ImFluentGallery --mcp-port 0 --te-ui # no MCP server, show the Test Engine window
+```
+
+`.mcp.json` registers the gallery server (`imfluent-gallery`, port 7801) and the WinUI 3 Gallery driver
+(`winui-gallery`, port 7802, see `tools/winui_mcp`) for Claude Code. Both expose the same tools
+(`goto_page`, `screenshot`, `list_items`, `click`, `key`, `type_text`, `nav_state`, `run_steps`, ...), so a
+control page can be compared side by side. `tools/mcp_call.py` calls a tool from the command line:
+
+```
+python tools/mcp_call.py goto_page '{"page":"ComboBox"}'
+python tools/mcp_call.py key '{"keys":"Tab Tab Space"}'
+python tools/mcp_call.py screenshot '{"scale":0.5}' --out combo.png
+```
+
+ImFluent widgets report their label and checked/opened state to the Test Engine
+(`IMGUI_TEST_ENGINE_ITEM_INFO`), so tests can address them by label, e.g. `ctx->ItemClick("**/Standard button")`.
+
 <img width="1924" height="2088" alt="image" src="https://github.com/user-attachments/assets/6c953460-cfce-48c8-9283-bfec0c289117" />
 <img width="1924" height="2088" alt="image" src="https://github.com/user-attachments/assets/c39530cb-96f6-47e2-9049-ecb265f785f2" />
 <img width="1924" height="2088" alt="image" src="https://github.com/user-attachments/assets/be00ff0c-85fe-4d6d-9a6c-51d10fd5784e" />

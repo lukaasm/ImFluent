@@ -15,7 +15,7 @@
                 "VCPKG_INSTALLED_DIR": "${sourceDir}/.build/vcpkg_installed",
                 "VCPKG_TARGET_TRIPLET": "x64-windows",
                 "VCPKG_HOST_TRIPLET": "x64-windows",
-                "VCPKG_MANIFEST_FEATURES": "examples",
+                "VCPKG_MANIFEST_FEATURES": "examples;test-engine",
                 "CMAKE_TOOLCHAIN_FILE": {
                     "type": "FILEPATH",
                     "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"

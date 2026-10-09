@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "imfluent-gallery": {
+            "type": "http",
+            "url": "http://127.0.0.1:7801/mcp"
+        },
+        "winui-gallery": {
+            "type": "http",
+            "url": "http://127.0.0.1:7802/mcp"
+        }
+    }
+}
