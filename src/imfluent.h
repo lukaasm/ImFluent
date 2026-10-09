@@ -13,6 +13,40 @@ enum ImFluentThemePreset_
 };
 typedef int ImFluentThemePreset;
 
+// Window backdrop material (WinUI SystemBackdrop): the desktop wallpaper, blurred and tinted, behind the app.
+enum ImFluentBackdrop_
+{
+    ImFluentBackdrop_None = 0,
+    ImFluentBackdrop_Mica,    // Main window background (WinUI MicaBackdrop)
+    ImFluentBackdrop_MicaAlt, // Stronger wallpaper colour, for tabbed title bars (MicaKind.BaseAlt)
+};
+typedef int ImFluentBackdrop;
+
+// The desktop wallpaper, from GetWallpaper.
+struct ImFluentWallpaper
+{
+    const unsigned char * Pixels = NULL; // RGBA8; valid until the next GetWallpaper call
+    int Width                    = 0;    // Any size (a hook may decode it downscaled)
+    int Height                   = 0;
+    ImVec2 UV0                   = ImVec2( 0.f, 0.f );       // Image part on the monitor: fill crops,
+    ImVec2 UV1                   = ImVec2( 1.f, 1.f );       // fit and center letterbox (outside 0..1)
+    bool Repeat                  = false;                    // Tiled wallpaper
+    ImU32 BackgroundColor        = IM_COL32( 0, 0, 0, 255 ); // Around a letterboxed image, or with no image
+    unsigned int Serial          = 0;                        // Changes when the wallpaper changes
+};
+
+// Platform hooks for backdrops, all optional; see backends/imfluent_backdrop_*.cpp.
+struct ImFluentBackdropHooks
+{
+    // The wallpaper of the viewport's monitor, polled about once a second. False: no wallpaper (fallback colour).
+    bool ( *GetWallpaper )( ImGuiViewport * viewport, ImFluentWallpaper * out, void * user_data )                   = NULL;
+    // Client and monitor rects (x1, y1, x2, y2) in one screen unit, so the wallpaper stays still. False: unknown.
+    bool ( *GetScreenRects )( ImGuiViewport * viewport, ImVec4 * client, ImVec4 * monitor, void * user_data )       = NULL;
+    // The OS backdrop (Windows 11 Mica, macOS vibrancy). True: ImFluent draws nothing; present cleared alpha.
+    bool ( *SetNativeBackdrop )( ImGuiViewport * viewport, ImFluentBackdrop backdrop, bool dark, void * user_data ) = NULL;
+    void * UserData                                                                                                 = NULL;
+};
+
 enum ImFluentTextStyle_
 {
     ImFluentTextStyle_Caption = 0,
@@ -395,6 +429,14 @@ namespace ImFluent
     IMGUI_API void SetAccentColor( const ImColor & color );
     IMGUI_API ImColor GetAccentColor();
     IMGUI_API bool HasUserAccentColor();
+
+    // Backdrop: call RenderBackdrop() once per frame after ImGui::NewFrame(); it draws behind every window of the
+    // viewport. While IsBackdropVisible(), give the app's root window no background (ImGuiWindowFlags_NoBackground).
+    IMGUI_API void SetBackdrop( ImFluentBackdrop backdrop );
+    IMGUI_API ImFluentBackdrop GetBackdrop();
+    IMGUI_API ImFluentBackdropHooks & GetBackdropHooks();
+    IMGUI_API void RenderBackdrop( ImGuiViewport * viewport = NULL );
+    IMGUI_API bool IsBackdropVisible();
 
     IMGUI_API void LoadFluentSystemFonts();
 

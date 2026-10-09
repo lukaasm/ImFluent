@@ -3132,6 +3132,18 @@ namespace ImFluentGalleryApp
         }
 
         ImGui::Dummy( ImVec2( 0, FluentDpx( 16.f ) ) );
+        TextBlock( "Backdrop", ImFluentTextStyle_Subtitle );
+        ImGui::Dummy( ImVec2( 0, FluentDpx( 8.f ) ) );
+        {
+            static const char * backdrops[] = { "None", "Mica", "Mica Alt" };
+            int backdrop                    = GetBackdrop();
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            SetNextItemDescription( "The desktop wallpaper, blurred and tinted, behind the window (not in high contrast)." );
+            if ( ComboBox( "##backdrop", &backdrop, backdrops, IM_ARRAYSIZE( backdrops ) ) )
+                SetBackdrop( backdrop );
+        }
+
+        ImGui::Dummy( ImVec2( 0, FluentDpx( 16.f ) ) );
         TextBlock( "Accent color", ImFluentTextStyle_Subtitle );
         ImGui::Dummy( ImVec2( 0, FluentDpx( 8.f ) ) );
         static ImVec4 accent  = ImFluent::GetAccentColor().Value;
@@ -3219,7 +3231,7 @@ namespace ImFluentGalleryApp
         const float h      = FluentDpx( 48.f );
         const float closeW = p_open ? FluentDpx( 46.f ) : 0.f;
 
-        ImGui::PushStyleColor( ImGuiCol_ChildBg, GetColorU32( ImFluentCol_SolidBgBase ) );
+        ImGui::PushStyleColor( ImGuiCol_ChildBg, IsBackdropVisible() ? IM_COL32( 0, 0, 0, 0 ) : GetColorU32( ImFluentCol_SolidBgBase ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( FluentDpx( 4.f ), 0.f ) );
         ImGui::BeginChild( "##titlebar", ImVec2( 0, h ), ImGuiChildFlags_NavFlattened | ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
 
@@ -3340,7 +3352,7 @@ namespace ImFluentGalleryApp
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.f );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowBorderSize, 0.f );
-        ImGui::Begin( "##imfluent-demo-root", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings );
+        ImGui::Begin( "##imfluent-demo-root", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ( IsBackdropVisible() ? ImGuiWindowFlags_NoBackground : 0 ) );
         ImGui::PopStyleVar( 3 );
 
         DrawTitleBar( p_open );

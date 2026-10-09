@@ -184,6 +184,25 @@ struct ImFluentTabGroup
     bool StopSeen;
 };
 
+struct ImFluentBackdropState
+{
+    static const int TexSize = 96; // One monitor; non-square texels
+
+    ImFluentBackdrop Kind = ImFluentBackdrop_None;
+    ImFluentBackdropHooks Hooks;
+    ImTextureData * Texture         = NULL; // RegisterUserTexture; the renderer backend uploads it
+    bool HasImage                   = false;
+    unsigned int BuiltSerial        = 0; // What the texture was built from
+    ImFluentBackdrop BuiltKind      = -1;
+    ImFluentThemePreset BuiltPreset = -1;
+    ImVec2 BuiltMonitorSize;
+    double NextPoll                  = 0.0;
+    float Active                     = 1.f; // 0 when the app is not focused
+    bool Native                      = false;
+    ImFluentBackdrop NativeKind      = -1;
+    ImFluentThemePreset NativePreset = -1;
+};
+
 struct ImFluentContext
 {
     static const int MaxPopupAnchors = 16;
@@ -191,6 +210,7 @@ struct ImFluentContext
     ImFluentThemePreset Preset;
     ImFluentStyle Style;
     ImFluentActions Actions;
+    ImFluentBackdropState Backdrop;
     ImFluentTextStyleFont Fonts[ ImFluentTextStyle_COUNT ];
 
     ImFluentNextItemData NextItem;
@@ -1768,6 +1788,245 @@ ImColor ImFluent::GetAccentColor()
 bool ImFluent::HasUserAccentColor()
 {
     return g_Ctx.HasUserAccent;
+}
+
+// [SECTION] Backdrop (Mica)
+// Mica shows only the blurred, tinted wallpaper: ImFluent builds that into a small texture and draws it behind all
+// windows, mapped to the monitor so it stays still while the window moves.
+
+namespace
+{
+    struct MicaParams
+    {
+        ImVec4 Tint;
+        float TintOpacity;
+        float LuminosityOpacity;
+    };
+
+    // WinUI MicaController defaults per kind and theme.
+    MicaParams GetMicaParams( ImFluentBackdrop kind, bool dark )
+    {
+        if ( kind == ImFluentBackdrop_MicaAlt )
+            return dark ? MicaParams{ ImColor( 0x0A, 0x0A, 0x0A ).Value, 0.f, 1.f } : MicaParams{ ImColor( 0xDA, 0xDA, 0xDA ).Value, 0.5f, 1.f };
+        return dark ? MicaParams{ ImColor( 0x20, 0x20, 0x20 ).Value, 0.8f, 1.f } : MicaParams{ ImColor( 0xF3, 0xF3, 0xF3 ).Value, 0.5f, 1.f };
+    }
+
+    // W3C compositing Lum and SetLum (with ClipColor).
+    float Lum( const ImVec4 & c )
+    {
+        return 0.3f * c.x + 0.59f * c.y + 0.11f * c.z;
+    }
+
+    ImVec4 SetLum( ImVec4 c, float l )
+    {
+        const float d = l - Lum( c );
+        c.x += d;
+        c.y += d;
+        c.z += d;
+        const float lum = Lum( c );
+        const float n   = ImMin( c.x, ImMin( c.y, c.z ) );
+        const float x   = ImMax( c.x, ImMax( c.y, c.z ) );
+        float * ch[ 3 ] = { &c.x, &c.y, &c.z };
+        for ( float * v : ch )
+        {
+            if ( n < 0.f )
+                *v = lum + ( *v - lum ) * lum / ( lum - n );
+            if ( x > 1.f )
+                *v = lum + ( *v - lum ) * ( 1.f - lum ) / ( x - lum );
+        }
+        return c;
+    }
+
+    ImVec4 Mix( const ImVec4 & a, const ImVec4 & b, float t )
+    {
+        return ImVec4( a.x + ( b.x - a.x ) * t, a.y + ( b.y - a.y ) * t, a.z + ( b.z - a.z ) * t, 1.f );
+    }
+
+    ImVec4 SampleWallpaper( const ImFluentWallpaper & wp, float u, float v )
+    {
+        if ( wp.Repeat )
+        {
+            u -= ImFloor( u );
+            v -= ImFloor( v );
+        }
+        else if ( u < 0.f || v < 0.f || u >= 1.f || v >= 1.f )
+            return ImGui::ColorConvertU32ToFloat4( wp.BackgroundColor );
+        const int x             = ImClamp( ( int )( u * wp.Width ), 0, wp.Width - 1 );
+        const int y             = ImClamp( ( int )( v * wp.Height ), 0, wp.Height - 1 );
+        const unsigned char * p = wp.Pixels + ( ( size_t )y * wp.Width + x ) * 4;
+        return ImVec4( p[ 0 ] / 255.f, p[ 1 ] / 255.f, p[ 2 ] / 255.f, 1.f );
+    }
+
+    void BoxBlur( ImVec4 * img, ImVec4 * tmp, int n, int r, bool vertical )
+    {
+        const float inv = 1.f / ( 2 * r + 1 );
+        for ( int line = 0; line < n; ++line )
+        {
+            auto at = [ & ]( int i ) -> ImVec4 &
+            {
+                return vertical ? img[ ImClamp( i, 0, n - 1 ) * n + line ] : img[ line * n + ImClamp( i, 0, n - 1 ) ];
+            };
+            ImVec4 sum( 0.f, 0.f, 0.f, 0.f );
+            for ( int i = -r; i <= r; ++i )
+                sum = ImVec4( sum.x + at( i ).x, sum.y + at( i ).y, sum.z + at( i ).z, 1.f );
+            for ( int i = 0; i < n; ++i )
+            {
+                tmp[ i ]           = ImVec4( sum.x * inv, sum.y * inv, sum.z * inv, 1.f );
+                const ImVec4 & add = at( i + r + 1 );
+                const ImVec4 & sub = at( i - r );
+                sum                = ImVec4( sum.x + add.x - sub.x, sum.y + add.y - sub.y, sum.z + add.z - sub.z, 1.f );
+            }
+            for ( int i = 0; i < n; ++i )
+                ( vertical ? img[ i * n + line ] : img[ line * n + i ] ) = tmp[ i ];
+        }
+    }
+
+    void BuildBackdropTexture( const ImFluentWallpaper & wp, const ImVec2 & monitor_size, ImFluentBackdrop kind, bool dark )
+    {
+        ImFluentBackdropState & bd = g_Ctx.Backdrop;
+        const int n                = ImFluentBackdropState::TexSize;
+        ImVector< ImVec4 > img, tmp;
+        img.resize( n * n );
+        tmp.resize( n );
+
+        const int ss = 4;
+        for ( int y = 0; y < n; ++y )
+            for ( int x = 0; x < n; ++x )
+            {
+                ImVec4 sum( 0.f, 0.f, 0.f, 0.f );
+                for ( int sy = 0; sy < ss; ++sy )
+                    for ( int sx = 0; sx < ss; ++sx )
+                    {
+                        const float fx = ( x + ( sx + 0.5f ) / ss ) / n;
+                        const float fy = ( y + ( sy + 0.5f ) / ss ) / n;
+                        const ImVec4 c = SampleWallpaper( wp, wp.UV0.x + ( wp.UV1.x - wp.UV0.x ) * fx, wp.UV0.y + ( wp.UV1.y - wp.UV0.y ) * fy );
+                        sum            = ImVec4( sum.x + c.x, sum.y + c.y, sum.z + c.z, 1.f );
+                    }
+                img[ y * n + x ] = ImVec4( sum.x / ( ss * ss ), sum.y / ( ss * ss ), sum.z / ( ss * ss ), 1.f );
+            }
+
+        // Three box passes ~ Gaussian; ry follows the aspect ratio so the blur is round on screen.
+        const float aspect = ( monitor_size.x > 0.f && monitor_size.y > 0.f ) ? monitor_size.x / monitor_size.y : 16.f / 9.f;
+        const int rx       = 3;
+        const int ry       = ImMax( 1, ( int )( rx * aspect + 0.5f ) );
+        for ( int pass = 0; pass < 3; ++pass )
+        {
+            BoxBlur( img.Data, tmp.Data, n, rx, false );
+            BoxBlur( img.Data, tmp.Data, n, ry, true );
+        }
+
+        // Mica: the tint's luminosity with the wallpaper's hue and saturation, then the tint on top.
+        const MicaParams mp = GetMicaParams( kind, dark );
+        const float tint_l  = Lum( mp.Tint );
+        if ( !bd.Texture )
+        {
+            bd.Texture = IM_NEW( ImTextureData )();
+            bd.Texture->Create( ImTextureFormat_RGBA32, n, n );
+            ImGui::RegisterUserTexture( bd.Texture );
+        }
+        for ( int i = 0; i < n * n; ++i )
+        {
+            const ImVec4 lum_layer = Mix( img[ i ], SetLum( img[ i ], tint_l ), mp.LuminosityOpacity );
+            const ImVec4 c         = Mix( lum_layer, SetLum( mp.Tint, Lum( lum_layer ) ), mp.TintOpacity );
+            unsigned char * p      = bd.Texture->Pixels + i * 4;
+            p[ 0 ]                 = ( unsigned char )ImClamp( c.x * 255.f + 0.5f, 0.f, 255.f );
+            p[ 1 ]                 = ( unsigned char )ImClamp( c.y * 255.f + 0.5f, 0.f, 255.f );
+            p[ 2 ]                 = ( unsigned char )ImClamp( c.z * 255.f + 0.5f, 0.f, 255.f );
+            p[ 3 ]                 = 255;
+        }
+        bd.Texture->UseColors = true;
+        if ( bd.Texture->Status != ImTextureStatus_WantCreate )
+        {
+            ImTextureRect all = { 0, 0, ( unsigned short )n, ( unsigned short )n };
+            bd.Texture->Updates.resize( 0 );
+            bd.Texture->Updates.push_back( all );
+            bd.Texture->UpdateRect = all;
+            bd.Texture->UsedRect   = all;
+            bd.Texture->Status     = ImTextureStatus_WantUpdates;
+        }
+        bd.HasImage         = true;
+        bd.BuiltSerial      = wp.Serial;
+        bd.BuiltKind        = kind;
+        bd.BuiltPreset      = g_Ctx.Preset;
+        bd.BuiltMonitorSize = monitor_size;
+    }
+} // namespace
+
+void ImFluent::SetBackdrop( ImFluentBackdrop backdrop )
+{
+    g_Ctx.Backdrop.Kind     = backdrop;
+    g_Ctx.Backdrop.NextPoll = 0.0;
+}
+
+ImFluentBackdrop ImFluent::GetBackdrop()
+{
+    return g_Ctx.Backdrop.Kind;
+}
+
+ImFluentBackdropHooks & ImFluent::GetBackdropHooks()
+{
+    return g_Ctx.Backdrop.Hooks;
+}
+
+bool ImFluent::IsBackdropVisible()
+{
+    // WinUI turns Mica off in high contrast.
+    return g_Ctx.Backdrop.Kind != ImFluentBackdrop_None && g_Ctx.Preset != ImFluentThemePreset_HighContrast;
+}
+
+void ImFluent::RenderBackdrop( ImGuiViewport * vp )
+{
+    ImFluentBackdropState & bd          = g_Ctx.Backdrop;
+    const ImFluentBackdropHooks & hooks = bd.Hooks;
+    if ( !vp )
+        vp = ImGui::GetMainViewport();
+    const bool visible = IsBackdropVisible();
+    const bool dark    = g_Ctx.Preset == ImFluentThemePreset_Dark;
+
+    if ( hooks.SetNativeBackdrop && ( bd.NativeKind != ( visible ? bd.Kind : ImFluentBackdrop_None ) || bd.NativePreset != g_Ctx.Preset ) )
+    {
+        bd.NativeKind   = visible ? bd.Kind : ImFluentBackdrop_None;
+        bd.NativePreset = g_Ctx.Preset;
+        bd.Native       = hooks.SetNativeBackdrop( vp, bd.NativeKind, dark, hooks.UserData ) && visible;
+    }
+    if ( !visible || bd.Native )
+        return;
+
+    ImVec4 client, monitor;
+    const bool has_rects  = hooks.GetScreenRects && hooks.GetScreenRects( vp, &client, &monitor, hooks.UserData ) && monitor.z > monitor.x && monitor.w > monitor.y;
+    const ImVec2 mon_size = has_rects ? ImVec2( monitor.z - monitor.x, monitor.w - monitor.y ) : vp->Size;
+
+    // Poll about once a second, and at once after a kind or theme change.
+    const double now = ImGui::GetTime();
+    if ( bd.BuiltKind != bd.Kind || bd.BuiltPreset != g_Ctx.Preset )
+        bd.NextPoll = 0.0;
+    if ( hooks.GetWallpaper && now >= bd.NextPoll )
+    {
+        bd.NextPoll = now + 1.0;
+        ImFluentWallpaper wp;
+        if ( !hooks.GetWallpaper( vp, &wp, hooks.UserData ) || !wp.Pixels || wp.Width <= 0 || wp.Height <= 0 )
+            bd.HasImage = false;
+        else if ( !bd.HasImage || wp.Serial != bd.BuiltSerial || bd.BuiltKind != bd.Kind || bd.BuiltPreset != g_Ctx.Preset || bd.BuiltMonitorSize.x != mon_size.x || bd.BuiltMonitorSize.y != mon_size.y )
+            BuildBackdropTexture( wp, mon_size, bd.Kind, dark );
+    }
+
+    // Mica shows its fallback colour while the app is not focused.
+    bd.Active = ImLinearSweep( bd.Active, ImGui::GetIO().AppFocusLost ? 0.f : 1.f, ImGui::GetIO().DeltaTime / 0.25f );
+
+    ImDrawList * dl = ImGui::GetBackgroundDrawList( vp );
+    const ImVec2 p0 = vp->Pos;
+    const ImVec2 p1( vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y );
+    dl->AddRectFilled( p0, p1, GetColorU32( ImFluentCol_SolidBgBase ) );
+    if ( bd.HasImage && bd.Texture && bd.Active > 0.f )
+    {
+        ImVec2 uv0( 0.f, 0.f ), uv1( 1.f, 1.f );
+        if ( has_rects )
+        {
+            uv0 = ImVec2( ( client.x - monitor.x ) / mon_size.x, ( client.y - monitor.y ) / mon_size.y );
+            uv1 = ImVec2( ( client.z - monitor.x ) / mon_size.x, ( client.w - monitor.y ) / mon_size.y );
+        }
+        dl->AddImage( bd.Texture->GetTexRef(), p0, p1, uv0, uv1, IM_COL32( 255, 255, 255, ( int )( bd.Active * 255.f ) ) );
+    }
 }
 
 void ImFluent::SetThemePreset( ImFluentThemePreset preset )

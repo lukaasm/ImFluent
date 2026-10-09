@@ -45,6 +45,11 @@ set_target_properties(ImFluent PROPERTIES
 if (VCPKG_MANIFEST_FEATURES MATCHES "examples")
     add_executable(ImFluentGallery src/main.cpp)
     target_link_libraries(ImFluentGallery PRIVATE ImFluent)
+    if (WIN32)
+        # Mica backdrop hooks: wallpaper (IDesktopWallpaper + WIC), window and monitor rects, DWM system backdrop.
+        target_sources(ImFluentGallery PRIVATE src/backends/imfluent_backdrop_win32.cpp src/backends/imfluent_backdrop_win32.h)
+        target_link_libraries(ImFluentGallery PRIVATE ole32 windowscodecs dwmapi)
+    endif()
 
     # Automation: Dear ImGui Test Engine regression tests + an MCP server (see src/automation).
     if (VCPKG_MANIFEST_FEATURES MATCHES "test-engine")

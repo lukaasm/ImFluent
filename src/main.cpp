@@ -4,6 +4,9 @@
 #include "imgui_internal.h"
 
 #include "imfluent.h"
+#if defined( _WIN32 )
+#include "backends/imfluent_backdrop_win32.h"
+#endif
 
 #include <SDL3/SDL.h>
 
@@ -182,6 +185,13 @@ int main( int argc, char ** argv )
     if ( const char * page = ArgValue( argc, argv, "--page", nullptr ) )
         ImFluent::SetDemoWindowPage( page );
 
+    // --backdrop mica | mica-alt. The SDL_GPU swapchain is opaque: no OS backdrop.
+#if defined( _WIN32 )
+    ImFluent_ImplWin32_InstallBackdropHooks( false );
+#endif
+    if ( const char * backdrop = ArgValue( argc, argv, "--backdrop", nullptr ) )
+        ImFluent::SetBackdrop( strcmp( backdrop, "mica-alt" ) == 0 ? ImFluentBackdrop_MicaAlt : strcmp( backdrop, "mica" ) == 0 ? ImFluentBackdrop_Mica : ImFluentBackdrop_None );
+
 #if defined( IMFLUENT_GALLERY_AUTOMATION )
     // --mcp-port N (default 7801, 0 disables), --run-tests [filter], --junit path.xml, --te-ui, --normal-speed
     ImFluentAutomationConfig auto_config;
@@ -246,6 +256,7 @@ int main( int argc, char ** argv )
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
+        ImFluent::RenderBackdrop();
         ImFluent::ShowDemoWindow( nullptr );
 #if defined( IMFLUENT_GALLERY_AUTOMATION )
         ImFluentAutomation::ShowWindows();
@@ -323,6 +334,9 @@ int main( int argc, char ** argv )
 #endif
 
     SDL_WaitForGPUIdle( gpu_device );
+#if defined( _WIN32 )
+    ImFluent_ImplWin32_UninstallBackdropHooks();
+#endif
     ImGui_ImplSDL3_Shutdown();
     ImGui_ImplSDLGPU3_Shutdown();
     ImGui::DestroyContext();
