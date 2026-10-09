@@ -315,18 +315,23 @@ namespace ImFluentGalleryApp
 
     // WinUI Gallery ControlExample (Controls/ControlExample.xaml): a BodyStrong header with 12 above and below, then a
     // card (8 corner radius, CardStroke border). Its top part shows the example on SolidBackgroundFillColorBase with 12
-    // padding and, in a column on the right, "Output:" over the output; its bottom row is the "Source code" expander on
-    // CardBackgroundFillColorSecondary.
+    // padding, then two optional columns on the right: "Output:" over the output, and the options (16 padding, at most
+    // 320 wide, on CardBackgroundFillColorDefault with a divider on its left). Its bottom row is the "Source code"
+    // expander.
     struct ControlExampleState
     {
-        char Output[ 512 ] = {};
-        bool HasOutput     = false;
-        ImGuiID Id         = 0;
+        char Output[ 512 ]  = {};
+        bool HasOutput      = false;
+        ImGuiID Id          = 0;
+        bool ExampleOpen    = false; // The "##example" child is open (BeginControlExampleOptions ends it)
+        float ExampleBottom = 0.f;   // Screen y where the example content ends
+        float OptionsBottom = 0.f;   // Screen y where the options column ends, 0 without options
     };
     static ControlExampleState g_Example;
-    static const ImGuiID EXAMPLE_KEY_HEIGHT   = 0xE7A11u; // Height of the example part, last frame
-    static const ImGuiID EXAMPLE_KEY_OUTPUT_W = 0xE7A12u; // Width of the output column, last frame
-    static const ImGuiID EXAMPLE_KEY_SOURCE   = 0xE7A13u; // "Source code" expanded
+    static const ImGuiID EXAMPLE_KEY_HEIGHT    = 0xE7A11u; // Height of the example part, last frame
+    static const ImGuiID EXAMPLE_KEY_OUTPUT_W  = 0xE7A12u; // Width of the output column, last frame
+    static const ImGuiID EXAMPLE_KEY_SOURCE    = 0xE7A13u; // "Source code" expanded
+    static const ImGuiID EXAMPLE_KEY_OPTIONS_W = 0xE7A14u; // Width of the options column, last frame
 
     static float ExampleDp( float v )
     {
@@ -379,21 +384,42 @@ namespace ImFluentGalleryApp
             ImGui::PopClipRect();
         }
 
-        // The example itself, left of the output column, with 12 padding.
+        // The example itself, left of the output and options columns, with 12 padding.
         const float out_w = st->GetFloat( EXAMPLE_KEY_OUTPUT_W, 0.f );
+        const float opt_w = st->GetFloat( EXAMPLE_KEY_OPTIONS_W, 0.f );
         const float pad   = ExampleDp( 12.f );
         ImGui::SetCursorPos( ImVec2( pad, pad ) );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0.f, 0.f ) );
-        ImGui::BeginChild( "##example", ImVec2( ImGui::GetContentRegionAvail().x - pad - out_w, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground );
+        ImGui::BeginChild( "##example", ImVec2( ImGui::GetContentRegionAvail().x - pad - out_w - opt_w, 0.f ), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground );
         ImGui::PopStyleVar();
+        g_Example.ExampleOpen = true;
         return true;
     }
 
-    static void ControlExampleOptionsHeader()
+    // The example's options column (ControlExample.Options): ends the example, then the widgets between this and
+    // EndControlExampleOptions() go in a column at the right of the card.
+    static void BeginControlExampleOptions()
     {
-        ImGui::Dummy( ImVec2( 0.f, ExampleDp( 8.f ) ) );
-        ImFluent::Separator();
-        TextBlock( "Options:", ImFluentTextStyle_Caption );
+        IM_ASSERT( g_Example.ExampleOpen );
+        ImGui::EndChild(); // ##example
+        g_Example.ExampleOpen   = false;
+        g_Example.ExampleBottom = ImGui::GetItemRectMax().y;
+
+        ImGuiWindow * w   = ImGui::GetCurrentWindow();
+        const float opt_w = ImGui::GetStateStorage()->GetFloat( EXAMPLE_KEY_OPTIONS_W, 0.f );
+        const float pad   = ExampleDp( 16.f );
+        ImGui::SetCursorScreenPos( ImVec2( w->Pos.x + w->Size.x - opt_w, w->Pos.y ) );
+        ImGui::SetNextWindowSizeConstraints( ImVec2( 0.f, 0.f ), ImVec2( ExampleDp( 320.f ), FLT_MAX ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( pad, pad ) );
+        ImGui::BeginChild( "##options", ImVec2( 0.f, 0.f ), ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground );
+        ImGui::PopStyleVar();
+    }
+
+    static void EndControlExampleOptions()
+    {
+        ImGui::EndChild(); // ##options
+        ImGui::GetStateStorage()->SetFloat( EXAMPLE_KEY_OPTIONS_W, ImGui::GetItemRectSize().x );
+        g_Example.OptionsBottom = ImGui::GetItemRectMax().y;
     }
 
     static void ControlExampleOutput( const char * fmt, ... )
@@ -407,15 +433,23 @@ namespace ImFluentGalleryApp
 
     static void EndControlExample()
     {
-        ImGui::EndChild(); // ##example
+        if ( g_Example.ExampleOpen )
+        {
+            ImGui::EndChild(); // ##example
+            g_Example.ExampleBottom = ImGui::GetItemRectMax().y;
+        }
         const ImFluentStyle & style = ImFluent::GetStyle();
         ImGuiWindow * w             = ImGui::GetCurrentWindow();
         ImGuiStorage * st           = ImGui::GetStateStorage();
         const float pad             = ExampleDp( 12.f );
-        const float example_bottom  = ImGui::GetItemRectMax().y + pad;
-        ImDrawList * dl             = w->DrawList;
+        const float example_bottom  = g_Example.ExampleBottom + pad;
+        const bool has_options      = g_Example.OptionsBottom > 0.f;
+        const float opt_w           = has_options ? st->GetFloat( EXAMPLE_KEY_OPTIONS_W, 0.f ) : 0.f;
+        if ( !has_options )
+            st->SetFloat( EXAMPLE_KEY_OPTIONS_W, 0.f );
+        ImDrawList * dl = w->DrawList;
 
-        // Output column: margin 0,12,12,12 and padding 16, "Output:" over the output.
+        // Output column, left of the options: margin 0,12,12,12 and padding 16, "Output:" over the output.
         float out_w = 0.f, out_bottom = example_bottom;
         if ( g_Example.HasOutput )
         {
@@ -424,14 +458,26 @@ namespace ImFluentGalleryApp
             const ImVec2 value  = ImGui::CalcTextSize( g_Example.Output );
             const float text_w  = ImMin( ImMax( label.x, value.x ), ExampleDp( 320.f ) - out_pad * 2.f );
             out_w               = text_w + out_pad * 2.f + pad;
-            const ImVec2 p( w->Pos.x + w->Size.x - pad - text_w - out_pad, w->Pos.y + pad + out_pad );
+            const ImVec2 p( w->Pos.x + w->Size.x - opt_w - pad - text_w - out_pad, w->Pos.y + pad + out_pad );
             dl->AddText( p, GetColorU32( ImFluentCol_TextPrimary ), "Output:" );
             dl->AddText( ImGui::GetFont(), ImGui::GetFontSize(), ImVec2( p.x, p.y + label.y ), GetColorU32( ImFluentCol_TextPrimary ), g_Example.Output, NULL, text_w );
             out_bottom = p.y + label.y + value.y + out_pad + pad;
         }
         st->SetFloat( EXAMPLE_KEY_OUTPUT_W, out_w );
-        const float top_h = ImMax( example_bottom, out_bottom ) - w->Pos.y;
+        const float top_h = ImMax( ImMax( example_bottom, out_bottom ), g_Example.OptionsBottom ) - w->Pos.y;
         st->SetFloat( EXAMPLE_KEY_HEIGHT, top_h );
+
+        // Options column: CardBackgroundFillColorDefault over the example background, a divider on its left.
+        if ( has_options && opt_w > 0.f )
+        {
+            const float r = FluentDpx( style.OverlayCornerRadius );
+            const float s = ExampleStroke();
+            const float x = w->Pos.x + w->Size.x - opt_w;
+            ImGui::PushClipRect( w->Rect().Min, w->Rect().Max, false );
+            dl->AddRectFilled( ImVec2( x, w->Pos.y + s ), ImVec2( w->Pos.x + w->Size.x - s, w->Pos.y + top_h ), GetColorU32( ImFluentCol_CardBgDefault ), r - s, ImDrawFlags_RoundCornersTopRight );
+            dl->AddRectFilled( ImVec2( x, w->Pos.y + s ), ImVec2( x + s, w->Pos.y + top_h ), GetColorU32( ImFluentCol_DividerStrokeDefault ) );
+            ImGui::PopClipRect();
+        }
 
         // "Source code" expander row, 48 high.
         const float row_y = w->Pos.y + top_h;
@@ -474,34 +520,37 @@ namespace ImFluentGalleryApp
     {
         PageHeader( "Button", "A control that responds to user input and raises a Click event." );
 
-        if ( BeginControlExample( "A simple Button" ) )
+        static const char * s_clicked = "";
+        if ( BeginControlExample( "A simple Button with text content." ) )
         {
-            static int s_clicks = 0;
+            static bool s_disabled = false;
+            ImGui::BeginDisabled( s_disabled );
             if ( Button( "Standard button" ) )
-                ++s_clicks;
-            ControlExampleOutput( "Click count: %d", s_clicks );
+                s_clicked = "You clicked: Button1";
+            ImGui::EndDisabled();
+            ControlExampleOutput( "%s", s_clicked );
+            BeginControlExampleOptions();
+            Checkbox( "Disable button", &s_disabled );
+            EndControlExampleOptions();
         }
         EndControlExample();
 
-        if ( BeginControlExample( "Accent button" ) )
+        if ( BeginControlExample( "A Button with graphical content." ) )
         {
-            static int s_aclicks = 0;
-            if ( AccentButton( "Accent button" ) )
-                ++s_aclicks;
-            ControlExampleOutput( "Click count: %d", s_aclicks );
+            if ( Button( ImFluentIcon_PieSingle "##graphical", ImVec2( FluentDpx( 50.f ), FluentDpx( 50.f ) ) ) )
+                s_clicked = "You clicked: Button2";
+            ControlExampleOutput( "%s", s_clicked );
         }
         EndControlExample();
 
-        if ( BeginControlExample( "States" ) )
+        if ( BeginControlExample( "Built-in styles applied to Button." ) )
         {
-            Button( "Rest" );
-            ImGui::SameLine();
-            AccentButton( "Accent" );
-            ImGui::SameLine();
+            AccentButton( "Accent style button" );
+            ImGui::SameLine( 0.f, FluentDpx( 16.f ) );
             ImGui::BeginDisabled();
-            Button( "Disabled" );
-            ImGui::SameLine();
-            AccentButton( "Accent disabled" );
+            Button( "Disabled button" );
+            ImGui::SameLine( 0.f, FluentDpx( 16.f ) );
+            AccentButton( "Disabled accent button" );
             ImGui::EndDisabled();
         }
         EndControlExample();
@@ -509,41 +558,136 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_HyperlinkButton()
     {
-        PageHeader( "HyperlinkButton", "A button that appears as hyperlink text." );
-        if ( BeginControlExample( "A hyperlink button" ) )
+        PageHeader( "HyperlinkButton", "A button that appears as hyperlink text, and can navigate to a URI or handle a Click event." );
+        if ( BeginControlExample( "A hyperlink button that navigates to a URI." ) )
         {
-            static int s = 0;
-            if ( HyperlinkButton( "Open the Fluent 2 design system" ) )
-                ++s;
-            ControlExampleOutput( "Clicks: %d", s );
+            static bool s_disabled = false;
+            ImGui::BeginDisabled( s_disabled );
+            if ( HyperlinkButton( "Microsoft home page" ) )
+                OpenUrl( "https://www.microsoft.com" );
+            ImGui::EndDisabled();
+            BeginControlExampleOptions();
+            Checkbox( "Disable hyperlink button", &s_disabled );
+            EndControlExampleOptions();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A hyperlink button that handles a Click event." ) )
+        {
+            if ( HyperlinkButton( "Go to ToggleButton" ) )
+                Navigate( "Item_ToggleButton" );
         }
         EndControlExample();
     }
 
     static void Page_Item_DropDownButton()
     {
-        PageHeader( "DropDownButton", "A button with a chevron that opens a flyout when clicked." );
-        if ( BeginControlExample( "DropDown" ) )
+        PageHeader( "DropDownButton", "A button that displays a flyout of choices when clicked." );
+        if ( BeginControlExample( "Simple DropDownButton" ) )
         {
-            if ( DropDownButton( "Choose action" ) )
-                OpenMenuFlyout( "##dd-menu" );
-            if ( BeginMenuFlyout( "##dd-menu" ) )
+            if ( DropDownButton( "Email" ) )
+                OpenMenuFlyout( "##dd-email" );
+            if ( BeginMenuFlyout( "##dd-email" ) )
             {
-                MenuFlyoutItem( "New", "Ctrl+N", ImFluentIcon_Add );
-                MenuFlyoutItem( "Open", "Ctrl+O", ImFluentIcon_OpenFile );
-                MenuFlyoutSeparator();
-                MenuFlyoutItem( "Exit", "Alt+F4", ImFluentIcon_Cancel );
+                MenuFlyoutItem( "Send" );
+                MenuFlyoutItem( "Reply" );
+                MenuFlyoutItem( "Reply All" );
+                EndMenuFlyout();
+            }
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "DropDownButton with Icons" ) )
+        {
+            if ( DropDownButton( ImFluentIcon_Mail "##dd-icons" ) )
+                OpenMenuFlyout( "##dd-icons-menu" );
+            if ( BeginMenuFlyout( "##dd-icons-menu" ) )
+            {
+                MenuFlyoutItem( "Send", NULL, ImFluentIcon_SendFill );
+                MenuFlyoutItem( "Reply", NULL, ImFluentIcon_MailReply );
+                MenuFlyoutItem( "Reply All", NULL, ImFluentIcon_MailReplyAll );
                 EndMenuFlyout();
             }
         }
         EndControlExample();
     }
 
+    struct NamedColor
+    {
+        const char * Name;
+        ImU32 Col;
+    };
+    static const NamedColor g_SwatchColors[] = {
+        { "Red", IM_COL32( 255, 0, 0, 255 ) },
+        { "Orange", IM_COL32( 255, 165, 0, 255 ) },
+        { "Yellow", IM_COL32( 255, 255, 0, 255 ) },
+        { "Green", IM_COL32( 0, 128, 0, 255 ) },
+        { "Blue", IM_COL32( 0, 0, 255, 255 ) },
+        { "Indigo", IM_COL32( 75, 0, 130, 255 ) },
+        { "Violet", IM_COL32( 238, 130, 238, 255 ) },
+        { "Gray", IM_COL32( 128, 128, 128, 255 ) },
+        { "Black", IM_COL32( 0, 0, 0, 255 ) },
+    };
+
+    // 32x32 colour swatches, 3 per row, as in the WinUI Gallery SplitButton flyouts. Returns the clicked one, or -1.
+    static int ColorSwatchGrid( int count )
+    {
+        int picked = -1;
+        for ( int i = 0; i < count; ++i )
+        {
+            if ( i % 3 )
+                ImGui::SameLine();
+            if ( ColorButton( g_SwatchColors[ i ].Name, ImGui::ColorConvertU32ToFloat4( g_SwatchColors[ i ].Col ), ImGuiColorEditFlags_NoTooltip, ImVec2( FluentDpx( 32.f ), FluentDpx( 32.f ) ) ) )
+                picked = i;
+        }
+        return picked;
+    }
+
     static void Page_Item_SplitButton()
     {
-        PageHeader( "SplitButton", "A primary action plus a chevron that opens a flyout. Click the label to invoke the action; click the chevron to open the menu." );
+        PageHeader( "SplitButton", "A two-part button that displays a flyout when its secondary part is clicked." );
 
-        if ( BeginControlExample( "Send with options" ) )
+        if ( BeginControlExample( "A SplitButton controlling text color" ) )
+        {
+            static int s_color = 3; // Green
+            bool open_flyout   = false;
+            SplitButton( ImFluentIcon_FontColor "##text-color", &open_flyout );
+            if ( open_flyout )
+                OpenFlyout( "##text-color-flyout" );
+            if ( BeginFlyout( "##text-color-flyout" ) )
+            {
+                const int picked = ColorSwatchGrid( 8 );
+                if ( picked >= 0 )
+                {
+                    s_color = picked;
+                    ImGui::CloseCurrentPopup();
+                }
+                EndFlyout();
+            }
+            BeginControlExampleOptions();
+            ImGui::PushTextWrapPos( ImGui::GetCursorPosX() + FluentDpx( 240.f ) );
+            TextBlockColored( "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Tempor commodo ullamcorper a lacus.", g_SwatchColors[ s_color ].Col );
+            ImGui::PopTextWrapPos();
+            EndControlExampleOptions();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A SplitButton with text" ) )
+        {
+            bool open_flyout = false;
+            SplitButton( "Choose color", &open_flyout );
+            if ( open_flyout )
+                OpenFlyout( "##choose-color-flyout" );
+            if ( BeginFlyout( "##choose-color-flyout" ) )
+            {
+                if ( ColorSwatchGrid( IM_ARRAYSIZE( g_SwatchColors ) ) >= 0 )
+                    ImGui::CloseCurrentPopup();
+                EndFlyout();
+            }
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A SplitButton with a menu" ) )
         {
             static const char * send_modes[] = { "Send now", "Send later", "Save as draft", "Discard" };
             static int picked_mode           = 0;
@@ -577,9 +721,43 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_ToggleSplitButton()
     {
-        PageHeader( "ToggleSplitButton", "A SplitButton whose primary part toggles on and off; the chevron opens a flyout." );
+        PageHeader( "ToggleSplitButton", "A version of the SplitButton where the activation target toggles on/off." );
 
-        if ( BeginControlExample( "ToggleSplitButton (paragraph alignment)" ) )
+        if ( BeginControlExample( "Using ToggleSplitButton to control bulleted list functionality" ) )
+        {
+            static bool s_on   = false;
+            static int s_roman = 0;
+            bool open_flyout   = false;
+            ToggleSplitButton( s_roman ? ImFluentIcon_List "###list" : ImFluentIcon_BulletedList "###list", &s_on, &open_flyout );
+            if ( open_flyout )
+                OpenFlyout( "##list-flyout" );
+            if ( BeginFlyout( "##list-flyout" ) )
+            {
+                if ( AppBarButton( "Bulleted list", ImFluentIcon_BulletedList ) )
+                {
+                    s_roman = 0;
+                    s_on    = true;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if ( AppBarButton( "Roman numerals list", ImFluentIcon_List ) )
+                {
+                    s_roman = 1;
+                    s_on    = true;
+                    ImGui::CloseCurrentPopup();
+                }
+                EndFlyout();
+            }
+            BeginControlExampleOptions();
+            static const char * lines[] = { "Apples", "Pears", "Plums" };
+            static const char * roman[] = { "I.", "II.", "III." };
+            for ( int i = 0; i < IM_ARRAYSIZE( lines ); ++i )
+                ImGui::Text( "%s%s%s", s_on ? ( s_roman ? roman[ i ] : "\xE2\x80\xA2" ) : "", s_on ? "  " : "", lines[ i ] );
+            EndControlExampleOptions();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A ToggleSplitButton with a menu" ) )
         {
             static bool align_on         = true;
             static int align_pick        = 0;
@@ -604,25 +782,42 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_ToggleButton()
     {
-        PageHeader( "ToggleButton", "A button that can be toggled on or off." );
-        if ( BeginControlExample( "Toggle" ) )
+        PageHeader( "ToggleButton", "A button that can be switched between two states like a CheckBox." );
+        if ( BeginControlExample( "A simple ToggleButton with text content." ) )
         {
-            static bool s = false;
-            ToggleButton( "Bold", &s );
-            ControlExampleOutput( "Bold = %s", s ? "On" : "Off" );
+            static bool s_on       = false;
+            static bool s_disabled = false;
+            ImGui::BeginDisabled( s_disabled );
+            ToggleButton( "ToggleButton", &s_on );
+            ImGui::EndDisabled();
+            ControlExampleOutput( "%s", s_on ? "On" : "Off" );
+            BeginControlExampleOptions();
+            Checkbox( "Disable ToggleButton", &s_disabled );
+            EndControlExampleOptions();
         }
         EndControlExample();
     }
 
     static void Page_Item_RepeatButton()
     {
-        PageHeader( "RepeatButton", "Fires Click repeatedly while held." );
-        if ( BeginControlExample( "Counter" ) )
+        PageHeader( "RepeatButton", "A button that raises its Click event repeatedly from the time it's pressed until it's released." );
+        if ( BeginControlExample( "A simple RepeatButton with text content." ) )
         {
-            static int s = 0;
-            if ( RepeatButton( "+ Increment" ) )
-                ++s;
-            ControlExampleOutput( "Count: %d", s );
+            static int s_clicks    = 0;
+            static bool s_disabled = false;
+            ImGui::BeginDisabled( s_disabled );
+            if ( RepeatButton( "Click and hold" ) )
+                ++s_clicks;
+            ImGui::EndDisabled();
+            if ( s_clicks > 0 )
+            {
+                ImGui::SameLine( 0.f, FluentDpx( 8.f ) );
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text( "Number of clicks: %d", s_clicks );
+            }
+            BeginControlExampleOptions();
+            Checkbox( "Disable RepeatButton", &s_disabled );
+            EndControlExampleOptions();
         }
         EndControlExample();
     }
@@ -631,111 +826,224 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_CheckBox()
     {
-        PageHeader( "CheckBox", "A control a user can select or clear." );
-        if ( BeginControlExample( "Two-state" ) )
+        PageHeader( "CheckBox", "A control that a user can select or clear." );
+        if ( BeginControlExample( "A 2-state CheckBox." ) )
         {
-            static bool s_a = true;
-            Checkbox( "Sync favorites", &s_a );
-            ControlExampleOutput( "Sync favorites = %s", s_a ? "true" : "false" );
+            static bool s_checked     = false;
+            static const char * s_out = "";
+            if ( Checkbox( "Two-state CheckBox", &s_checked ) )
+                s_out = s_checked ? "You checked the box." : "You unchecked the box.";
+            ControlExampleOutput( "%s", s_out );
         }
         EndControlExample();
 
-        if ( BeginControlExample( "Three-state" ) )
+        if ( BeginControlExample( "A 3-state CheckBox." ) )
         {
-            static int s_t = -1;
-            CheckboxTristate( "Select all", &s_t );
-            ControlExampleOutput( "State = %d", s_t );
+            static int s_state        = 0;
+            static const char * s_out = "";
+            if ( CheckboxTristate( "Three-state CheckBox", &s_state ) )
+                s_out = s_state == 1 ? "CheckBox is checked." : s_state == 0 ? "CheckBox is unchecked." : "CheckBox state is indeterminate.";
+            ControlExampleOutput( "%s", s_out );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "Using a 3-state CheckBox." ) )
+        {
+            // "Select all" shows the options' state; a click checks all from unchecked, else unchecks all (a click
+            // never makes it indeterminate).
+            static bool s_options[ 3 ] = { false, true, false };
+            const int checked          = ( int )s_options[ 0 ] + ( int )s_options[ 1 ] + ( int )s_options[ 2 ];
+            const int before           = checked == 3 ? 1 : checked == 0 ? 0 : -1;
+            int all                    = before;
+            if ( CheckboxTristate( "Select all", &all ) )
+                s_options[ 0 ] = s_options[ 1 ] = s_options[ 2 ] = ( before == 0 );
+            ImGui::Indent( FluentDpx( 24.f ) );
+            Checkbox( "Option 1", &s_options[ 0 ] );
+            Checkbox( "Option 2", &s_options[ 1 ] );
+            Checkbox( "Option 3", &s_options[ 2 ] );
+            ImGui::Unindent( FluentDpx( 24.f ) );
         }
         EndControlExample();
     }
 
     static void Page_Item_RadioButton()
     {
-        PageHeader( "RadioButton", "Choose one of a small set of options." );
-        if ( BeginControlExample( "Group" ) )
+        PageHeader( "RadioButton", "A control that allows a user to select a single option from a group of options." );
+        if ( BeginControlExample( "A group of RadioButton controls in a RadioButtons group." ) )
+        {
+            static int s_sel              = -1;
+            static const char * options[] = { "Option 1", "Option 2", "Option 3" };
+            RadioButtons( "Options:", &s_sel, options, IM_ARRAYSIZE( options ) );
+            if ( s_sel < 0 )
+                ControlExampleOutput( "Select an option." );
+            else
+                ControlExampleOutput( "You selected %s", options[ s_sel ] );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "Two RadioButtons controls with strings as options." ) )
+        {
+            static int s_background          = 0;
+            static int s_border              = 1;
+            static const char * colors[]     = { "Green", "Yellow", "White" };
+            static const ImU32 backgrounds[] = { IM_COL32( 0, 128, 0, 255 ), IM_COL32( 255, 255, 0, 255 ), IM_COL32( 255, 255, 255, 255 ) };
+            static const ImU32 borders[]     = { IM_COL32( 0, 100, 0, 255 ), IM_COL32( 255, 215, 0, 255 ), IM_COL32( 255, 255, 255, 255 ) };
+            ImGui::BeginGroup();
+            RadioButtons( "Background", &s_background, colors, IM_ARRAYSIZE( colors ), 3 );
+            ImGui::EndGroup();
+            ImGui::SameLine( 0.f, FluentDpx( 24.f ) );
+            ImGui::BeginGroup();
+            RadioButtons( "Border", &s_border, colors, IM_ARRAYSIZE( colors ), 3 );
+            ImGui::EndGroup();
+
+            // The Border the two groups style: 50 high, a 10 thick border.
+            ImGui::Dummy( ImVec2( 0.f, FluentDpx( 10.f ) ) );
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const ImVec2 q( p.x + ImGui::GetContentRegionAvail().x, p.y + FluentDpx( 50.f ) );
+            const float t   = FluentDpx( 10.f );
+            ImDrawList * dl = ImGui::GetWindowDrawList();
+            dl->AddRectFilled( p, q, borders[ s_border ] );
+            dl->AddRectFilled( ImVec2( p.x + t, p.y + t ), ImVec2( q.x - t, q.y - t ), backgrounds[ s_background ] );
+            ImGui::Dummy( ImVec2( q.x - p.x, q.y - p.y ) );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "Loose RadioButton controls sharing one value" ) )
         {
             static int s = 1;
             RadioButton( "Option 1", &s, 1 );
             RadioButton( "Option 2", &s, 2 );
             RadioButton( "Option 3", &s, 3 );
-            ControlExampleOutput( "Selected = %d", s );
-        }
-        EndControlExample();
-
-        if ( BeginControlExample( "RadioButtons group (multi-column)" ) )
-        {
-            static int picked           = 2;
-            static const char * sizes[] = { "Small", "Medium", "Large", "Extra large", "Huge", "Gigantic" };
-            RadioButtons( "Pick a size", &picked, sizes, IM_ARRAYSIZE( sizes ), 3 );
-            ControlExampleOutput( "Picked = %s", sizes[ picked ] );
+            ControlExampleOutput( "You selected Option %d", s );
         }
         EndControlExample();
     }
 
     static void Page_Item_ToggleSwitch()
     {
-        PageHeader( "ToggleSwitch", "Two-state switch." );
-        if ( BeginControlExample( "Wi-Fi" ) )
+        PageHeader( "ToggleSwitch", "A switch that can be toggled between 2 states." );
+        if ( BeginControlExample( "A simple ToggleSwitch." ) )
         {
-            static bool s = true;
-            ToggleSwitch( "Wi-Fi", &s, "On", "Off" );
-            ControlExampleOutput( "Wi-Fi = %s", s ? "On" : "Off" );
+            static bool s_on = false;
+            ToggleSwitch( "##toggle-simple", &s_on );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A ToggleSwitch with custom header and content." ) )
+        {
+            static bool s_working = true;
+            SetNextItemHeader( "Toggle work" );
+            ToggleSwitch( "##toggle-work", &s_working, "Working", "Do work" );
+            if ( s_working )
+            {
+                ImGui::SameLine( 0.f, FluentDpx( 16.f ) );
+                ProgressRing( 32.f, -1.f );
+            }
         }
         EndControlExample();
     }
 
     static void Page_Item_RatingControl()
     {
-        PageHeader( "RatingControl", "Star-based rating input." );
-        if ( BeginControlExample( "Rate" ) )
+        PageHeader( "RatingControl", "Rate something 1 to 5 stars." );
+        if ( BeginControlExample( "A simple RatingControl" ) )
         {
-            static float r = 3.5f;
-            RatingControl( "##rate", &r, 5 );
-            ControlExampleOutput( "Rating: %.1f", r );
+            static float s_value    = 0.f;
+            static bool s_rated     = false;
+            static bool s_clearable = false;
+            static bool s_read_only = false;
+            const float before      = s_value;
+            float edited            = s_value;
+            const bool changed      = RatingControl( "##rating", &edited, 5 );
+            const bool clicked_same = !changed && ImGui::IsItemClicked() && before > 0.f;
+            if ( !s_read_only && changed )
+            {
+                s_value = edited;
+                s_rated = true;
+            }
+            if ( !s_read_only && s_clearable && clicked_same )
+                s_value = 0.f; // IsClearEnabled: clicking the current rating again clears it
+            ImGui::SameLine( 0.f, FluentDpx( 8.f ) );
+            TextBlockColored( s_rated ? "Your rating" : "312 ratings", GetColorU32( ImFluentCol_TextSecondary ), ImFluentTextStyle_Caption );
+            if ( s_value > 0.f )
+                ControlExampleOutput( "%g", s_value );
+            else
+                ControlExampleOutput( "-1" );
+            BeginControlExampleOptions();
+            Checkbox( "IsClearEnabled", &s_clearable );
+            ImGui::PushTextWrapPos( ImGui::GetCursorPosX() + FluentDpx( 188.f ) );
+            TextBlock( "Swipe left or click again to clear your rating.", ImFluentTextStyle_Caption );
+            ImGui::PopTextWrapPos();
+            ImGui::Dummy( ImVec2( 0.f, FluentDpx( 4.f ) ) );
+            Checkbox( "IsReadOnly", &s_read_only );
+            EndControlExampleOptions();
         }
         EndControlExample();
     }
 
     static void Page_Item_Slider()
     {
-        PageHeader( "Slider", "Pick a value from a range." );
-        if ( BeginControlExample( "Float" ) )
+        PageHeader( "Slider", "A control that lets the user select from a range of values by moving a Thumb control along a track." );
+        if ( BeginControlExample( "A simple Slider." ) )
         {
-            static float f = 0.5f;
-            ImGui::PushItemWidth( 280.f );
-            Slider( "##s1", &f, 0.f, 1.f, "%.2f" );
-            ImGui::PopItemWidth();
-            ControlExampleOutput( "Value: %.2f", f );
+            static int s_value = 0;
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            SliderInt( "##slider-simple", &s_value, 0, 100 );
+            ControlExampleOutput( "%d", s_value );
         }
         EndControlExample();
 
-        if ( BeginControlExample( "Int" ) )
+        if ( BeginControlExample( "A Slider with range and steps specified." ) )
         {
-            static int i = 50;
-            ImGui::PushItemWidth( 280.f );
-            SliderInt( "##s2", &i, 0, 100 );
-            ImGui::PopItemWidth();
-            ControlExampleOutput( "Value: %d", i );
+            static int s_value         = 800;
+            static double s_min        = 500.0;
+            static double s_max        = 1000.0;
+            static double s_step       = 10.0;
+            static double s_small_step = 10.0;
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            SetNextItemHeader( "Control header" );
+            if ( SliderInt( "##slider-range", &s_value, ( int )s_min, ( int )s_max ) && s_step >= 1.0 )
+                s_value = ( int )s_min + ( int )( IM_ROUND( ( s_value - s_min ) / s_step ) * s_step );
+            s_value = ImClamp( s_value, ( int )s_min, ( int )s_max );
+            ControlExampleOutput( "%d", s_value );
+
+            BeginControlExampleOptions();
+            struct Row
+            {
+                const char * Label;
+                double * Value;
+            };
+            const Row rows[] = { { "Minimum:", &s_min }, { "Maximum:", &s_max }, { "StepFrequency:", &s_step }, { "SmallChange:", &s_small_step } };
+            for ( const Row & row : rows )
+            {
+                ImGui::AlignTextToFramePadding();
+                TextBlock( row.Label );
+                ImGui::SameLine( FluentDpx( 132.f ) );
+                ImGui::SetNextItemWidth( FluentDpx( 120.f ) );
+                ImGui::PushID( row.Label );
+                NumberBox( "##value", row.Value, 1.0, 10.0, "%.0f" );
+                ImGui::PopID();
+            }
+            s_step = ImMax( s_step, 1.0 );
+            EndControlExampleOptions();
         }
         EndControlExample();
 
         if ( BeginControlExample( "Header + Description (SetNextItem* pattern)" ) )
         {
             static float vol = 0.65f;
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
             SetNextItemHeader( "Volume" );
             SetNextItemDescription( "Drag the thumb to adjust system volume." );
             Slider( "##s-vol", &vol, 0.f, 1.f, "%.0f%%" );
-            ImGui::PopItemWidth();
         }
         EndControlExample();
 
         if ( BeginControlExample( "RangeSlider (two thumbs)" ) )
         {
             static float range_lo = 25.f, range_hi = 75.f;
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
             RangeSlider( "##rs", &range_lo, &range_hi, 0.f, 100.f, "%.0f" );
-            ImGui::PopItemWidth();
             ControlExampleOutput( "Range: [%.0f, %.0f]", range_lo, range_hi );
         }
         EndControlExample();
@@ -743,39 +1051,66 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_ProgressBar()
     {
-        PageHeader( "ProgressBar", "Linear progress indicator. State controls the fill color: Running (accent), Paused (caution), Error (critical)." );
+        PageHeader( "ProgressBar", "Shows the apps progress on a task, or that the app is performing ongoing work that doesn't block user interaction." );
 
-        if ( BeginControlExample( "Determinate" ) )
+        if ( BeginControlExample( "An indeterminate progress bar." ) )
         {
-            static float p = 0.0f;
-            p += ImGui::GetIO().DeltaTime * 0.1f;
-            if ( p > 1.f )
-                p = 0.f;
-            ProgressBar( p, ImVec2( 280.f, 0.f ), nullptr );
-            ControlExampleOutput( "Fraction: %.0f%%", p * 100.f );
+            static int s_state           = 0;
+            static const char * states[] = { "Running", "Paused", "Error" };
+            ProgressBar( -1.f, ImVec2( FluentDpx( 130.f ), 0.f ), nullptr, ( ImFluentProgressBarState )s_state );
+            BeginControlExampleOptions();
+            RadioButtons( "Progress state", &s_state, states, IM_ARRAYSIZE( states ) );
+            EndControlExampleOptions();
         }
         EndControlExample();
 
-        if ( BeginControlExample( "State (Running / Paused / Error)" ) )
+        if ( BeginControlExample( "A determinate progress bar." ) )
         {
-            static int state                  = 0;
-            static const char * state_names[] = { "Running", "Paused", "Error" };
-            if ( BeginSelectorBar( "##pb-state" ) )
-            {
-                for ( int i = 0; i < 3; ++i )
-                    if ( SelectorBarItem( state_names[ i ], state == i ) )
-                        state = i;
-                EndSelectorBar();
-            }
-            ProgressBar( 0.6f, ImVec2( 280.f, 0.f ), nullptr, ( ImFluentProgressBarState )state );
+            static double s_value = 0.0;
+            ProgressBar( ( float )( s_value / 100.0 ), ImVec2( FluentDpx( 130.f ), 0.f ), nullptr );
+            ImGui::SameLine( 0.f, FluentDpx( 60.f ) );
+            ImGui::AlignTextToFramePadding();
+            TextBlock( "Progress" );
+            ImGui::SameLine( 0.f, FluentDpx( 8.f ) );
+            ImGui::SetNextItemWidth( FluentDpx( 120.f ) );
+            if ( NumberBox( "##progress-value", &s_value, 1.0, 10.0, "%.0f" ) )
+                s_value = ImClamp( s_value, 0.0, 100.0 );
         }
         EndControlExample();
     }
 
     static void Page_Item_ProgressRing()
     {
-        PageHeader( "ProgressRing", "Circular progress indicator with ease-in-out indeterminate animation." );
-        if ( BeginControlExample( "Indeterminate" ) )
+        PageHeader( "ProgressRing", "Shows the apps progress on a task, or that the app is performing ongoing work that does block user interaction." );
+        if ( BeginControlExample( "An indeterminate progress ring." ) )
+        {
+            static bool s_working = true;
+            if ( s_working )
+                ProgressRing( 60.f, -1.f );
+            else
+                ImGui::Dummy( ImVec2( FluentDpx( 60.f ), FluentDpx( 60.f ) ) );
+            BeginControlExampleOptions();
+            SetNextItemHeader( "Progress Options" );
+            ToggleSwitch( "##ring-working", &s_working, "Working", "Do work" );
+            EndControlExampleOptions();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A determinate progress ring." ) )
+        {
+            static double s_value = 0.0;
+            ProgressRing( 60.f, ( float )( s_value / 100.0 ) );
+            ImGui::SameLine( 0.f, FluentDpx( 60.f ) );
+            ImGui::BeginGroup();
+            ImGui::SetNextItemWidth( FluentDpx( 120.f ) );
+            SetNextItemHeader( "Progress" );
+            if ( NumberBox( "##ring-value", &s_value, 1.0, 10.0, "%.0f" ) )
+                s_value = ImClamp( s_value, 0.0, 100.0 );
+            ImGui::EndGroup();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "Indeterminate progress rings in several sizes" ) )
         {
             ProgressRing( 20.f, -1.f );
             ImGui::SameLine();
@@ -790,16 +1125,6 @@ namespace ImFluentGalleryApp
             ImGui::Dummy( ImVec2( FluentDpx( 16.f ), 0 ) );
             ImGui::SameLine();
             ProgressRing( 72.f, -1.f );
-        }
-        EndControlExample();
-        if ( BeginControlExample( "Determinate" ) )
-        {
-            static float p = 0.f;
-            p += ImGui::GetIO().DeltaTime * 0.2f;
-            if ( p > 1.f )
-                p = 0.f;
-            ProgressRing( 40.f, p );
-            ControlExampleOutput( "Fraction: %.0f%%", p * 100.f );
         }
         EndControlExample();
     }
@@ -823,131 +1148,233 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_TextBox()
     {
-        PageHeader( "TextBox", "Single-line plain text input." );
-        if ( BeginControlExample( "Text input" ) )
+        PageHeader( "TextBox", "A single-line or multi-line plain text field." );
+        if ( BeginControlExample( "A simple TextBox." ) )
         {
             static char buf[ 128 ] = "";
-            ImGui::PushItemWidth( 280.f );
-            TextBox( "##tb", buf, sizeof( buf ), "Type something..." );
-            ImGui::PopItemWidth();
-            ControlExampleOutput( "Value: %s", buf );
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            TextBox( "##tb", buf, sizeof( buf ) );
         }
         EndControlExample();
 
-        if ( BeginControlExample( "With Header + Description (SetNextItem* pattern)" ) )
+        if ( BeginControlExample( "A TextBox with a header and placeholder text." ) )
+        {
+            static char buf[ 128 ] = "";
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            SetNextItemHeader( "Enter your name:" );
+            TextBox( "##tb-name", buf, sizeof( buf ), "Name" );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A read-only TextBox with various properties set." ) )
+        {
+            static char buf[ 64 ] = "I am super excited to be here!";
+            ImGui::SetNextItemWidth( FluentDpx( 320.f ) );
+            ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 0x51, 0x78, 0xBE, 255 ) );
+            TextBox( "##tb-read-only", buf, sizeof( buf ), NULL, ImGuiInputTextFlags_ReadOnly );
+            ImGui::PopStyleColor();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A multi-line TextBox." ) )
+        {
+            static char buf[ 1024 ] = "";
+            RichEditBox( "##tb-multi", buf, sizeof( buf ), ImVec2( FluentDpx( 400.f ), FluentDpx( 96.f ) ), ImGuiInputTextFlags_WordWrap );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A TextBox with a header and a description (SetNextItem* pattern)" ) )
         {
             static char buf2[ 128 ] = "";
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 280.f ) );
             SetNextItemHeader( "Display name" );
             SetNextItemDescription( "Shown next to your avatar in conversations." );
             TextBox( "##tb-named", buf2, sizeof( buf2 ), "Enter your name" );
-            ImGui::PopItemWidth();
         }
         EndControlExample();
 
-        if ( BeginControlExample( "Validation error (SetNextItemError)" ) )
+        if ( BeginControlExample( "A TextBox with a validation error (SetNextItemError)" ) )
         {
             static char buf_email[ 128 ] = "";
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 280.f ) );
             SetNextItemHeader( "Email" );
             const bool email_invalid = buf_email[ 0 ] && !std::strchr( buf_email, '@' );
             if ( email_invalid )
                 SetNextItemError( "Enter a valid email address (must contain '@')." );
             TextBox( "##tb-email", buf_email, sizeof( buf_email ), "name@example.com" );
-            ImGui::PopItemWidth();
         }
         EndControlExample();
 
-        if ( BeginControlExample( "Clear button + max length + counter" ) )
+        if ( BeginControlExample( "A TextBox with a clear button, a maximum length and a counter" ) )
         {
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 280.f ) );
             SetNextItemHeader( "Short bio" );
-
             static std::string value = "Test";
-            if ( TextBox( "##tb-bio", value, "Tell us about yourself", 0, ImFluentTextBoxFlags_ClearButton | ImFluentTextBoxFlags_ShowCounter, 64 ) )
-            {
-            }
-
-            ImGui::PopItemWidth();
+            TextBox( "##tb-bio", value, "Tell us about yourself", 0, ImFluentTextBoxFlags_ClearButton | ImFluentTextBoxFlags_ShowCounter, 64 );
         }
         EndControlExample();
     }
 
     static void Page_Item_PasswordBox()
     {
-        PageHeader( "PasswordBox", "Hidden text input. Press and hold the eye button on the right to reveal." );
-        if ( BeginControlExample( "Password" ) )
+        PageHeader( "PasswordBox", "A control for entering passwords." );
+        if ( BeginControlExample( "A simple PasswordBox." ) )
         {
             static char buf[ 64 ] = "";
-            ImGui::PushItemWidth( 280.f );
-            PasswordBox( "##pb", buf, sizeof( buf ), "Enter password" );
-            ImGui::PopItemWidth();
-            ControlExampleOutput( "Length: %d", ( int )std::strlen( buf ) );
+            static bool s_refused = false;
+            ImGui::SetNextItemWidth( FluentDpx( 300.f ) );
+            if ( PasswordBox( "##pb", buf, sizeof( buf ) ) )
+            {
+                s_refused = std::strcmp( buf, "Password" ) == 0;
+                if ( s_refused )
+                    buf[ 0 ] = 0;
+            }
+            if ( s_refused )
+                TextBlock( "'Password' is not allowed." );
         }
         EndControlExample();
 
-        if ( BeginControlExample( "With Header + Description" ) )
+        if ( BeginControlExample( "A PasswordBox with header and placeholder text." ) )
+        {
+            static char buf[ 64 ] = "";
+            ImGui::SetNextItemWidth( FluentDpx( 300.f ) );
+            SetNextItemHeader( "Password" );
+            PasswordBox( "##pb-header", buf, sizeof( buf ), "Enter your password" );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A PasswordBox with reveal mode." ) )
+        {
+            // PasswordRevealMode="Visible" is the same text in a TextBox.
+            static char buf[ 64 ] = "";
+            static bool s_show    = false;
+            ImGui::SetNextItemWidth( FluentDpx( 250.f ) );
+            if ( s_show )
+                TextBox( "##pb-reveal", buf, sizeof( buf ) );
+            else
+                PasswordBox( "##pb-reveal", buf, sizeof( buf ) );
+            ImGui::SameLine( 0.f, FluentDpx( 16.f ) );
+            Checkbox( "Show password", &s_show );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A PasswordBox with a header and a description" ) )
         {
             static char buf2[ 64 ] = "";
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 300.f ) );
             SetNextItemHeader( "Account password" );
             SetNextItemDescription( "8+ characters, mix of letters and numbers." );
-            PasswordBox( "##pb2", buf2, sizeof( buf2 ), "••••••••" );
-            ImGui::PopItemWidth();
+            PasswordBox( "##pb2", buf2, sizeof( buf2 ) );
         }
         EndControlExample();
     }
 
     static void Page_Item_NumberBox()
     {
-        PageHeader( "NumberBox", "Numeric input with inline up/down spin buttons. Hold a button for repeat. Ctrl+click steps by step_fast." );
-        if ( BeginControlExample( "Number" ) )
+        PageHeader( "NumberBox", "A text control used for numeric input and evaluation of algebraic equations." );
+        if ( BeginControlExample( "A NumberBox with a spin button." ) )
         {
-            static double v = 1.5;
-            ImGui::PushItemWidth( 280.f );
-            NumberBox( "##nb", &v, 0.5, 5.0 );
-            ImGui::PopItemWidth();
-            ControlExampleOutput( "Value: %.3f", v );
+            static double v = 10.0;
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            SetNextItemHeader( "Enter an integer:" );
+            NumberBox( "##nb-spin", &v, 10.0, 100.0, "%.0f" );
         }
         EndControlExample();
 
-        if ( BeginControlExample( "With Header + Description" ) )
+        if ( BeginControlExample( "A formatted NumberBox that rounds to the nearest 0.25." ) )
+        {
+            static double v = 0.0;
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            SetNextItemHeader( "Enter a dollar amount:" );
+            if ( NumberBox( "##nb-money", &v, 0.25, 1.0, "%.2f" ) )
+                v = ImFloor( ( float )( v * 4.0 ) + 0.5f ) / 4.0;
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A NumberBox with a header and a description" ) )
         {
             static double qty = 1.0;
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
             SetNextItemHeader( "Quantity" );
             SetNextItemDescription( "Step = 1, Ctrl-step = 10." );
             NumberBox( "##nb2", &qty, 1.0, 10.0, "%.0f" );
-            ImGui::PopItemWidth();
         }
         EndControlExample();
     }
 
     static void Page_Item_AutoSuggestBox()
     {
-        PageHeader( "AutoSuggestBox", "Text input with a click-to-pick suggestion list. List filters on what you type and stays open while focused." );
-        if ( BeginControlExample( "Suggest" ) )
+        PageHeader( "AutoSuggestBox", "A control to provide suggestions as a user is typing." );
+
+        // WinUI Gallery matching: every space-separated word of the query is in the item (case-insensitive).
+        struct AllWords
         {
-            static const char * items[] = { "Apple", "Banana", "Cherry", "Date", "Elderberry", "Fig", "Grapefruit", "Honeydew", "Kiwi" };
-            static char buf[ 32 ]       = "";
+            static int Score( const char * item, const char * filter, void * )
+            {
+                if ( !filter || !*filter )
+                    return 1;
+                const char * p = filter;
+                while ( *p )
+                {
+                    while ( *p == ' ' )
+                        ++p;
+                    const char * end = p;
+                    while ( *end && *end != ' ' )
+                        ++end;
+                    if ( end > p && !ImStristr( item, NULL, p, end ) )
+                        return 0;
+                    p = end;
+                }
+                return 1;
+            }
+        };
+
+        if ( BeginControlExample( "A basic autosuggest box." ) )
+        {
+            static const char * cats[]   = { "Abyssinian", "Aegean", "American Bobtail", "American Curl", "American Ringtail", "American Shorthair", "American Wirehair", "Aphrodite Giant", "Arabian Mau", "Asian cat", "Asian Semi-longhair", "Australian Mist", "Balinese", "Bambino", "Bengal", "Birman", "Brazilian Shorthair", "British Longhair", "British Shorthair", "Burmese", "Burmilla",
+                  "California Spangled", "Chantilly-Tiffany", "Chartreux", "Chausie", "Colorpoint Shorthair", "Cornish Rex", "Cymric", "Cyprus", "Devon Rex", "Donskoy", "Dragon Li", "Dwelf", "Egyptian Mau", "European Shorthair", "Exotic Shorthair", "Foldex", "German Rex", "Havana Brown", "Highlander", "Himalayan", "Japanese Bobtail", "Javanese", "Kanaani", "Khao Manee", "Kinkalow", "Korat",
+                  "Korean Bobtail", "Korn Ja", "Kurilian Bobtail", "Lambkin", "LaPerm", "Lykoi", "Maine Coon", "Manx", "Mekong Bobtail", "Minskin", "Napoleon", "Munchkin", "Nebelung", "Norwegian Forest Cat", "Ocicat", "Ojos Azules", "Oregon Rex", "Persian (modern)", "Persian (traditional)", "Peterbald", "Pixie-bob", "Ragamuffin", "Ragdoll", "Raas", "Russian Blue", "Russian White", "Sam Sawet",
+                  "Savannah", "Scottish Fold", "Selkirk Rex", "Serengeti", "Serrade Petit", "Siamese", "Siberian Forest Cat", "Singapura", "Snowshoe", "Sokoke", "Somali", "Sphynx", "Suphalak", "Thai", "Thai Lilac", "Tonkinese", "Toyger", "Turkish Angora", "Turkish Van", "Turkish Vankedisi", "Ukrainian Levkoy", "Wila Krungthep", "York Chocolate" };
+            static char buf[ 64 ]        = "";
             static int selected         = -1;
-            ImGui::PushItemWidth( 280.f );
-            SetNextItemHeader( "Pick a fruit" );
-            AutoSuggestBox( "##sgb", buf, sizeof( buf ), items, IM_ARRAYSIZE( items ), &selected, "Type to filter..." );
-            ImGui::PopItemWidth();
+            static const char * s_chosen = "";
+            ImGui::SetNextItemWidth( FluentDpx( 300.f ) );
+            SetNextAutoSuggestBoxPredicate( &AllWords::Score );
+            AutoSuggestBox( "##sgb", buf, sizeof( buf ), cats, IM_ARRAYSIZE( cats ), &selected );
             if ( selected >= 0 )
             {
-                ControlExampleOutput( "Selected #%d: %s", selected, items[ selected ] );
-
-                int size = std::min( ( int )strlen( items[ selected ] ), 30 );
-                memcpy( buf, items[ selected ], size );
-
-                buf[ size ] = '\0';
+                s_chosen = cats[ selected ];
+                ImStrncpy( buf, s_chosen, sizeof( buf ) );
             }
-            else
-                ControlExampleOutput( "Selected: (none)" );
-
             selected = -1;
+            ControlExampleOutput( "%s", s_chosen );
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "An AutoSuggestBox that provides a SearchBox experience" ) )
+        {
+            static std::vector< const char * > titles;
+            if ( titles.empty() )
+                for ( const ControlInfo & c : g_Controls )
+                    titles.push_back( c.Title );
+            static char buf[ 64 ] = "";
+            static int selected   = -1;
+            static int s_shown    = -1;
+            ImGui::SetNextItemWidth( FluentDpx( 300.f ) );
+            SetNextAutoSuggestBoxPredicate( &AllWords::Score );
+            AutoSuggestBox( "##sgb-search", buf, sizeof( buf ), titles.data(), ( int )titles.size(), &selected, "Type a control name" );
+            if ( selected >= 0 )
+            {
+                s_shown = selected;
+                ImStrncpy( buf, titles[ selected ], sizeof( buf ) );
+            }
+            selected = -1;
+            if ( s_shown >= 0 )
+            {
+                ImGui::Dummy( ImVec2( 0.f, FluentDpx( 12.f ) ) );
+                TextBlock( g_Controls[ s_shown ].Title, ImFluentTextStyle_BodyStrong );
+                TextBlockColored( g_Controls[ s_shown ].Subtitle, GetColorU32( ImFluentCol_TextSecondary ) );
+            }
         }
         EndControlExample();
 
@@ -1011,27 +1438,33 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_ComboBox()
     {
-        PageHeader( "ComboBox", "A drop-down list." );
-        if ( BeginControlExample( "Combo" ) )
+        PageHeader( "ComboBox", "A drop-down list of items a user can select from." );
+        if ( BeginControlExample( "A ComboBox with items defined inline and its width set." ) )
         {
-            static int s                = 0;
-            static const char * items[] = { "Red", "Green", "Blue", "Yellow", "Magenta", "Cyan" };
-            ImGui::PushItemWidth( 280.f );
-            ComboBox( "##cb", &s, items, IM_ARRAYSIZE( items ) );
-            ImGui::PopItemWidth();
-            ControlExampleOutput( "Selected: %s", items[ s ] );
+            static int s_sel             = -1;
+            static const char * colors[] = { "Blue", "Green", "Red", "Yellow" };
+            static const ImU32 fills[]   = { IM_COL32( 0, 0, 255, 255 ), IM_COL32( 0, 128, 0, 255 ), IM_COL32( 255, 0, 0, 255 ), IM_COL32( 255, 255, 0, 255 ) };
+            ImGui::SetNextItemWidth( FluentDpx( 200.f ) );
+            SetNextItemHeader( "Colors" );
+            ComboBox( "##cb-colors", &s_sel, colors, IM_ARRAYSIZE( colors ), 0, "Pick a color" );
+            // The output: a 100x30 rectangle in the picked colour.
+            ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const ImVec2 size( FluentDpx( 100.f ), FluentDpx( 30.f ) );
+            if ( s_sel >= 0 )
+                ImGui::GetWindowDrawList()->AddRectFilled( p, ImVec2( p.x + size.x, p.y + size.y ), fills[ s_sel ] );
+            ImGui::Dummy( size );
         }
         EndControlExample();
 
-        if ( BeginControlExample( "With Header + Description" ) )
+        if ( BeginControlExample( "A ComboBox with a header and a description" ) )
         {
             static int tz_sel              = 0;
             static const char * tz_items[] = { "(UTC-08:00) Pacific Time", "(UTC-05:00) Eastern Time", "(UTC+00:00) UTC", "(UTC+01:00) Central Europe", "(UTC+09:00) Tokyo" };
-            ImGui::PushItemWidth( 280.f );
+            ImGui::SetNextItemWidth( FluentDpx( 280.f ) );
             SetNextItemHeader( "Time zone" );
             SetNextItemDescription( "Used for scheduling and notifications." );
             ComboBox( "##cb-tz", &tz_sel, tz_items, IM_ARRAYSIZE( tz_items ) );
-            ImGui::PopItemWidth();
         }
         EndControlExample();
     }
@@ -1231,28 +1664,32 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_Expander()
     {
-        PageHeader( "Expander", "A header that expands to reveal a body." );
-        if ( BeginControlExample( "Settings" ) )
+        PageHeader( "Expander", "A container with a header that can be expanded to show a body with more content." );
+        if ( BeginControlExample( "An Expander with text in the header and content areas" ) )
         {
-            static bool s_open = false;
-            if ( BeginExpander( "Display options", &s_open ) )
+            static bool s_open               = false;
+            static int s_direction           = 0;
+            static const char * directions[] = { "Down", "Up" };
+            if ( BeginExpander( "This text is in the header", &s_open, s_direction ? ImFluentExpandDirection_Up : ImFluentExpandDirection_Down ) )
             {
-                static bool s_dark = true;
-                Checkbox( "Dark theme", &s_dark );
-                static bool s_acrylic = false;
-                ToggleSwitch( "Acrylic background", &s_acrylic );
+                TextBlock( "This is in the content" );
                 EndExpander();
             }
+            BeginControlExampleOptions();
+            ImGui::SetNextItemWidth( FluentDpx( 120.f ) );
+            SetNextItemHeader( "ExpandDirection" );
+            ComboBox( "##expand-direction", &s_direction, directions, IM_ARRAYSIZE( directions ) );
+            EndControlExampleOptions();
         }
         EndControlExample();
 
-        if ( BeginControlExample( "Up direction (body opens above)" ) )
+        if ( BeginControlExample( "An Expander with settings in its content" ) )
         {
             static bool s_open         = false;
             static bool s_notify_email = true;
             static bool s_notify_push  = false;
             static int s_priority      = 1;
-            if ( BeginExpander( "Notification preferences", &s_open, ImFluentExpandDirection_Up ) )
+            if ( BeginExpander( "Notification preferences", &s_open ) )
             {
                 Checkbox( "Email notifications", &s_notify_email );
                 Checkbox( "Push notifications", &s_notify_push );
@@ -1458,31 +1895,69 @@ namespace ImFluentGalleryApp
 
     static void Page_Item_InfoBar()
     {
-        PageHeader( "InfoBar", "Inline notification." );
-        if ( BeginControlExample( "All severities" ) )
+        PageHeader( "InfoBar", "An inline message to display app-wide status change information." );
+        static const char * message = "Essential app message for your users to be informed of, acknowledge, or take action on.";
+
+        if ( BeginControlExample( "A closable InfoBar with options to change its Severity." ) )
+        {
+            static bool s_open               = true;
+            static int s_severity            = 0;
+            static const char * severities[] = { "Informational", "Success", "Warning", "Error" };
+            if ( s_open )
+                InfoBar( ( ImFluentInfoSeverity )s_severity, "Title", message, &s_open );
+            BeginControlExampleOptions();
+            Checkbox( "Is Open", &s_open );
+            ImGui::SetNextItemWidth( FluentDpx( 150.f ) );
+            SetNextItemHeader( "Severity" );
+            ComboBox( "##infobar-severity", &s_severity, severities, IM_ARRAYSIZE( severities ) );
+            EndControlExampleOptions();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A closable InfoBar with a long or short message and various buttons" ) )
+        {
+            static bool s_open            = true;
+            static int s_length           = 1;
+            static int s_action           = 0;
+            static const char * lengths[] = { "Short", "Long" };
+            static const char * actions[] = { "None", "Button" };
+            const char * text             = s_length ? "A long essential app message for your users to be informed of, acknowledge, or take action on. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin dapibus dolor vitae justo rutrum, ut lobortis nibh mattis. Aenean id elit commodo, semper felis nec." : "A short essential app message.";
+            if ( s_open )
+                InfoBar( ImFluentInfoSeverity_Informational, "Title", text, &s_open, NULL, true, s_action ? "Action" : NULL );
+            BeginControlExampleOptions();
+            Checkbox( "Is Open", &s_open );
+            ImGui::SetNextItemWidth( FluentDpx( 150.f ) );
+            SetNextItemHeader( "Message Length" );
+            ComboBox( "##infobar-length", &s_length, lengths, IM_ARRAYSIZE( lengths ) );
+            ImGui::SetNextItemWidth( FluentDpx( 150.f ) );
+            SetNextItemHeader( "Action Button" );
+            ComboBox( "##infobar-action", &s_action, actions, IM_ARRAYSIZE( actions ) );
+            EndControlExampleOptions();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "A closable InfoBar with options to display the close button and icon" ) )
+        {
+            static bool s_open     = true;
+            static bool s_icon     = true;
+            static bool s_closable = true;
+            if ( s_open )
+                InfoBar( ImFluentInfoSeverity_Informational, "Title", message, s_closable ? &s_open : NULL, NULL, s_icon );
+            BeginControlExampleOptions();
+            Checkbox( "Is Open", &s_open );
+            Checkbox( "Is Icon Visible", &s_icon );
+            Checkbox( "Is Closable", &s_closable );
+            EndControlExampleOptions();
+        }
+        EndControlExample();
+
+        if ( BeginControlExample( "InfoBars of every severity" ) )
         {
             static bool open[ 4 ] = { true, true, true, true };
             InfoBar( ImFluentInfoSeverity_Informational, "Informational", "Update is available.", &open[ 0 ] );
             InfoBar( ImFluentInfoSeverity_Success, "Success", "Sign-in succeeded.", &open[ 1 ] );
             InfoBar( ImFluentInfoSeverity_Warning, "Warning", "Battery is low.", &open[ 2 ] );
             InfoBar( ImFluentInfoSeverity_Critical, "Error", "Could not save file.", &open[ 3 ] );
-        }
-        EndControlExample();
-
-        if ( BeginControlExample( "Action button + close" ) )
-        {
-            static bool open          = true;
-            static int install_clicks = 0;
-            if ( InfoBar( ImFluentInfoSeverity_Informational, "Update available", "A new version is ready to install. Restart to apply.", &open, NULL, true, "Install" ) )
-                install_clicks++;
-            ControlExampleOutput( "Install clicks: %d   open: %s", install_clicks, open ? "yes" : "no" );
-        }
-        EndControlExample();
-
-        if ( BeginControlExample( "Icon hidden" ) )
-        {
-            static bool open = true;
-            InfoBar( ImFluentInfoSeverity_Success, "Saved", "Changes have been written to disk.", &open, NULL, false );
         }
         EndControlExample();
     }
