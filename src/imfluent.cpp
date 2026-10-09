@@ -3512,12 +3512,12 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
     const ImRect input_rect = ImGui::GetCurrentContext()->LastItemData.Rect;
     const ImGuiID input_id  = ImGui::GetCurrentContext()->LastItemData.ID;
 
-    const float spin_w = FluentDpx( style.SpinButtonWidth );
+    const float spin_w = FluentDpx( style.SpinButtonWidth + style.SpacingMedium ); // 36: WinUI inline spin button
     const float inset  = FluentDpx( style.SpacingXSmall );
-    const ImRect spin_area( ImVec2( input_rect.Max.x - spin_w - inset, input_rect.Min.y + inset ), ImVec2( input_rect.Max.x - inset, input_rect.Max.y - inset ) );
-    const float btn_h = ( spin_area.GetHeight() - inset ) * 0.5f;
-    const ImRect up_bb( spin_area.Min, ImVec2( spin_area.Max.x, spin_area.Min.y + btn_h ) );
-    const ImRect dn_bb( ImVec2( spin_area.Min.x, spin_area.Max.y - btn_h ), spin_area.Max );
+    // WinUI NumberBox SpinButtonPlacementMode="Inline": up and down buttons side by side at the right of the box.
+    const ImRect spin_area( ImVec2( input_rect.Max.x - spin_w * 2.f - inset, input_rect.Min.y + inset ), ImVec2( input_rect.Max.x - inset, input_rect.Max.y - inset ) );
+    const ImRect up_bb( spin_area.Min, ImVec2( spin_area.Min.x + spin_w, spin_area.Max.y ) );
+    const ImRect dn_bb( ImVec2( spin_area.Min.x + spin_w, spin_area.Min.y ), spin_area.Max );
 
     ImDrawList * dl = w->DrawList;
     const float r   = FluentDpx( style.ControlCornerRadius );
@@ -3573,7 +3573,7 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
         dl->AddRectFilled( b.bb.Min, b.bb.Max, ImFluent::AnimateColorU32( b.id, hi_target ), r );
 
         const ImVec2 c( ( b.bb.Min.x + b.bb.Max.x ) * 0.5f, ( b.bb.Min.y + b.bb.Max.y ) * 0.5f );
-        RenderChevron( dl, c, b.dir, ImFluent::GetColorU32( ImFluentCol_TextSecondary ), FluentDpx( style.ChevronGlyphSize - 1.f ) );
+        RenderChevron( dl, c, b.dir, ImFluent::GetColorU32( ImFluentCol_TextSecondary ), FluentDpx( style.ChevronGlyphSize + 2.f ) ); // 12 wide
     }
 
     ImGui::PopItemFlag();
