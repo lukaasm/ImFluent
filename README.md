@@ -12,6 +12,7 @@ Widgets for [Dear ImGui](https://github.com/ocornut/imgui) that follow Microsoft
   navigation view, command bars, menus, flyouts, dialogs, info bars and more.
 - Light, dark and high-contrast themes with the WinUI colour values, the Segoe UI type ramp and Fluent icons.
 - Keyboard-only use everywhere, with WinUI focus and arrow-key behaviour.
+- Mica and Mica Alt window backdrops from the desktop wallpaper, on any renderer (screenshots use Mica).
 - `ImFluent::ShowDemoWindow()`: a gallery modelled on the WinUI 3 Gallery, one page per control.
 
 | | |
@@ -40,6 +41,24 @@ Define `IMFLUENT_DISABLE_DEMO_WINDOWS` to compile out the gallery.
 
 Without Segoe UI (macOS, Linux), `LoadFluentSystemFonts()` uses a common UI font and no icons.
 Pass your own files with `ImFluent::LoadFluentFonts(regular, semibold, icons)`.
+
+## Mica backdrop
+
+ImFluent blurs and tints the desktop wallpaper into a small texture and draws it behind your windows, as Windows 11
+Mica does. Platform hooks find the wallpaper and the window position; compile the backend for your platform from
+`src/backends`, like a Dear ImGui backend:
+
+```cpp
+#include "backends/imfluent_backdrop_win32.h" // _osx.h on macOS; _linux.h and _sdl3.h on Linux
+
+ImFluent_ImplWin32_InstallBackdropHooks();    // ImFluent_ImplOSX_..., or ImFluent_ImplLinux_... + ImFluent_ImplSDL3_InstallBackdropScreenRects()
+ImFluent::SetBackdrop(ImFluentBackdrop_Mica);
+
+// every frame, after ImGui::NewFrame(); give your root window ImGuiWindowFlags_NoBackground
+ImFluent::RenderBackdrop();
+```
+
+The macOS and Linux backends have not run on those systems yet (the Linux one is compile-checked).
 
 ## Build
 

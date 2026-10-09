@@ -2854,6 +2854,43 @@ namespace ImFluentGalleryApp
         return ( col & ~IM_COL32_A_MASK ) | ( ( ImU32 )alpha << IM_COL32_A_SHIFT );
     }
 
+    // A filled circle that fades out between fade_y0 and fade_y1, drawn as thin horizontal slices so that vertex alpha
+    // follows y (painting the page colour over it would double a translucent page layer).
+    static void AddCircleFadingDown( ImDrawList * dl, const ImVec2 & c, float r, ImU32 col, float fade_y0, float fade_y1 )
+    {
+        const int slices = 64;
+        const int alpha  = ( int )( ( col >> IM_COL32_A_SHIFT ) & 0xFF );
+        const ImVec2 uv  = dl->_Data->TexUvWhitePixel;
+        auto color_at    = [ & ]( float y )
+        {
+            return WithAlpha( col, ( int )( alpha * ImSaturate( ( fade_y1 - y ) / ( fade_y1 - fade_y0 ) ) ) );
+        };
+        auto half_width_at = [ & ]( float y )
+        {
+            return ImSqrt( ImMax( 0.f, r * r - ( y - c.y ) * ( y - c.y ) ) );
+        };
+        for ( int i = 0; i < slices; ++i )
+        {
+            const float ya = c.y - r + 2.f * r * i / slices, yb = c.y - r + 2.f * r * ( i + 1 ) / slices;
+            if ( ya >= fade_y1 )
+                break;
+            const float wa = half_width_at( ya ), wb = half_width_at( yb );
+            const ImU32 ca = color_at( ya ), cb = color_at( yb );
+            const ImDrawIdx idx = ( ImDrawIdx )dl->_VtxCurrentIdx;
+            dl->PrimReserve( 6, 4 );
+            dl->PrimWriteVtx( ImVec2( c.x - wa, ya ), uv, ca );
+            dl->PrimWriteVtx( ImVec2( c.x + wa, ya ), uv, ca );
+            dl->PrimWriteVtx( ImVec2( c.x + wb, yb ), uv, cb );
+            dl->PrimWriteVtx( ImVec2( c.x - wb, yb ), uv, cb );
+            dl->PrimWriteIdx( idx );
+            dl->PrimWriteIdx( ( ImDrawIdx )( idx + 1 ) );
+            dl->PrimWriteIdx( ( ImDrawIdx )( idx + 2 ) );
+            dl->PrimWriteIdx( idx );
+            dl->PrimWriteIdx( ( ImDrawIdx )( idx + 2 ) );
+            dl->PrimWriteIdx( ( ImDrawIdx )( idx + 3 ) );
+        }
+    }
+
     // WinUI Gallery home card. icon_left: glyph left of the text ("Recently visited"); external: open-in-browser glyph.
     static bool HomeCard( const char * title, const char * glyph, const char * desc, const ImVec2 & size, bool icon_left, bool external )
     {
@@ -2917,14 +2954,13 @@ namespace ImFluentGalleryApp
             const ImVec2 o( w->Pos.x, w->Pos.y - w->Scroll.y );
             const ImRect hero( o, ImVec2( o.x + w->Size.x, o.y + hero_h ) );
             ImDrawList * dl  = w->DrawList;
-            const ImU32 acc  = GetColorU32( ImFluentCol_AccentFillDefault );
-            const ImU32 page = GetColorU32( ImFluentCol_LayerFillDefault );
+            const ImU32 acc    = GetColorU32( ImFluentCol_AccentFillDefault );
+            const float fade_a = hero.Min.y + hero_h * 0.55f, fade_b = hero.Max.y;
             ImGui::PushClipRect( hero.Min, hero.Max, false );
             const float cx = hero.Max.x - hero.GetWidth() * 0.22f;
-            dl->AddCircleFilled( ImVec2( cx, hero.Min.y + hero_h * 0.35f ), hero_h * 0.75f, WithAlpha( acc, 28 ), 96 );
-            dl->AddCircleFilled( ImVec2( cx + hero_h * 0.35f, hero.Min.y + hero_h * 0.15f ), hero_h * 0.45f, WithAlpha( acc, 40 ), 96 );
-            dl->AddCircleFilled( ImVec2( cx - hero_h * 0.45f, hero.Min.y + hero_h * 0.55f ), hero_h * 0.30f, WithAlpha( GetColorU32( ImFluentCol_SystemFillAttention ), 36 ), 96 );
-            dl->AddRectFilledMultiColor( ImVec2( hero.Min.x, hero.Min.y + hero_h * 0.55f ), hero.Max, WithAlpha( page, 0 ), WithAlpha( page, 0 ), page, page );
+            AddCircleFadingDown( dl, ImVec2( cx, hero.Min.y + hero_h * 0.35f ), hero_h * 0.75f, WithAlpha( acc, 28 ), fade_a, fade_b );
+            AddCircleFadingDown( dl, ImVec2( cx + hero_h * 0.35f, hero.Min.y + hero_h * 0.15f ), hero_h * 0.45f, WithAlpha( acc, 40 ), fade_a, fade_b );
+            AddCircleFadingDown( dl, ImVec2( cx - hero_h * 0.45f, hero.Min.y + hero_h * 0.55f ), hero_h * 0.30f, WithAlpha( GetColorU32( ImFluentCol_SystemFillAttention ), 36 ), fade_a, fade_b );
             ImGui::PopClipRect();
         }
 
