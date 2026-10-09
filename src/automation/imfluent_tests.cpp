@@ -1209,8 +1209,9 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_EQ( v.TabSel, 2 );
     };
 
-    // The close buttons of closable tabs are not Tab stops (WinUI); a click or a middle-click still closes the tab.
-    t = IM_REGISTER_TEST( engine, "keyboard", "tab_view_close_button_not_a_tab_stop" );
+    // WinUI TabView: close buttons are not Tab stops; Left/Right go tab, its close button, next tab, ..., Add, and wrap.
+    // Closing the focused tab moves focus to the next tab. A click or a middle-click also closes a tab.
+    t = IM_REGISTER_TEST( engine, "keyboard", "tab_view_close_buttons_arrow_ring" );
     t->SetVarsDataType< KeyboardVars >();
     t->GuiFunc = []( ImGuiTestContext * ctx )
     {
@@ -1226,6 +1227,7 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
                     ImFluent::Button( "content" );
                     ImFluent::EndTabItem();
                 }
+            ImFluent::TabAddButton();
             ImFluent::EndTabView();
         }
         EndTestWindow();
@@ -1233,17 +1235,40 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
     t->TestFunc = []( ImGuiTestContext * ctx )
     {
         KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        ImGuiContext & g = *ctx->UiContext;
         StartKeyboardTest( ctx );
+        const ImGuiID close_1 = ImHashStr( "#CLOSE", 0, ctx->ItemInfo( "**/One" ).ID );
+        const ImGuiID close_2 = ImHashStr( "#CLOSE", 0, ctx->ItemInfo( "**/Two" ).ID );
+        const ImGuiID close_3 = ImHashStr( "#CLOSE", 0, ctx->ItemInfo( "**/Three" ).ID );
         ctx->NavMoveTo( "before" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
         ctx->KeyPress( ImGuiKey_Tab );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "content" );
-        ctx->SetInputMode( ImGuiInputSource_Mouse );
-        ctx->ItemClick( ImHashStr( "#CLOSE", 0, ctx->ItemInfo( "**/Two" ).ID ) );
+        ctx->KeyPress( ImGuiMod_Shift | ImGuiKey_Tab );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_EQ( g.NavId, close_1 );
+        ctx->KeyPress( ImGuiKey_RightArrow );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Two" );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK_EQ( g.NavId, close_1 );
+        ctx->KeyPress( ImGuiKey_LeftArrow, 2 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Add tab" );
+        ctx->KeyPress( ImGuiKey_LeftArrow );
+        IM_CHECK_EQ( g.NavId, close_3 );
+        ctx->KeyPress( ImGuiKey_RightArrow, 2 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "One" );
+        ctx->KeyPress( ImGuiKey_RightArrow, 3 );
+        IM_CHECK_EQ( g.NavId, close_2 );
+        ctx->KeyPress( ImGuiKey_Space );
         IM_CHECK( v.TabOpen[ 0 ] && !v.TabOpen[ 1 ] && v.TabOpen[ 2 ] );
-        ctx->ItemClick( "**/Three", ImGuiMouseButton_Middle );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "Three" );
+        ctx->SetInputMode( ImGuiInputSource_Mouse );
+        ctx->ItemClick( close_3 );
         IM_CHECK( v.TabOpen[ 0 ] && !v.TabOpen[ 2 ] );
+        ctx->ItemClick( "**/One", ImGuiMouseButton_Middle );
+        IM_CHECK( !v.TabOpen[ 0 ] );
     };
 
     // Loose radio buttons (one int* = one group): each is a tab stop; arrows move focus inside the group and wrap.

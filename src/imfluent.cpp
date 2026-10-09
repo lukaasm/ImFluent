@@ -159,7 +159,7 @@ enum ImFluentTabGroupFlags_
     ImFluentTabGroupFlags_ItemsContainer        = 1 << 7, // BeginListView/GridView/TreeView: their items join the group
 };
 
-// Item rects of a Grid tab group, kept from the previous frame: arrows move between them.
+// Item rects of a Grid tab group, kept from the previous frame: arrows move between them. A TabView keeps its Left/Right order here.
 struct ImFluentTabGroupLayout
 {
     ImVector< ImGuiID > Items;
@@ -250,9 +250,8 @@ struct ImFluentContext
         ImRect Rects[ MaxItems ];
     };
     ImVector< MenuBarState > MenuBarStack;
-    bool InRadioButtons;                 // RadioButtons() moves focus itself: its items are not loose radio buttons
-    float TabCloseButtonMinWidthBackup = 0.f; // ImGuiStyle value BeginTabView() replaces until EndTabView()
-    ImDrawListSplitter TextFrameSplitter;     // A text control's fill goes under the text ImGui draws (see BeginTextControlFrame)
+    bool InRadioButtons;                  // RadioButtons() moves focus itself: its items are not loose radio buttons
+    ImDrawListSplitter TextFrameSplitter; // A text control's fill goes under the text ImGui draws (see BeginTextControlFrame)
     ImVector< ImGuiID > TreeParentStack; // Open TreeNode ids (TreePop pops): Left on a child focuses its parent
     ImGuiID TreeFocusFirstChildOf = 0;   // Right on an expanded TreeNode: its first child takes focus
 
@@ -4668,8 +4667,6 @@ bool ImFluent::BeginTabView( const char * id )
     // WinUI TabView: 32 high tabs with 8 rounded top corners, no overline, close buttons on every tab.
     ImGui::PushStyleVar( ImGuiStyleVar_TabRounding, FluentDpx( style.OverlayCornerRadius ) );
     ImGui::PushStyleVar( ImGuiStyleVar_TabBarOverlineSize, 0.f );
-    g_Ctx.TabCloseButtonMinWidthBackup                 = ImGui::GetStyle().TabCloseButtonMinWidthUnselected;
-    ImGui::GetStyle().TabCloseButtonMinWidthUnselected = -1.f;
     PushTabFramePadding();
     const bool open = ImGui::BeginTabBar( id, ImGuiTabBarFlags_None );
     ImGui::PopStyleVar();
@@ -4678,13 +4675,75 @@ bool ImFluent::BeginTabView( const char * id )
         BeginTabGroup( ImGui::GetCurrentContext()->CurrentTabBar->ID, ImFluentTabGroupFlags_Horizontal | ImFluentTabGroupFlags_Wrap | ImFluentTabGroupFlags_HomeEnd );
         return true;
     }
-    ImGui::GetStyle().TabCloseButtonMinWidthUnselected = g_Ctx.TabCloseButtonMinWidthBackup;
     ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor( 5 );
     return false;
 }
 
 static const ImGuiID TABVIEW_FOCUS_KEY_SALT = 0x7AB5F0C5u;
+static const ImGuiID TABVIEW_RING_SALT      = 0x7AB5F0C6u;
+
+static ImGuiID TabCloseButtonId( ImGuiID tab_id )
+{
+    return ImHashStr( "#CLOSE", 0, tab_id ); // ImGui's id for a tab's close button
+}
+
+// The current TabView's focus ring, NULL for a plain ImGui tab bar.
+static ImFluentTabGroupLayout * TabViewRing()
+{
+    const ImGuiTabBar * tab_bar = GImGui->CurrentTabBar;
+    if ( !tab_bar || g_Ctx.TabGroupStack.empty() || g_Ctx.TabGroupStack.back().Id != tab_bar->ID )
+        return NULL;
+    return g_Ctx.TabGroupLayouts.GetOrAddByKey( tab_bar->ID ^ TABVIEW_RING_SALT );
+}
+
+// WinUI TabView::MoveFocus: Left/Right go tab 1, its close button, tab 2, ..., the Add button, and wrap.
+static void TabViewRingItem( ImGuiID id )
+{
+    ImFluentTabGroupLayout * ring = TabViewRing();
+    if ( !ring )
+        return;
+    ring->NextItems.push_back( id );
+    const int n = ring->Items.Size;
+    const int i = ring->Items.find_index( id );
+    if ( i < 0 || n < 2 )
+        return;
+    const int step = ImFluent::ConsumeNavArrow( id, ImGuiDir_Right ) ? 1 : ImFluent::ConsumeNavArrow( id, ImGuiDir_Left ) ? -1 : 0;
+    if ( step == 0 )
+        return;
+    ImGui::SetFocusID( ring->Items[ ( i + step + n ) % n ], GImGui->CurrentWindow );
+    ImGui::SetNavCursorVisible( true );
+}
+
+// WinUI TabView::RequestCloseTab: if the tab or its close button has focus, focus goes to the next tab on the right, else on the left, else to Add.
+static void TabViewCloseTab( bool * p_open, ImGuiID tab_id )
+{
+    *p_open                             = false;
+    ImGuiContext & g                    = *GImGui;
+    const ImFluentTabGroupLayout * ring = TabViewRing();
+    const int i                         = ring ? ring->Items.find_index( tab_id ) : -1;
+    if ( i < 0 || ( g.NavId != tab_id && g.NavId != TabCloseButtonId( tab_id ) ) )
+        return;
+    ImGuiID next = 0, prev = 0, add = 0;
+    for ( int k = 0; k < ring->Items.Size; ++k )
+    {
+        const ImGuiTabItem * tab = ImGui::TabBarFindTabByID( g.CurrentTabBar, ring->Items[ k ] );
+        if ( !tab || k == i )
+            continue; // Close buttons are not tabs
+        if ( tab->Flags & ImGuiTabItemFlags_Button )
+            add = tab->ID;
+        else if ( k > i && !next )
+            next = tab->ID;
+        else if ( k < i )
+            prev = tab->ID;
+    }
+    const ImGuiID target = next ? next : prev ? prev : add;
+    if ( !target )
+        return;
+    const bool cursor_visible = g.NavCursorVisible;
+    ImGui::SetFocusID( target, g.CurrentWindow );
+    g.NavCursorVisible = cursor_visible;
+}
 
 bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlags flags )
 {
@@ -4692,7 +4751,7 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
     ImGuiContext & g = *GImGui;
     if ( ImGuiTabBar * tab_bar = g.CurrentTabBar )
         if ( p_open && *p_open && tab_bar->SelectedTabId == ImGui::GetID( label ) && ImGui::GetStateStorage()->GetBool( tab_bar->ID ^ TABVIEW_FOCUS_KEY_SALT, false ) && IsActionPressed( g_Ctx.Actions.CloseTab ) )
-            *p_open = false;
+            TabViewCloseTab( p_open, ImGui::GetID( label ) );
     if ( p_open && !*p_open )
         return ImGui::BeginTabItem( label, p_open, flags );
     // WinUI TabView: one tab stop on the selected tab; Left/Right wrap, Home/End (focus only), Up/Down stay in the strip.
@@ -4732,12 +4791,13 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
         const ImRect tab_bb            = g.LastItemData.Rect;
         const ImVec2 pad               = ImGui::GetStyle().FramePadding;
         const ImGuiLastItemData backup = g.LastItemData;
-        const ImGuiID close_id         = ImHashStr( "#CLOSE", 0, tab_id );
-        ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop | ImGuiItemFlags_NoNav, true );
+        const ImGuiID close_id         = TabCloseButtonId( tab_id );
+        ImGui::PushItemFlag( ImGuiItemFlags_NoTabStop, true );
         if ( ImGui::CloseButton( close_id, ImVec2( tab_bb.Max.x - pad.x - ImGui::GetFontSize(), tab_bb.Min.y + pad.y ) ) )
-            *p_open = false;
+            TabViewCloseTab( p_open, tab_id );
         ImGui::PopItemFlag();
         ReportItemInfo( close_id, "Close tab" );
+        TabViewRingItem( close_id );
         g.LastItemData = backup;
     }
     ImGui::PopStyleVar();
@@ -4757,9 +4817,10 @@ bool ImFluent::BeginTabItem( const char * label, bool * p_open, ImGuiTabItemFlag
             ImGui::GetWindowDrawList()->AddLine( ImVec2( x, cy - h * 0.5f ), ImVec2( x, cy + h * 0.5f ), ImFluent::GetColorU32( ImFluentCol_DividerStrokeDefault ) );
         }
     }
+    TabViewRingItem( tab_id );
     TabGroupItemNav( tab_id );
     if ( p_open && !( flags & ImGuiTabItemFlags_NoCloseWithMiddleMouseButton ) && ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
-        *p_open = false;
+        TabViewCloseTab( p_open, tab_id );
     return open;
 }
 void ImFluent::EndTabItem()
@@ -4773,6 +4834,7 @@ bool ImFluent::TabAddButton()
     const bool pressed = ImGui::TabItemButton( ImFluentIcon_Add, ImGuiTabItemFlags_Trailing | ImGuiTabItemFlags_NoTooltip );
     ImGui::PopStyleVar();
     ReportItemInfo( ImGui::GetItemID(), "Add tab" );
+    TabViewRingItem( ImGui::GetItemID() );
     return pressed;
 }
 
@@ -4816,9 +4878,21 @@ void ImFluent::EndTabView()
             }
         }
     }
+    if ( ImFluentTabGroupLayout * ring = TabViewRing() )
+    {
+        // The tab bar's visual order (the Add button is Trailing), each tab followed by its close button
+        ring->Items.resize( 0 );
+        for ( const ImGuiTabItem & tab : g.CurrentTabBar->Tabs )
+        {
+            if ( ring->NextItems.contains( tab.ID ) )
+                ring->Items.push_back( tab.ID );
+            if ( ring->NextItems.contains( TabCloseButtonId( tab.ID ) ) )
+                ring->Items.push_back( TabCloseButtonId( tab.ID ) );
+        }
+        ring->NextItems.resize( 0 );
+    }
     EndTabGroup();
     ImGui::EndTabBar();
-    ImGui::GetStyle().TabCloseButtonMinWidthUnselected = g_Ctx.TabCloseButtonMinWidthBackup;
     ImGui::PopStyleVar( 2 );
     ImGui::PopStyleColor( 5 );
 }
