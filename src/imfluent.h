@@ -361,8 +361,8 @@ struct ImFluentStyle
 struct ImFluentActions
 {
     ImGuiKeyChord RevealPassword;      // PasswordBox: show the password while the key is held. Alt+F8
-    ImGuiKeyChord TogglePopup;         // ComboBox, DropDownButton, SplitButton: open the popup; close the ComboBox list. F4
-    ImGuiKeyChord OpenPopup;           // ComboBox, DropDownButton, SplitButton: open the popup. Alt+Down
+    ImGuiKeyChord TogglePopup;         // ComboBox, SplitButton: open the popup; close the ComboBox list. F4
+    ImGuiKeyChord OpenPopup;           // ComboBox, SplitButton: open the popup. Alt+Down
     ImGuiKeyChord ClosePopup;          // ComboBox: close the open list. Alt+Up
     ImGuiKeyChord PickerOpenCommit;    // DatePicker, TimePicker: open the flyout; in the flyout, commit. Alt+Down
     ImGuiKeyChord PickerOpenCommitAlt; // Second chord for PickerOpenCommit. Alt+Up

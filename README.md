@@ -39,7 +39,7 @@ with WinUI defaults. Change them, or set one to 0 to turn it off:
 ```cpp
 ImFluentActions & actions = ImFluent::GetActions();
 actions.RevealPassword    = ImGuiMod_Ctrl | ImGuiKey_R; // default Alt+F8
-actions.TogglePopup       = 0;                          // no F4 for ComboBox and drop-down buttons
+actions.TogglePopup       = 0;                          // no F4 for ComboBox and SplitButton
 ```
 
 ## Automation and tests

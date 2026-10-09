@@ -1398,4 +1398,80 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_STR_EQ( v.City, "Par" );
         IM_CHECK_STR_EQ( FocusLabel( ctx ), "city" );
     };
+
+    // [SECTION] Keyboard: popups opened by a button (open, focus inside, Escape, focus back, open again)
+
+    // Flyout, TeachingTip (light dismiss) and DropDownButton share the WinUI popup rules: Space/Enter on the owner
+    // opens, focus goes to the first focusable element, Tab stays inside, Escape closes and focus returns to the
+    // owner, which opens it again at once.
+    struct PopupCase
+    {
+        const char * Name;
+        int Kind; // 0 Flyout, 1 TeachingTip, 2 DropDownButton + MenuFlyout
+    };
+    static const PopupCase popup_cases[] = { { "flyout_escape_and_reopen", 0 }, { "teaching_tip_escape_and_reopen", 1 }, { "drop_down_button_escape_and_reopen", 2 } };
+    for ( const PopupCase & pc : popup_cases )
+    {
+        t             = IM_REGISTER_TEST( engine, "keyboard", pc.Name );
+        t->ArgVariant = pc.Kind;
+        t->GuiFunc    = []( ImGuiTestContext * ctx )
+        {
+            BeginTestWindow();
+            switch ( ctx->Test->ArgVariant )
+            {
+                case 0:
+                    if ( ImFluent::Button( "owner" ) )
+                        ImFluent::OpenFlyout( "##popup" );
+                    if ( ImFluent::BeginFlyout( "##popup" ) )
+                    {
+                        ImFluent::Button( "first" );
+                        ImFluent::Button( "second" );
+                        ImFluent::EndFlyout();
+                    }
+                    break;
+                case 1:
+                    if ( ImFluent::Button( "owner" ) )
+                        ImFluent::OpenTeachingTip( "##popup" );
+                    if ( ImFluent::BeginTeachingTip( "##popup", "Tip" ) )
+                    {
+                        ImFluent::Button( "first" );
+                        ImFluent::Button( "second" );
+                        ImFluent::EndTeachingTip();
+                    }
+                    break;
+                default:
+                    if ( ImFluent::DropDownButton( "owner" ) )
+                        ImFluent::OpenMenuFlyout( "##popup" );
+                    if ( ImFluent::BeginMenuFlyout( "##popup" ) )
+                    {
+                        ImFluent::MenuFlyoutItem( "first" );
+                        ImFluent::MenuFlyoutItem( "second" );
+                        ImFluent::EndMenuFlyout();
+                    }
+                    break;
+            }
+            EndTestWindow();
+        };
+        t->TestFunc = []( ImGuiTestContext * ctx )
+        {
+            StartKeyboardTest( ctx );
+            ctx->NavMoveTo( "owner" );
+            ctx->KeyPress( ImGuiKey_Space );
+            IM_CHECK_EQ( PopupCount( ctx ), 1 );
+            IM_CHECK_STR_EQ( FocusLabel( ctx ), "first" );
+            if ( ctx->Test->ArgVariant != 2 ) // MenuFlyout swallows Tab (WinUI)
+            {
+                ctx->KeyPress( ImGuiKey_Tab );
+                IM_CHECK_STR_EQ( FocusLabel( ctx ), "second" );
+            }
+            ctx->KeyPress( ImGuiKey_Escape );
+            IM_CHECK_EQ( PopupCount( ctx ), 0 );
+            IM_CHECK_STR_EQ( FocusLabel( ctx ), "owner" );
+            ctx->KeyPress( ImGuiKey_Enter ); // Opens again at once
+            IM_CHECK_EQ( PopupCount( ctx ), 1 );
+            IM_CHECK_STR_EQ( FocusLabel( ctx ), "first" );
+            ctx->KeyPress( ImGuiKey_Escape );
+            IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        };
+    }
 }
