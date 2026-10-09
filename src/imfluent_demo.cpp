@@ -2332,42 +2332,181 @@ namespace ImFluentGalleryApp
     }
 
     // [SECTION] Top-level pages
+    static ImU32 WithAlpha( ImU32 col, int alpha )
+    {
+        return ( col & ~IM_COL32_A_MASK ) | ( ( ImU32 )alpha << IM_COL32_A_SHIFT );
+    }
+
+    // A WinUI Gallery home card: a glyph, a title and a description on a card. icon_left puts the glyph left of the
+    // text (the "Recently visited" cards); external adds the open-in-browser glyph (the link tiles).
+    static bool HomeCard( const char * title, const char * glyph, const char * desc, const ImVec2 & size, bool icon_left, bool external )
+    {
+        ImGuiWindow * w  = ImGui::GetCurrentWindow();
+        const ImGuiID id = w->GetID( title );
+        const ImVec2 p   = w->DC.CursorPos;
+        const ImRect bb( p, ImVec2( p.x + size.x, p.y + size.y ) );
+        ImGui::ItemSize( bb );
+        if ( !ImGui::ItemAdd( bb, id ) )
+            return false;
+#ifdef IMGUI_ENABLE_TEST_ENGINE
+        {
+            ImGuiContext & g = *GImGui; // The macro reads `g`
+            IMGUI_TEST_ENGINE_ITEM_INFO( id, title, 0 );
+        }
+#endif
+        bool hov = false, held = false;
+        const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
+        ImDrawList * dl    = w->DrawList;
+        const float r      = FluentDpx( 8.f );
+        const float pad    = FluentDpx( 16.f );
+        dl->AddRectFilled( bb.Min, bb.Max, GetColorU32( held ? ImFluentCol_ControlFillTertiary : hov ? ImFluentCol_ControlFillSecondary : ImFluentCol_CardBgDefault ), r );
+        dl->AddRect( bb.Min, bb.Max, GetColorU32( ImFluentCol_CardStrokeDefault ), r );
+
+        const float icon = FluentDpx( icon_left ? 24.f : 32.f );
+        ImVec2 text_pos( bb.Min.x + pad, bb.Min.y + pad + icon + FluentDpx( 16.f ) );
+        float text_w = size.x - pad * 2.f;
+        if ( icon_left )
+        {
+            dl->AddText( ImGui::GetFont(), icon, ImVec2( bb.Min.x + pad, bb.Min.y + pad ), GetColorU32( ImFluentCol_AccentTextPrimary ), glyph );
+            text_pos = ImVec2( bb.Min.x + pad + icon + FluentDpx( 16.f ), bb.Min.y + pad - FluentDpx( 2.f ) );
+            text_w   = bb.Max.x - pad - text_pos.x;
+        }
+        else
+            dl->AddText( ImGui::GetFont(), icon, ImVec2( bb.Min.x + pad, bb.Min.y + pad ), GetColorU32( ImFluentCol_AccentTextPrimary ), glyph );
+
+        ImGui::PushClipRect( bb.Min, bb.Max, true );
+        ImFluent::PushFont( ImFluentTextStyle_BodyStrong );
+        dl->AddText( text_pos, GetColorU32( ImFluentCol_TextPrimary ), title );
+        const float title_h = ImGui::GetFontSize();
+        ImFluent::PopFont();
+        ImFluent::PushFont( ImFluentTextStyle_Caption );
+        dl->AddText( ImGui::GetFont(), ImGui::GetFontSize(), ImVec2( text_pos.x, text_pos.y + title_h + FluentDpx( 2.f ) ), GetColorU32( ImFluentCol_TextSecondary ), desc, NULL, text_w );
+        ImFluent::PopFont();
+        if ( external )
+        {
+            const float g = FluentDpx( 12.f );
+            dl->AddText( ImGui::GetFont(), g, ImVec2( bb.Max.x - pad - g, bb.Max.y - pad - g ), GetColorU32( ImFluentCol_TextSecondary ), ImFluentIcon_OpenInNewWindow );
+        }
+        ImGui::PopClipRect();
+        ImGui::RenderNavCursor( bb, id );
+        return pressed;
+    }
+
+    // WinUI Gallery home page: a hero area with the title, a row of link tiles over its lower edge, then recently
+    // visited controls and the categories. The hero has no image here: soft accent shapes stand in for the artwork.
     static void Page_Home()
     {
-        PageHeader( "ImFluent Gallery", "A WinUI 3 Gallery clone built on Dear ImGui + the Fluent 2 design system." );
-
-        TextBlock( "Get started", ImFluentTextStyle_Subtitle );
-        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 8.f ) ) );
-
-        struct Tile
+        ImGuiWindow * w    = ImGui::GetCurrentWindow();
+        const float hero_h = FluentDpx( 300.f );
         {
-            const char * page;
-            const char * title;
-            const char * subtitle;
-            const char * glyph;
-        };
-        const Tile tiles[] = {
-            { "Section_BasicInput", "Basic input", "Buttons, switches, sliders", ImFluentIcon_Add },
-            { "Section_Collections", "Collections", "Lists, trees, grids", ImFluentIcon_ViewAll },
-            { "Section_Layout", "Layout", "Cards, stacks, settings", ImFluentIcon_Folder },
-            { "Section_Navigation", "Navigation", "Tabs, nav pane, breadcrumbs", ImFluentIcon_GlobalNavButton },
-            { "Section_DialogsAndFlyouts", "Dialogs & flyouts", "Dialogs, menus, tips", ImFluentIcon_Important },
-            { "Section_Text", "Text", "Text input variants", ImFluentIcon_Font },
-            { "Section_StatusAndInfo", "Status & info", "Progress, badges, info bars", ImFluentIcon_Info },
-            { "Section_Design", "Design", "Style stack, theming", ImFluentIcon_Color },
-        };
-        BeginGridView( "##sections", ImFluentItemsViewFlags_NoSelectOnFocus ); // Tiles are links: arrows only move focus
-        for ( size_t i = 0; i < sizeof( tiles ) / sizeof( tiles[ 0 ] ); ++i )
-        {
-            const Tile & t = tiles[ i ];
-            ImGui::PushID( ( int )i );
-            if ( GridViewItem( t.title, false, ImVec2( FluentDpx( 220.f ), FluentDpx( 120.f ) ) ) )
-                Navigate( t.page );
-            ImGui::PopID();
-            if ( ( i % 3 ) != 2 )
-                ImGui::SameLine();
+            const ImVec2 o( w->Pos.x, w->Pos.y - w->Scroll.y );
+            const ImRect hero( o, ImVec2( o.x + w->Size.x, o.y + hero_h ) );
+            ImDrawList * dl  = w->DrawList;
+            const ImU32 acc  = GetColorU32( ImFluentCol_AccentFillDefault );
+            const ImU32 page = GetColorU32( ImFluentCol_LayerFillDefault );
+            ImGui::PushClipRect( hero.Min, hero.Max, false );
+            const float cx = hero.Max.x - hero.GetWidth() * 0.22f;
+            dl->AddCircleFilled( ImVec2( cx, hero.Min.y + hero_h * 0.35f ), hero_h * 0.75f, WithAlpha( acc, 28 ), 96 );
+            dl->AddCircleFilled( ImVec2( cx + hero_h * 0.35f, hero.Min.y + hero_h * 0.15f ), hero_h * 0.45f, WithAlpha( acc, 40 ), 96 );
+            dl->AddCircleFilled( ImVec2( cx - hero_h * 0.45f, hero.Min.y + hero_h * 0.55f ), hero_h * 0.30f, WithAlpha( GetColorU32( ImFluentCol_SystemFillAttention ), 36 ), 96 );
+            // Fade into the page at the bottom.
+            dl->AddRectFilledMultiColor( ImVec2( hero.Min.x, hero.Min.y + hero_h * 0.55f ), hero.Max, WithAlpha( page, 0 ), WithAlpha( page, 0 ), page, page );
+            ImGui::PopClipRect();
         }
-        EndGridView();
+
+        ImGui::SetCursorPos( ImVec2( FluentDpx( 36.f ), FluentDpx( 44.f ) ) );
+        ImFluent::PushFont( ImFluentTextStyle_Body, 26.f );
+        ImGui::TextUnformatted( "Dear ImGui + Fluent 2" );
+        ImFluent::PopFont();
+        ImGui::SetCursorPosX( FluentDpx( 36.f ) );
+        TextBlock( "ImFluent Gallery", ImFluentTextStyle_TitleLarge );
+
+        // Link tiles, over the lower edge of the hero.
+        struct LinkTile
+        {
+            const char * title;
+            const char * glyph;
+            const char * desc;
+            const char * url;
+        };
+        static const LinkTile links[] = {
+            { "Getting started", ImFluentIcon_Page, "Build ImFluent and use it in a Dear ImGui app.", "https://github.com/lukaasm/ImFluent#readme" },
+            { "Design", ImFluentIcon_Color, "Fluent 2 guidelines and toolkits for creating apps.", "https://fluent2.microsoft.design/" },
+            { "ImFluent on GitHub", ImFluentIcon_Code, "Explore the ImFluent source code and repository.", "https://github.com/lukaasm/ImFluent" },
+            { "Dear ImGui", ImFluentIcon_ViewAll, "The immediate mode GUI library under ImFluent.", "https://github.com/ocornut/imgui" },
+        };
+        ImGui::SetCursorPos( ImVec2( FluentDpx( 36.f ), FluentDpx( 196.f ) ) );
+        for ( int i = 0; i < IM_ARRAYSIZE( links ); ++i )
+        {
+            if ( i > 0 )
+                ImGui::SameLine( 0.f, FluentDpx( 12.f ) );
+            if ( HomeCard( links[ i ].title, links[ i ].glyph, links[ i ].desc, ImVec2( FluentDpx( 228.f ), FluentDpx( 170.f ) ), false, true ) )
+                OpenUrl( links[ i ].url );
+        }
+
+        // Recently visited control pages, newest first; a few defaults before any visit.
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 28.f ) ) );
+        TextBlock( "Recently visited", ImFluentTextStyle_Subtitle );
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 4.f ) ) );
+        const ControlInfo * recent[ 6 ];
+        int recent_count = 0;
+        for ( int i = ( int )g_State.NavStack.size() - 1; i >= 0 && recent_count < IM_ARRAYSIZE( recent ); --i )
+        {
+            const std::string & id = g_State.NavStack[ i ];
+            const ControlInfo * c  = id.compare( 0, 5, "Item_" ) == 0 ? FindControl( id.c_str() + 5 ) : nullptr;
+            bool seen              = false;
+            for ( int j = 0; j < recent_count; ++j )
+                seen |= ( recent[ j ] == c );
+            if ( c && !seen )
+                recent[ recent_count++ ] = c;
+        }
+        for ( const char * fallback : { "Button", "ComboBox", "CheckBox" } )
+            if ( recent_count < 3 )
+                if ( const ControlInfo * c = FindControl( fallback ) )
+                {
+                    bool seen = false;
+                    for ( int j = 0; j < recent_count; ++j )
+                        seen |= ( recent[ j ] == c );
+                    if ( !seen )
+                        recent[ recent_count++ ] = c;
+                }
+        const ImVec2 card( FluentDpx( 300.f ), FluentDpx( 92.f ) );
+        for ( int i = 0; i < recent_count; ++i )
+        {
+            if ( i % 3 != 0 )
+                ImGui::SameLine( 0.f, FluentDpx( 12.f ) );
+            ImGui::PushID( i );
+            if ( HomeCard( recent[ i ]->Title, recent[ i ]->Glyph, recent[ i ]->Subtitle, card, true, false ) )
+            {
+                char page_id[ 96 ];
+                ImFormatString( page_id, sizeof( page_id ), "Item_%s", recent[ i ]->UniqueId );
+                Navigate( page_id );
+            }
+            ImGui::PopID();
+        }
+
+        // All categories.
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 28.f ) ) );
+        TextBlock( "Controls by category", ImFluentTextStyle_Subtitle );
+        ImGui::Dummy( ImVec2( 0.f, FluentDpx( 4.f ) ) );
+        for ( int g = 0; g < g_GroupsCount; ++g )
+        {
+            if ( g % 3 != 0 )
+                ImGui::SameLine( 0.f, FluentDpx( 12.f ) );
+            int count = 0;
+            for ( int i = 0; i < g_ControlsCount; ++i )
+                count += std::strcmp( g_Controls[ i ].GroupId, g_Groups[ g ].GroupId ) == 0 ? 1 : 0;
+            char desc[ 48 ];
+            ImFormatString( desc, sizeof( desc ), "%d control%s", count, count == 1 ? "" : "s" );
+            ImGui::PushID( g );
+            if ( HomeCard( g_Groups[ g ].Title, g_Groups[ g ].Glyph, desc, card, true, false ) )
+            {
+                char page_id[ 96 ];
+                ImFormatString( page_id, sizeof( page_id ), "Section_%s", g_Groups[ g ].GroupId );
+                Navigate( page_id );
+            }
+            ImGui::PopID();
+        }
     }
 
     static void Page_AllControls()
