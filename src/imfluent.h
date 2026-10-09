@@ -377,6 +377,8 @@ struct ImFluentActions
     ImGuiKeyChord PageDown;            // As PageUp, the other way. PageDown
     ImGuiKeyChord CloseDialog;         // ContentDialog: close with the close button's result. Escape
 
+    bool RepeatStepButtons; // Step arrows (spin, pager, picker, calendar, flip view) repeat while held. true
+
     IMGUI_API ImFluentActions();
 };
 

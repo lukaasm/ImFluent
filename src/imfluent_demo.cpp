@@ -60,6 +60,7 @@ namespace ImFluentGalleryApp
     static void Page_Item_TextBlock();
     static void Page_Item_ComboBox();
     static void Page_Item_ListBox();
+    static void Page_Item_Table();
     static void Page_Item_ListView();
     static void Page_Item_TreeView();
     static void Page_Item_GridView();
@@ -138,6 +139,7 @@ namespace ImFluentGalleryApp
         { "FlipView", "Collections", "FlipView", "Shows one item of a collection at a time.", ImFluentIcon_Photo, &Page_Item_FlipView },
         { "PipsPager", "Collections", "PipsPager", "A pager rendered as a row of dots.", ImFluentIcon_More, &Page_Item_PipsPager },
         { "PagerControl", "Collections", "PagerControl", "Page navigator with numeric buttons, combo box, or editable number; first/last/prev/next controls.", ImFluentIcon_Page, &Page_Item_PagerControl },
+        { "Table", "Collections", "Table", "A Dear ImGui table in the Fluent theme: accent selection, header, row stripes.", ImFluentIcon_GridView, &Page_Item_Table },
 
         { "Border", "Layout", "Border", "Draws a background, an outline and rounded corners around content.", ImFluentIcon_Folder, &Page_Item_Border },
         { "Card", "Layout", "Card", "A surface that groups related content.", ImFluentIcon_Folder, &Page_Item_Card },
@@ -1465,6 +1467,50 @@ namespace ImFluentGalleryApp
             SetNextItemHeader( "Time zone" );
             SetNextItemDescription( "Used for scheduling and notifications." );
             ComboBox( "##cb-tz", &tz_sel, tz_items, IM_ARRAYSIZE( tz_items ) );
+        }
+        EndControlExample();
+    }
+
+    static void Page_Item_Table()
+    {
+        PageHeader( "Table", "A Dear ImGui table in the Fluent theme: accent selection, header, row stripes." );
+        if ( BeginControlExample( "A Dear ImGui table with selectable rows" ) )
+        {
+            struct Row
+            {
+                const char * Name;
+                const char * Kind;
+                int Size;
+                bool Synced;
+            };
+            static Row rows[]           = { { "Budget.xlsx", "Workbook", 48, true }, { "Notes.txt", "Text", 3, false }, { "Photo.jpg", "Image", 2210, true }, { "Report.docx", "Document", 120, true }, { "Song.mp3", "Audio", 5120, false } };
+            static int s_selected       = 2;
+            const ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp;
+            if ( ImGui::BeginTable( "##files", 4, flags, ImVec2( FluentDpx( 480.f ), 0.f ) ) )
+            {
+                ImGui::TableSetupColumn( "Name" );
+                ImGui::TableSetupColumn( "Kind" );
+                ImGui::TableSetupColumn( "Size (KB)" );
+                ImGui::TableSetupColumn( "Synced" );
+                ImGui::TableHeadersRow();
+                for ( int i = 0; i < IM_ARRAYSIZE( rows ); ++i )
+                {
+                    ImGui::PushID( i );
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    if ( ImGui::Selectable( rows[ i ].Name, s_selected == i, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap ) )
+                        s_selected = i;
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted( rows[ i ].Kind );
+                    ImGui::TableNextColumn();
+                    ImGui::Text( "%d", rows[ i ].Size );
+                    ImGui::TableNextColumn();
+                    ImGui::Checkbox( "##synced", &rows[ i ].Synced );
+                    ImGui::PopID();
+                }
+                ImGui::EndTable();
+            }
+            ControlExampleOutput( "Selected: %s", rows[ s_selected ].Name );
         }
         EndControlExample();
     }

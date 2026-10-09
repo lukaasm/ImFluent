@@ -77,6 +77,9 @@ struct KeyboardVars
     float RangeHi    = 75.f;
     float Rating     = 2.f;
     int Combo        = 0;
+    int Combo2       = 0;
+    int Page         = 0;
+    int BelowClicks  = 0;
     int Zoom         = 100;
     int MenuClicks   = 0;
     int DialogResult = 0;
@@ -329,6 +332,128 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         IM_CHECK_EQ( PopupCount( ctx ), 1 );
         ctx->KeyPress( ImGuiKey_Escape );
         IM_CHECK_EQ( PopupCount( ctx ), 0 );
+    };
+
+    // GitHub #9: a ComboBox list over another ComboBox takes the click.
+    t = IM_REGISTER_TEST( engine, "mouse", "combo_box_list_covers_combo_box" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight" };
+        BeginTestWindow();
+        ImFluent::ComboBox( "upper", &v.Combo, items, IM_ARRAYSIZE( items ) );
+        ImFluent::ComboBox( "lower", &v.Combo2, items, IM_ARRAYSIZE( items ) );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        ctx->PopupCloseAll();
+        ctx->SetRef( "Test Window" );
+        ctx->SetInputMode( ImGuiInputSource_Mouse );
+        static const char * items[] = { "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight" };
+        v.Combo                     = -1;
+        const ImRect lower          = ctx->ItemInfo( "lower" ).RectFull;
+        ctx->ItemClick( "upper" );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        int covering = -1;
+        ctx->SetRef( ctx->UiContext->OpenPopupStack[ 0 ].Window );
+        for ( int i = 0; i < IM_ARRAYSIZE( items ) && covering < 0; ++i )
+        {
+            char path[ 64 ];
+            ImFormatString( path, sizeof( path ), "**/%s", items[ i ] );
+            const ImGuiTestItemInfo info = ctx->ItemInfo( path, ImGuiTestOpFlags_NoError );
+            if ( info.ID != 0 && info.RectFull.Contains( lower.GetCenter() ) )
+                covering = i;
+        }
+        ctx->SetRef( "Test Window" );
+        IM_CHECK( covering >= 0 );
+        ctx->MouseMoveToPos( lower.GetCenter() );
+        ctx->MouseClick();
+        ctx->Yield( 2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_EQ( v.Combo, covering );
+        IM_CHECK_EQ( v.Combo2, 0 );
+    };
+
+    // GitHub #9 with a DatePicker under the list, by mouse and by keyboard.
+    t = IM_REGISTER_TEST( engine, "mouse", "combo_box_list_covers_date_picker" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight" };
+        BeginTestWindow();
+        ImFluent::ComboBox( "upper", &v.Combo, items, IM_ARRAYSIZE( items ) );
+        ImFluent::DatePicker( "date", &v.Date );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        ctx->PopupCloseAll();
+        ctx->SetRef( "Test Window" );
+        ctx->SetInputMode( ImGuiInputSource_Mouse );
+        v.Combo                             = -1;
+        const ImRect date                   = ctx->ItemInfo( "date" ).RectFull;
+        const ImFluent::ImFluentDate before = v.Date;
+        ctx->ItemClick( "upper" );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->MouseMoveToPos( ImVec2( date.Min.x + 8.f, date.GetCenter().y ) );
+        ctx->MouseClick();
+        ctx->Yield( 2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_GE( v.Combo, 0 );
+        IM_CHECK( v.Date.Year == before.Year && v.Date.Month == before.Month && v.Date.Day == before.Day );
+
+        ctx->SetInputMode( ImGuiInputSource_Keyboard );
+        ctx->NavMoveTo( "upper" );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        ctx->KeyPress( ImGuiKey_Enter );
+        ctx->Yield( 2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "upper" );
+    };
+
+    t = IM_REGISTER_TEST( engine, "keyboard", "popup_enter_does_not_reach_control_below" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v            = ctx->GetVars< KeyboardVars >();
+        static const char * items[] = { "One", "Two", "Three", "Four", "Five", "Six" };
+        BeginTestWindow();
+        ImFluent::ComboBox( "upper", &v.Combo, items, IM_ARRAYSIZE( items ) );
+        if ( ImFluent::Button( "below" ) )
+            v.BelowClicks++;
+        ImFluent::DatePicker( "date", &v.Date );
+        if ( ImFluent::Button( "below date" ) )
+            v.BelowClicks++;
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        StartKeyboardTest( ctx );
+        ctx->NavMoveTo( "upper" );
+        ctx->KeyPress( ImGuiKey_Space );
+        ctx->KeyPress( ImGuiKey_DownArrow );
+        ctx->KeyPress( ImGuiKey_Enter );
+        ctx->Yield( 2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_EQ( v.BelowClicks, 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "upper" );
+
+        ctx->NavMoveTo( "date" );
+        ctx->KeyPress( ImGuiKey_Space );
+        IM_CHECK_EQ( PopupCount( ctx ), 1 );
+        ctx->KeyPress( ImGuiKey_Enter );
+        ctx->Yield( 2 );
+        IM_CHECK_EQ( PopupCount( ctx ), 0 );
+        IM_CHECK_EQ( v.BelowClicks, 0 );
+        IM_CHECK_STR_EQ( FocusLabel( ctx ), "date" );
     };
 
     t = IM_REGISTER_TEST( engine, "keyboard", "menu_flyout_submenu_and_reentry" );
@@ -1676,5 +1801,62 @@ void ImFluentTests_RegisterAll( ImGuiTestEngine * engine )
         v.LeakHeader       = true;
         ctx->Yield( 3 );
         IM_CHECK_EQ( v.LeakBoxY, before );
+    };
+
+    // GitHub #8: Dear ImGui widgets use the accent.
+    t           = IM_REGISTER_TEST( engine, "library", "imgui_colors_follow_accent" );
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        auto same_rgb = []( const ImVec4 & a, const ImVec4 & b )
+        {
+            return ImAbs( a.x - b.x ) < 1e-3f && ImAbs( a.y - b.y ) < 1e-3f && ImAbs( a.z - b.z ) < 1e-3f;
+        };
+        const ImFluentThemePreset preset    = ImFluent::GetThemePreset();
+        const ImFluentThemePreset presets[] = { ImFluentThemePreset_Light, ImFluentThemePreset_Dark };
+        for ( ImFluentThemePreset p : presets )
+        {
+            ImFluent::SetThemePreset( p );
+            const ImVec4 accent = ImFluent::GetStyle().Colors[ ImFluentCol_AccentFillDefault ];
+            const ImVec4 * c    = ImGui::GetStyle().Colors;
+            IM_CHECK( same_rgb( c[ ImGuiCol_CheckMark ], accent ) );
+            IM_CHECK( same_rgb( c[ ImGuiCol_Header ], accent ) && c[ ImGuiCol_Header ].w > 0.f );
+            IM_CHECK( same_rgb( c[ ImGuiCol_HeaderHovered ], accent ) );
+            IM_CHECK( same_rgb( c[ ImGuiCol_SliderGrab ], accent ) );
+        }
+        ImFluent::SetThemePreset( preset );
+    };
+
+    // GitHub #7: step arrows repeat while held, unless ImFluentActions::RepeatStepButtons is off.
+    t = IM_REGISTER_TEST( engine, "mouse", "step_buttons_repeat_while_held" );
+    t->SetVarsDataType< KeyboardVars >();
+    t->GuiFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        BeginTestWindow();
+        ImFluent::PagerControl( "pager", &v.Page, 100 );
+        EndTestWindow();
+    };
+    t->TestFunc = []( ImGuiTestContext * ctx )
+    {
+        KeyboardVars & v = ctx->GetVars< KeyboardVars >();
+        ctx->SetRef( "Test Window" );
+        ctx->SetInputMode( ImGuiInputSource_Mouse );
+        ImFluentActions & actions = ImFluent::GetActions();
+        const bool backup         = actions.RepeatStepButtons;
+        for ( int repeat = 1; repeat >= 0; --repeat )
+        {
+            actions.RepeatStepButtons = repeat != 0;
+            v.Page                    = 0;
+            ctx->Yield( 2 );
+            ctx->MouseMove( "**/Next page" );
+            ctx->MouseDown( ImGuiMouseButton_Left );
+            ctx->SleepNoSkip( 1.f, 1.f / 60.f );
+            ctx->MouseUp( ImGuiMouseButton_Left );
+            if ( repeat )
+                IM_CHECK_GT( v.Page, 2 );
+            else
+                IM_CHECK_EQ( v.Page, 1 );
+        }
+        actions.RepeatStepButtons = backup;
     };
 }

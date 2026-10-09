@@ -730,6 +730,12 @@ namespace ImFluent
         return ( ImGui::GetCurrentContext()->CurrentItemFlags & ImGuiItemFlags_Disabled ) != 0;
     }
 
+    // Mouse over `bb` and not covered by another window (a bare IsMouseHoveringRect fires through popups).
+    static bool IsMouseOverWindowRect( const ImRect & bb, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None )
+    {
+        return ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false ) && ImGui::IsWindowHovered( ImGuiHoveredFlags_AllowWhenBlockedByActiveItem | flags );
+    }
+
     static bool HasPendingError()
     {
         DropStaleNextItem();
@@ -1701,6 +1707,7 @@ IMGUI_API ImFluentActions::ImFluentActions()
     PageUp              = ImGuiKey_PageUp;
     PageDown            = ImGuiKey_PageDown;
     CloseDialog         = ImGuiKey_Escape;
+    RepeatStepButtons   = true;
 }
 
 ImFluentActions & ImFluent::GetActions()
@@ -1790,15 +1797,17 @@ void ImFluent::SetThemePreset( ImFluentThemePreset preset )
     c[ ImGuiCol_ScrollbarGrab ]         = fc[ ImFluentCol_ControlStrongFillDefault ];
     c[ ImGuiCol_ScrollbarGrabHovered ]  = fc[ ImFluentCol_ControlStrongFillDefault ];
     c[ ImGuiCol_ScrollbarGrabActive ]   = fc[ ImFluentCol_ControlStrongFillDefault ];
-    c[ ImGuiCol_CheckMark ]             = fc[ ImFluentCol_TextOnAccentPrimary ];
+    c[ ImGuiCol_CheckMark ]                 = fc[ ImFluentCol_AccentFillDefault ];
     c[ ImGuiCol_SliderGrab ]            = fc[ ImFluentCol_AccentFillDefault ];
     c[ ImGuiCol_SliderGrabActive ]      = fc[ ImFluentCol_AccentFillSecondary ];
     c[ ImGuiCol_Button ]                = fc[ ImFluentCol_ControlFillDefault ];
     c[ ImGuiCol_ButtonHovered ]         = fc[ ImFluentCol_ControlFillSecondary ];
     c[ ImGuiCol_ButtonActive ]          = fc[ ImFluentCol_ControlFillTertiary ];
-    c[ ImGuiCol_Header ]                = fc[ ImFluentCol_SubtleFillSecondary ];
-    c[ ImGuiCol_HeaderHovered ]         = fc[ ImFluentCol_SubtleFillTertiary ];
-    c[ ImGuiCol_HeaderActive ]          = fc[ ImFluentCol_SubtleFillSecondary ];
+    // Selection: the accent at the WinUI DataGrid opacities.
+    const ImVec4 accent                     = fc[ ImFluentCol_AccentFillDefault ];
+    c[ ImGuiCol_Header ]                    = ImVec4( accent.x, accent.y, accent.z, 0.4f );
+    c[ ImGuiCol_HeaderHovered ]             = ImVec4( accent.x, accent.y, accent.z, 0.2f );
+    c[ ImGuiCol_HeaderActive ]              = ImVec4( accent.x, accent.y, accent.z, 0.6f );
     c[ ImGuiCol_Separator ]             = fc[ ImFluentCol_DividerStrokeDefault ];
     c[ ImGuiCol_SeparatorHovered ]      = fc[ ImFluentCol_DividerStrokeDefault ];
     c[ ImGuiCol_SeparatorActive ]       = fc[ ImFluentCol_DividerStrokeDefault ];
@@ -1810,8 +1819,18 @@ void ImFluent::SetThemePreset( ImFluentThemePreset preset )
     c[ ImGuiCol_TabSelected ]           = fc[ ImFluentCol_LayerFillAlt ];
     c[ ImGuiCol_TabDimmed ]             = fc[ ImFluentCol_SubtleFillTransparent ];
     c[ ImGuiCol_TabDimmedSelected ]     = fc[ ImFluentCol_LayerFillAlt ];
-    c[ ImGuiCol_PlotLines ]             = fc[ ImFluentCol_AccentFillDefault ];
-    c[ ImGuiCol_PlotHistogram ]         = fc[ ImFluentCol_AccentFillDefault ];
+    c[ ImGuiCol_TabSelectedOverline ]       = fc[ ImFluentCol_AccentFillDefault ];
+    c[ ImGuiCol_TabDimmedSelectedOverline ] = fc[ ImFluentCol_AccentFillDefault ];
+    c[ ImGuiCol_PlotLines ]                 = fc[ ImFluentCol_AccentFillDefault ];
+    c[ ImGuiCol_PlotLinesHovered ]          = fc[ ImFluentCol_AccentFillSecondary ];
+    c[ ImGuiCol_PlotHistogram ]             = fc[ ImFluentCol_AccentFillDefault ];
+    c[ ImGuiCol_PlotHistogramHovered ]      = fc[ ImFluentCol_AccentFillSecondary ];
+    c[ ImGuiCol_TextLink ]                  = fc[ ImFluentCol_AccentTextPrimary ];
+    c[ ImGuiCol_InputTextCursor ]           = fc[ ImFluentCol_TextPrimary ];
+    c[ ImGuiCol_TreeLines ]                 = fc[ ImFluentCol_DividerStrokeDefault ];
+    c[ ImGuiCol_DragDropTarget ]            = fc[ ImFluentCol_AccentFillDefault ];
+    c[ ImGuiCol_DragDropTargetBg ]          = ImVec4( accent.x, accent.y, accent.z, 0.1f );
+    c[ ImGuiCol_UnsavedMarker ]             = fc[ ImFluentCol_TextPrimary ];
     c[ ImGuiCol_TableHeaderBg ]         = fc[ ImFluentCol_LayerFillDefault ];
     c[ ImGuiCol_TableBorderStrong ]     = fc[ ImFluentCol_DividerStrokeDefault ];
     c[ ImGuiCol_TableBorderLight ]      = fc[ ImFluentCol_DividerStrokeDefault ];
@@ -3523,7 +3542,7 @@ bool ImFluent::PasswordBox( const char * label, char * buf, size_t buf_size, con
     const float inset            = FluentDpx( style.SpacingXSmall );
     const ImRect btn_pred( ImVec2( input_predicted.Max.x - reveal_w - inset, input_predicted.Min.y + inset ), ImVec2( input_predicted.Max.x - inset, input_predicted.Max.y - inset ) );
 
-    const bool hov  = ImGui::IsMouseHoveringRect( btn_pred.Min, btn_pred.Max );
+    const bool hov  = IsMouseOverWindowRect( btn_pred );
     const bool held = hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
 
     // WinUI PasswordBox: Alt+F8 (ImFluentActions::RevealPassword) shows the password while the key is held.
@@ -3629,7 +3648,7 @@ bool ImFluent::NumberBox( const char * label, double * v, double step, double st
     ImDrawList * dl = w->DrawList;
     const float r   = FluentDpx( style.ControlCornerRadius );
 
-    ImGui::PushItemFlag( ImGuiItemFlags_ButtonRepeat, true );
+    ImGui::PushItemFlag( ImGuiItemFlags_ButtonRepeat, g_Ctx.Actions.RepeatStepButtons );
 
     struct SpinBtn
     {
@@ -3824,7 +3843,7 @@ bool ImFluent::AutoSuggestBox( const char * label, char * buf, size_t buf_size, 
     // and the Selectable that the user clicked never renders — swallowing the click.
     // The Selectable's own pressed-handler will commit and call CloseCurrentPopup.
     const bool click_in_popup = mouse_clicked && mouse_over_popup;
-    const bool click_in_input = mouse_clicked && ImGui::IsMouseHoveringRect( input_rect.Min, input_rect.Max, false );
+    const bool click_in_input = mouse_clicked && IsMouseOverWindowRect( input_rect );
     // Click landed outside both input and popup — we own the dismiss because the
     // popup uses NoFocusOnAppearing + NoNav, so ImGui's own ClosePopupsOverWindow
     // doesn't fire when the click stays within the parent window.
@@ -5328,7 +5347,7 @@ bool ImFluent::ComboBox( const char * label, int * current_item, const char * co
     const bool popup_open = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
     ReportItemInfo( id, label, OpenedFlags( popup_open ) );
 
-    const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
+    const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && IsMouseOverWindowRect( bb );
     const bool nav_activate = ( gctx.NavActivateId == id );
     // WinUI ComboBox also opens with Alt+Down and F4.
     const bool key_open     = !popup_open && !disabled && ( IsFocusedItemChordPressed( id, g_Ctx.Actions.TogglePopup, false ) || IsFocusedItemChordPressed( id, g_Ctx.Actions.OpenPopup, false ) );
@@ -6049,7 +6068,7 @@ bool ImFluent::PagerControl( const char * id, int * current_page, int total_page
             return;
         if ( b.vis == ImFluentPagerButtonVisibility_HiddenOnEdge && !b.enabled )
             return;
-        if ( RenderPagerButton( b.id, b.name, b.glyph, btn_sz, b.enabled, true, false ) )
+        if ( RenderPagerButton( b.id, b.name, b.glyph, btn_sz, b.enabled, g_Ctx.Actions.RepeatStepButtons, false ) )
         {
             *current_page = b.target_page;
             changed       = true;
@@ -7015,7 +7034,7 @@ bool ImFluent::BeginMenuBarItem( const char * label )
     // A click on the open menu's own item closes it: ImGui already closed the popup on the click outside it.
     bool want_open      = ( pressed && !open && !was_open ) || ( key_open && !open );
     // The pointer over another menu while one is open switches to it.
-    if ( !open && mb.PrevOpenIndex >= 0 && !was_open && ImGui::IsMouseHoveringRect( bb.Min, bb.Max ) && ( g.IO.MouseDelta.x != 0.f || g.IO.MouseDelta.y != 0.f ) )
+    if ( !open && mb.PrevOpenIndex >= 0 && !was_open && IsMouseOverWindowRect( bb, ImGuiHoveredFlags_AllowWhenBlockedByPopup ) && ( g.IO.MouseDelta.x != 0.f || g.IO.MouseDelta.y != 0.f ) )
         want_open = true;
     if ( want_open )
     {
@@ -7611,7 +7630,7 @@ namespace ImFluent
                 const ImRect top_bb( wp, ImVec2( wp.x + ws.x, wp.y + row_h ) );
                 const bool top_hov     = ImGui::IsMouseHoveringRect( top_bb.Min, top_bb.Max, false );
                 const bool top_held    = top_hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
-                const bool top_clicked = top_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, true );
+                const bool top_clicked = top_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, g_Ctx.Actions.RepeatStepButtons );
                 RenderSpinnerChevronButton( dl, top_bb, ImGuiDir_Up, top_hov, top_held );
                 if ( top_clicked )
                     new_index = ImMax( 0, new_index - 1 );
@@ -7621,7 +7640,7 @@ namespace ImFluent
                 const ImRect bot_bb( ImVec2( wp.x, wp.y + ws.y - row_h ), ImVec2( wp.x + ws.x, wp.y + ws.y ) );
                 const bool bot_hov     = ImGui::IsMouseHoveringRect( bot_bb.Min, bot_bb.Max, false );
                 const bool bot_held    = bot_hov && ImGui::IsMouseDown( ImGuiMouseButton_Left );
-                const bool bot_clicked = bot_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, true );
+                const bool bot_clicked = bot_hov && ImGui::IsMouseClicked( ImGuiMouseButton_Left, g_Ctx.Actions.RepeatStepButtons );
                 RenderSpinnerChevronButton( dl, bot_bb, ImGuiDir_Down, bot_hov, bot_held );
                 if ( bot_clicked )
                     new_index = ImMin( count - 1, new_index + 1 );
@@ -7767,7 +7786,7 @@ namespace ImFluent
     {
         ImGuiContext & gctx     = *ImGui::GetCurrentContext();
         const bool popup_open   = ImGui::IsPopupOpen( popup_id, ImGuiPopupFlags_None );
-        const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && ImGui::IsMouseHoveringRect( bb.Min, bb.Max, false );
+        const bool click_in_bb  = ImGui::IsMouseClicked( ImGuiMouseButton_Left ) && IsMouseOverWindowRect( bb );
         const bool nav_activate = ( gctx.NavActivateId == trig_id );
         const bool key_open     = alt_arrows_open && !popup_open && ( IsFocusedItemChordPressed( trig_id, g_Ctx.Actions.PickerOpenCommit, false ) || IsFocusedItemChordPressed( trig_id, g_Ctx.Actions.PickerOpenCommitAlt, false ) );
         const bool toggle       = ( click_in_bb || nav_activate || key_open ) && !disabled;
@@ -8410,7 +8429,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     {
         const ImVec2 cv_size = CalendarViewCalcSize();
         const ImRect cv_bb( hdr_origin, ImVec2( hdr_origin.x + cv_size.x, hdr_origin.y + cv_size.y ) );
-        if ( ImGui::IsMouseHoveringRect( cv_bb.Min, cv_bb.Max, false ) )
+        if ( IsMouseOverWindowRect( cv_bb ) )
         {
             ImGui::SetKeyOwner( ImGuiKey_MouseWheelY, scope_id );
         }
@@ -8507,6 +8526,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
     const float prev_x = hdr_origin.x + grid_w - chev_btn_w * 2.f;
     const float next_x = hdr_origin.x + grid_w - chev_btn_w;
 
+    ImGui::PushItemFlag( ImGuiItemFlags_ButtonRepeat, g_Ctx.Actions.RepeatStepButtons );
     ImGui::SetCursorScreenPos( ImVec2( prev_x, chev_y ) );
     if ( RenderPickerActionButton( ImFluentIcon_ChevronUpMed "##prev", "Previous", ImVec2( chev_btn_w, chev_btn_w ) ) )
     {
@@ -8549,6 +8569,7 @@ bool ImFluent::CalendarView( const char * id, ImFluentDate * date, const ImFluen
             view_y += 10;
         }
     }
+    ImGui::PopItemFlag();
 
     {
         const float div_y = hdr_origin.y + header_h - 1.f;
@@ -9166,7 +9187,7 @@ static bool FlipViewButton( const char * str_id, const char * name, const ImRect
     ImGuiWindow * w             = ImGui::GetCurrentWindow();
     const ImFluentStyle & style = ImFluent::GetStyle();
     const ImGuiID id            = w->GetID( str_id );
-    if ( !ImGui::ItemAdd( bb, id, NULL, ImGuiItemFlags_NoNav ) )
+    if ( !ImGui::ItemAdd( bb, id, NULL, ImGuiItemFlags_NoNav | ( g_Ctx.Actions.RepeatStepButtons ? ImGuiItemFlags_ButtonRepeat : 0 ) ) )
         return false;
     bool hov = false, held = false;
     const bool pressed = ImGui::ButtonBehavior( bb, id, &hov, &held );
